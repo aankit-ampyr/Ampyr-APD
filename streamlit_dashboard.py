@@ -15,6 +15,7 @@ import sys
 # Add src directory to path for imports
 sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 import digital_twin_config as config
+from pages.data_quality import show_data_quality_page
 
 # Configure data directory
 DATA_DIR = os.path.join(os.path.dirname(__file__), 'data')
@@ -28,9 +29,27 @@ st.set_page_config(
     layout="wide"
 )
 
+# Available months configuration
+AVAILABLE_MONTHS = {
+    "September 2025": {
+        "bess_file": "BESS_Sept_2025_converted.csv",
+        "northwold_file": "Northwold_Sep_2025_converted.csv",
+        "master_file": "Master_BESS_Analysis_Sept_2025.csv",
+        "optimization_file": "Optimized_Results_Sept_2025.csv",
+        "use_master": False,  # September uses separate files
+    },
+    "October 2025": {
+        "bess_file": None,
+        "northwold_file": None,
+        "master_file": "Master_BESS_Analysis_Oct_2025.csv",
+        "optimization_file": "Optimized_Results_Oct_2025.csv",
+        "use_master": True,  # October uses merged Master file
+    },
+}
+
 @st.cache_data
 def load_data():
-    """Load and cache the CSV files"""
+    """Load and cache the CSV files (legacy - September only)"""
     try:
         bess_df = pd.read_csv(os.path.join(DATA_DIR, 'BESS_Sept_2025_converted.csv'))
         northwold_df = pd.read_csv(os.path.join(DATA_DIR, 'Northwold_Sep_2025_converted.csv'))
@@ -42,6 +61,71 @@ def load_data():
         return bess_df, northwold_df
     except Exception as e:
         st.error(f"Error loading data: {str(e)}")
+        return None, None
+
+@st.cache_data
+def load_month_data(month: str):
+    """Load data for selected month - handles both separate files and Master format"""
+    config = AVAILABLE_MONTHS.get(month)
+    if not config:
+        st.error(f"Unknown month: {month}")
+        return None, None
+
+    try:
+        if config["use_master"]:
+            # Load merged Master file
+            master_df = pd.read_csv(os.path.join(DATA_DIR, config["master_file"]))
+
+            # Parse timestamp
+            if 'Timestamp' in master_df.columns:
+                master_df['Timestamp'] = pd.to_datetime(master_df['Timestamp'])
+            elif 'Unnamed: 0' in master_df.columns:
+                master_df['Timestamp'] = pd.to_datetime(master_df['Unnamed: 0'])
+                master_df = master_df.drop(columns=['Unnamed: 0'])
+
+            # Create compatible bess_df from Master file (SCADA columns)
+            bess_df = pd.DataFrame()
+            bess_df['date'] = master_df['Timestamp']
+
+            # Map power column (different naming in different files)
+            if 'Power_MW' in master_df.columns:
+                bess_df['Power'] = master_df['Power_MW']
+            elif 'Physical_Power_MW' in master_df.columns:
+                bess_df['Power'] = master_df['Physical_Power_MW']
+            else:
+                bess_df['Power'] = 0
+
+            # Map SOC column
+            if 'SOC' in master_df.columns:
+                bess_df['SOC'] = master_df['SOC']
+            elif 'Physical_SoC' in master_df.columns:
+                bess_df['SOC'] = master_df['Physical_SoC']
+            else:
+                bess_df['SOC'] = 50  # Default
+
+            # Frequency if available
+            if 'Frequency' in master_df.columns:
+                bess_df['Frequency'] = master_df['Frequency']
+            else:
+                bess_df['Frequency'] = 50.0  # Default grid frequency
+
+            # northwold_df is the Master file with GridBeyond data
+            northwold_df = master_df.copy()
+
+            return bess_df, northwold_df
+        else:
+            # Load separate files (September format)
+            bess_df = pd.read_csv(os.path.join(DATA_DIR, config["bess_file"]))
+            northwold_df = pd.read_csv(os.path.join(DATA_DIR, config["northwold_file"]))
+
+            # Convert timestamps
+            bess_df['date'] = pd.to_datetime(bess_df['date'], format='%d/%m/%Y %H:%M:%S')
+            northwold_df['Timestamp'] = pd.to_datetime(northwold_df['Timestamp'], format='%d-%m-%Y %H:%M')
+
+            return bess_df, northwold_df
+
+    except Exception as e:
+        st.error(f"Error loading data for {month}: {str(e)}")
         return None, None
 
 def analyze_bess_data(bess_df):
@@ -186,9 +270,9 @@ def show_asset_details():
         st.metric("Maximum Daily Cycles", f"{config.CYCLES_PER_DAY} cycles/day",
                  help="Warranty limit on daily cycling")
 
-def show_operations_summary(bess_df, northwold_df, bess_analysis, northwold_analysis):
-    """Display September 2025 operations summary"""
-    st.title("📊 September 2025 Operations Summary")
+def show_operations_summary(bess_df, northwold_df, bess_analysis, northwold_analysis, month: str = "September 2025"):
+    """Display monthly operations summary"""
+    st.title(f"📊 {month} Operations Summary")
 
     # Create tabs for the operations summary
     tab1, tab2 = st.tabs(["💰 Trading Analysis", "📈 Visualizations"])
@@ -352,23 +436,29 @@ def show_operations_summary(bess_df, northwold_df, bess_analysis, northwold_anal
         st.plotly_chart(fig, use_container_width=True)
 
 
-def show_multimarket_optimization():
+def show_multimarket_optimization(month: str = "September 2025"):
     """Display multi-market optimization results"""
-    st.title("🚀 Multi-Market Optimization Analysis")
+    st.title(f"🚀 Multi-Market Optimization Analysis - {month}")
     st.markdown("### Enhanced Trading Strategy with Cross-Market Arbitrage")
+
+    # Get month-specific file paths
+    month_config = AVAILABLE_MONTHS.get(month, AVAILABLE_MONTHS["September 2025"])
+    optimization_file = month_config.get("optimization_file", "Optimized_Results_MultiMarket.csv")
+    master_file = month_config.get("master_file", "Master_BESS_Analysis_Sept_2025.csv")
 
     # Check if multi-market results exist
     try:
-        multi_df = pd.read_csv(os.path.join(DATA_DIR, 'Optimized_Results_MultiMarket.csv'))
+        multi_df = pd.read_csv(os.path.join(DATA_DIR, optimization_file))
         multi_df['Timestamp'] = pd.to_datetime(multi_df['Timestamp'])
     except:
-        st.warning("Multi-market results not found. Please run phase3_multimarket.py first.")
+        st.warning(f"Multi-market results not found for {month}. Click below to generate.")
         if st.button("Run Multi-Market Optimization"):
             with st.spinner("Running optimization... This may take a minute."):
                 from src import phase3_multimarket
-                multi_df = phase3_multimarket.run_phase_3_multimarket(os.path.join(DATA_DIR, 'Master_BESS_Analysis_Sept_2025.csv'))
-                st.success("Optimization complete!")
-                st.experimental_rerun()
+                multi_df = phase3_multimarket.run_phase_3_multimarket(os.path.join(DATA_DIR, master_file))
+                multi_df.to_csv(os.path.join(DATA_DIR, optimization_file), index=False)
+                st.success(f"Optimization complete! Results saved to {optimization_file}")
+                st.rerun()
         return
 
     # Summary metrics
@@ -407,92 +497,179 @@ def show_multimarket_optimization():
         help="Choose which strategy's market utilization to display"
     )
 
+    # Initialize variables for volume and revenue tracking
+    market_usage = pd.Series()
+    market_revenue = pd.Series()
+    chart_title = "No Data Available"
+
     # Determine which column to use based on selection
     if strategy_option == "Multi-Market":
         if 'Market_Used_Multi' in multi_df.columns:
             market_usage = multi_df['Market_Used_Multi'].value_counts()
-            chart_title = "Market Activity Distribution (Multi-Market Strategy)"
+            # Calculate revenue by market
+            if 'Optimised_Revenue_Multi' in multi_df.columns:
+                market_revenue = multi_df.groupby('Market_Used_Multi')['Optimised_Revenue_Multi'].sum()
+            chart_title = "Multi-Market Strategy"
         else:
             st.warning("Multi-Market data not available")
-            market_usage = pd.Series()
-            chart_title = "No Data Available"
 
     elif strategy_option == "EPEX-only (Daily)":
         if 'Strategy_Selected_Daily' in multi_df.columns:
-            # For EPEX daily, show SFFR vs EPEX distribution
             market_usage = multi_df['Strategy_Selected_Daily'].value_counts()
-            chart_title = "Strategy Distribution (EPEX-only Daily)"
+            if 'Optimised_Revenue_Daily' in multi_df.columns:
+                market_revenue = multi_df.groupby('Strategy_Selected_Daily')['Optimised_Revenue_Daily'].sum()
+            chart_title = "EPEX-only (Daily) Strategy"
         else:
             st.warning("EPEX Daily data not available")
-            market_usage = pd.Series()
-            chart_title = "No Data Available"
 
     elif strategy_option == "EPEX-only (EFA)":
         if 'Strategy_Selected_EFA' in multi_df.columns:
-            # For EPEX EFA, show SFFR vs EPEX distribution per block
             market_usage = multi_df['Strategy_Selected_EFA'].value_counts()
-            chart_title = "Strategy Distribution (EPEX-only EFA)"
+            if 'Optimised_Revenue_EFA' in multi_df.columns:
+                market_revenue = multi_df.groupby('Strategy_Selected_EFA')['Optimised_Revenue_EFA'].sum()
+            chart_title = "EPEX-only (EFA) Strategy"
         else:
             st.warning("EPEX EFA data not available")
-            market_usage = pd.Series()
-            chart_title = "No Data Available"
 
     else:  # Actual
-        # For actual operation, we need to load the master file
+        # For actual operation, derive market usage AND revenue from revenue columns
         try:
-            master_df = pd.read_csv(os.path.join(DATA_DIR, 'Master_BESS_Analysis_Sept_2025.csv'))
-            if 'Unnamed: 0' in master_df.columns:
-                master_df.rename(columns={'Unnamed: 0': 'Timestamp'}, inplace=True)
+            actual_master_df = pd.read_csv(os.path.join(DATA_DIR, master_file))
+            if 'Unnamed: 0' in actual_master_df.columns:
+                actual_master_df.rename(columns={'Unnamed: 0': 'Timestamp'}, inplace=True)
 
-            # Analyze actual operation
-            actual_col = None
-            for col in master_df.columns:
+            # Find power column for buy/sell direction
+            power_col = None
+            for col in actual_master_df.columns:
                 if 'Battery MWh' in col and 'Output' in col:
-                    actual_col = col
+                    power_col = col
                     break
 
-            if actual_col:
-                # Create operation categories based on actual power
-                operation_categories = []
-                for val in master_df[actual_col]:
-                    if val > 0.1:
-                        operation_categories.append('Discharging')
-                    elif val < -0.1:
-                        operation_categories.append('Charging')
+            # Track both market assignment and revenue per market
+            actual_markets = []
+            actual_revenues = []
+
+            for idx, row in actual_master_df.iterrows():
+                market = 'Idle'
+                revenue = 0.0
+                power_val = row.get(power_col, 0) if power_col else 0
+
+                # Helper to safely get numeric value (handles NaN)
+                def safe_get(r, col, default=0):
+                    val = r.get(col, default)
+                    return default if pd.isna(val) else val
+
+                # Check trading markets first (actual energy traded)
+                epex_rev = safe_get(row, 'EPEX 30 DA Revenue', 0) + safe_get(row, 'EPEX DA Revenues', 0)
+                ida1_rev = safe_get(row, 'IDA1 Revenue', 0)
+                idc_rev = safe_get(row, 'IDC Revenue', 0)
+                imb_rev = safe_get(row, 'Imbalance Revenue', 0) - abs(safe_get(row, 'Imbalance Charge', 0))
+                sffr_rev = safe_get(row, 'SFFR revenues', 0)
+
+                # Check EPEX markets
+                if abs(epex_rev) > 0.01:
+                    if power_val > 0.1:
+                        market = 'Sell-EPEX'
+                    elif power_val < -0.1:
+                        market = 'Buy-EPEX'
                     else:
-                        operation_categories.append('Idle')
-                market_usage = pd.Series(operation_categories).value_counts()
-                chart_title = "Actual Operation Distribution"
-            else:
-                st.warning("Actual operation data not found")
-                market_usage = pd.Series()
-                chart_title = "No Data Available"
+                        market = 'EPEX'
+                    revenue = epex_rev
+                # Check IDA1
+                elif abs(ida1_rev) > 0.01:
+                    if power_val > 0.1:
+                        market = 'Sell-IDA1'
+                    elif power_val < -0.1:
+                        market = 'Buy-IDA1'
+                    else:
+                        market = 'IDA1'
+                    revenue = ida1_rev
+                # Check IDC
+                elif abs(idc_rev) > 0.01:
+                    if power_val > 0.1:
+                        market = 'Sell-IDC'
+                    elif power_val < -0.1:
+                        market = 'Buy-IDC'
+                    else:
+                        market = 'IDC'
+                    revenue = idc_rev
+                # Check Imbalance
+                elif abs(row.get('Imbalance Revenue', 0)) > 0.01 or abs(row.get('Imbalance Charge', 0)) > 0.01:
+                    market = 'Imbalance'
+                    revenue = imb_rev
+                # Check SFFR (availability payment)
+                elif abs(sffr_rev) > 0.01:
+                    market = 'SFFR'
+                    revenue = sffr_rev
+                # Default - check physical operation without identified market
+                elif power_col and abs(power_val) > 0.1:
+                    if power_val > 0:
+                        market = 'Discharging (Unknown)'
+                    else:
+                        market = 'Charging (Unknown)'
+
+                actual_markets.append(market)
+                actual_revenues.append(revenue)
+
+            # Create DataFrame for aggregation
+            actual_df = pd.DataFrame({'market': actual_markets, 'revenue': actual_revenues})
+            market_usage = actual_df['market'].value_counts()
+            market_revenue = actual_df.groupby('market')['revenue'].sum()
+            chart_title = "Actual (GridBeyond)"
+
         except Exception as e:
             st.warning(f"Could not load actual data: {str(e)}")
-            market_usage = pd.Series()
-            chart_title = "No Data Available"
 
     # Display the visualization if we have data
     if not market_usage.empty:
+        # Two pie charts: Volume and Revenue
         col1, col2 = st.columns(2)
 
         with col1:
-            # Market usage pie chart
-            fig_pie = px.pie(
+            # Volume pie chart
+            fig_volume = px.pie(
                 values=market_usage.values[:10],
                 names=market_usage.index[:10],
-                title=chart_title
+                title=f"📊 Volume (Periods) - {chart_title}"
             )
-            st.plotly_chart(fig_pie, use_container_width=True)
+            fig_volume.update_traces(textposition='inside', textinfo='percent+label')
+            st.plotly_chart(fig_volume, use_container_width=True)
 
         with col2:
-            # Market statistics table
-            market_stats = pd.DataFrame({
-                'Market/Action': market_usage.index[:10],
-                'Periods': market_usage.values[:10],
-                'Percentage': (market_usage.values[:10] / len(multi_df) * 100).round(1)
-            })
-            st.dataframe(market_stats, use_container_width=True, hide_index=True)
+            # Revenue pie chart
+            if not market_revenue.empty:
+                # Handle negative values for pie chart (show absolute, note negatives)
+                rev_for_pie = market_revenue.abs()
+                fig_revenue = px.pie(
+                    values=rev_for_pie.values[:10],
+                    names=rev_for_pie.index[:10],
+                    title=f"💰 Revenue (£) - {chart_title}"
+                )
+                fig_revenue.update_traces(textposition='inside', textinfo='percent+label')
+                st.plotly_chart(fig_revenue, use_container_width=True)
+            else:
+                st.info("Revenue data not available for this strategy")
+
+        # Combined statistics table
+        st.markdown("**Market Statistics**")
+
+        # Build table with both volume and revenue
+        table_data = {
+            'Market': market_usage.index[:10],
+            'Periods': market_usage.values[:10],
+            '% of Time': (market_usage.values[:10] / len(multi_df) * 100).round(1)
+        }
+
+        if not market_revenue.empty:
+            # Align revenue with market_usage index
+            revenue_values = [market_revenue.get(m, 0) for m in market_usage.index[:10]]
+            table_data['Revenue (£)'] = [f"£{v:,.2f}" for v in revenue_values]
+            total_rev = sum(revenue_values)
+            table_data['% of Revenue'] = [(v / total_rev * 100 if total_rev != 0 else 0) for v in revenue_values]
+            table_data['% of Revenue'] = [f"{v:.1f}%" for v in table_data['% of Revenue']]
+
+        market_stats = pd.DataFrame(table_data)
+        st.dataframe(market_stats, use_container_width=True, hide_index=True)
 
     # Price spread analysis
     st.subheader("📈 Market Price Spreads")
@@ -597,26 +774,31 @@ def show_multimarket_optimization():
         - Average spread captured: £{multi_df['Market_Spread'].mean():.2f}/MWh
         """)
 
-def show_bess_health():
+def show_bess_health(month: str = "September 2025"):
     """Display BESS health analysis - cycles and degradation"""
-    st.title("🔋 BESS Health Analysis")
+    st.title(f"🔋 BESS Health Analysis - {month}")
     st.markdown("### Battery Cycling and Degradation Assessment")
+
+    # Get month-specific file paths
+    month_config = AVAILABLE_MONTHS.get(month, AVAILABLE_MONTHS["September 2025"])
+    master_file = month_config.get("master_file", "Master_BESS_Analysis_Sept_2025.csv")
+    optimization_file = month_config.get("optimization_file", "Optimized_Results_MultiMarket.csv")
 
     # Load required data
     try:
         # Load actual data
-        master_df = pd.read_csv(os.path.join(DATA_DIR, 'Master_BESS_Analysis_Sept_2025.csv'))
+        master_df = pd.read_csv(os.path.join(DATA_DIR, master_file))
         if 'Unnamed: 0' in master_df.columns:
             master_df.rename(columns={'Unnamed: 0': 'Timestamp'}, inplace=True)
         master_df['Timestamp'] = pd.to_datetime(master_df['Timestamp'])
 
         # Load multi-market optimization results
-        multi_df = pd.read_csv(os.path.join(DATA_DIR, 'Optimized_Results_MultiMarket.csv'))
+        multi_df = pd.read_csv(os.path.join(DATA_DIR, optimization_file))
         multi_df['Timestamp'] = pd.to_datetime(multi_df['Timestamp'])
 
     except Exception as e:
-        st.error(f"Error loading data files: {str(e)}")
-        st.info("Please ensure both Master_BESS_Analysis_Sept_2025.csv and Optimized_Results_MultiMarket.csv exist.")
+        st.error(f"Error loading data files for {month}: {str(e)}")
+        st.info(f"Please ensure both {master_file} and {optimization_file} exist. Run optimization first if needed.")
         return
 
     # Constants from config
@@ -625,8 +807,8 @@ def show_bess_health():
     WARRANTY_DEGRADATION_ANNUAL_PCT = 2.5  # Annual degradation at warranty limit
     DEGRADATION_PER_CYCLE_PCT = WARRANTY_DEGRADATION_ANNUAL_PCT / (WARRANTY_CYCLES_DAILY * 365)
 
-    # Calculate number of days
-    num_days = 30  # September data
+    # Calculate number of days from data
+    num_days = (master_df['Timestamp'].max() - master_df['Timestamp'].min()).days + 1
 
     # Find actual battery output column
     actual_col = None
@@ -739,7 +921,7 @@ def show_bess_health():
         st.metric(
             "Analysis Period",
             f"{num_days} days",
-            help="September 2025 data"
+            help=f"{month} data"
         )
 
     # Visualizations
@@ -810,7 +992,7 @@ def show_bess_health():
     ))
 
     fig_discharge.update_layout(
-        title="Total Energy Discharged (September 2025)",
+        title=f"Total Energy Discharged ({month})",
         yaxis_title="Total Discharge (MWh)",
         xaxis_title="Strategy",
         height=400,
@@ -892,33 +1074,43 @@ def show_bess_health():
         - Warranty compliance maintained
         """)
 
-def show_report_page():
+def show_report_page(month: str = "September 2025"):
     """Display comprehensive performance report comparing actual vs multi-market optimization"""
 
     # Header
     st.title("📑 Performance Report")
-    st.markdown("### Northwold BESS Performance Audit - September 2025")
+    st.markdown(f"### Northwold BESS Performance Audit - {month}")
     st.markdown("---")
+
+    # Get month-specific file paths
+    month_config = AVAILABLE_MONTHS.get(month, AVAILABLE_MONTHS["September 2025"])
+    master_file = month_config.get("master_file", "Master_BESS_Analysis_Sept_2025.csv")
+    optimization_file = month_config.get("optimization_file", "Optimized_Results_MultiMarket.csv")
+    northwold_file = month_config.get("northwold_file")
 
     # Load required data
     try:
         # Load actual data
-        master_df = pd.read_csv(os.path.join(DATA_DIR, 'Master_BESS_Analysis_Sept_2025.csv'))
+        master_df = pd.read_csv(os.path.join(DATA_DIR, master_file))
         if 'Unnamed: 0' in master_df.columns:
             master_df.rename(columns={'Unnamed: 0': 'Timestamp'}, inplace=True)
         master_df['Timestamp'] = pd.to_datetime(master_df['Timestamp'])
         master_df['Date'] = master_df['Timestamp'].dt.date
 
         # Load multi-market optimization results
-        multi_df = pd.read_csv(os.path.join(DATA_DIR, 'Optimized_Results_MultiMarket.csv'))
+        multi_df = pd.read_csv(os.path.join(DATA_DIR, optimization_file))
         multi_df['Timestamp'] = pd.to_datetime(multi_df['Timestamp'])
         multi_df['Date'] = multi_df['Timestamp'].dt.date
 
-        # Load northwold data for actual revenues
-        northwold_df = pd.read_csv(os.path.join(DATA_DIR, 'Northwold_Sep_2025_converted.csv'))
+        # Load northwold data for actual revenues (use master file if northwold not available)
+        if northwold_file:
+            northwold_df = pd.read_csv(os.path.join(DATA_DIR, northwold_file))
+        else:
+            northwold_df = master_df  # Master file contains GridBeyond revenue data
 
     except Exception as e:
-        st.error(f"Error loading data files: {str(e)}")
+        st.error(f"Error loading data files for {month}: {str(e)}")
+        st.info(f"Please ensure {master_file} and {optimization_file} exist. Run optimization first if needed.")
         return
 
     # Calculate key metrics using actual column names in Northwold CSV
@@ -954,9 +1146,9 @@ def show_report_page():
 
     with col1:
         st.metric(
-            "Actual Revenue (Sept)",
+            f"Actual Revenue ({month[:3]})",
             f"£{actual_total:,.0f}",
-            help="Total revenue from actual operation in September 2025"
+            help=f"Total revenue from actual operation in {month}"
         )
 
     with col2:
@@ -1127,24 +1319,27 @@ def show_report_page():
             break
 
     if actual_col:
+        # Calculate number of days from data
+        num_days = (master_df['Timestamp'].max() - master_df['Timestamp'].min()).days + 1
+
         # Calculate degradation metrics
         actual_discharge = master_df[master_df[actual_col] > 0][actual_col].sum()
         actual_cycles = actual_discharge / config.CAPACITY_MWH
-        actual_daily_cycles = actual_cycles / 30  # September has 30 days
+        actual_daily_cycles = actual_cycles / num_days
 
         multi_discharge = (multi_df[multi_df['Optimised_Net_MWh_Multi'] > 0]['Optimised_Net_MWh_Multi'].sum())
         multi_cycles = multi_discharge / config.CAPACITY_MWH
-        multi_daily_cycles = multi_cycles / 30
+        multi_daily_cycles = multi_cycles / num_days
 
         # Create comparison table
         degradation_data = pd.DataFrame({
             'Scenario': ['Actual Usage', 'Multi-Market Strategy', 'Warranty Limit'],
-            'Total Discharge (MWh)': [actual_discharge, multi_discharge, config.CYCLES_PER_DAY * 30 * config.CAPACITY_MWH],
+            'Total Discharge (MWh)': [actual_discharge, multi_discharge, config.CYCLES_PER_DAY * num_days * config.CAPACITY_MWH],
             'Avg Cycles/Day': [actual_daily_cycles, multi_daily_cycles, config.CYCLES_PER_DAY],
             'Est. Monthly Degradation': [
                 f"{actual_cycles * 0.0046:.3f}%",
                 f"{multi_cycles * 0.0046:.3f}%",
-                f"{config.CYCLES_PER_DAY * 30 * 0.0046:.3f}%"
+                f"{config.CYCLES_PER_DAY * num_days * 0.0046:.3f}%"
             ],
             'Status': [
                 '✅ Well Below Limit',
@@ -1277,33 +1472,53 @@ def main():
 
     # Sidebar configuration
     st.sidebar.title("🔋 BESS Dashboard")
+
+    # General section (month-independent pages)
+    st.sidebar.markdown("### General")
+    show_asset_page = st.sidebar.button("🏭 Asset Details", use_container_width=True)
+    show_import_page = st.sidebar.button("📥 Data Import", use_container_width=True)
+
     st.sidebar.markdown("---")
 
-    # Navigation menu
+    # Month selector for data-dependent pages
+    st.sidebar.markdown("### 📅 Monthly Analysis")
+    selected_month = st.sidebar.selectbox(
+        "Select Month",
+        list(AVAILABLE_MONTHS.keys()),
+        index=0
+    )
+
+    # Navigation menu for month-dependent pages
     page = st.sidebar.radio(
-        "Navigation",
-        ["🏭 Asset Details", "📊 September 2025 Operations", "🚀 Multi-Market Optimization", "🔋 BESS Health", "📑 Performance Report"],
-        index=1  # Default to operations summary
+        "Pages",
+        ["📊 Operations Summary", "🚀 Multi-Market Optimization", "🔋 BESS Health", "📑 Performance Report"],
+        index=0,  # Default to operations summary
+        label_visibility="collapsed"
     )
 
     st.sidebar.markdown("---")
-    st.sidebar.info("""
+    st.sidebar.info(f"""
     **System:** Northwold Solar Farm
     **Location:** Hall Farm
     **Capacity:** 8.4 MWh
-    **Type:** Battery Energy Storage
     """)
 
-    # Display selected page
-    if page == "🏭 Asset Details":
+    # Display General pages if clicked (these take priority)
+    if show_asset_page:
         show_asset_details()
-    elif page == "📊 September 2025 Operations":
-        # Load data
-        with st.spinner("Loading data..."):
-            bess_df, northwold_df = load_data()
+        return
+    if show_import_page:
+        show_data_quality_page()
+        return
+
+    # Display selected monthly page
+    if page == "📊 Operations Summary":
+        # Load data for selected month
+        with st.spinner(f"Loading {selected_month} data..."):
+            bess_df, northwold_df = load_month_data(selected_month)
 
         if bess_df is None or northwold_df is None:
-            st.error("Failed to load data files. Please ensure both CSV files are in the correct location.")
+            st.error(f"Failed to load data files for {selected_month}. Please ensure CSV files are in the correct location.")
             return
 
         # Perform analysis
@@ -1311,13 +1526,13 @@ def main():
         northwold_analysis = analyze_northwold_data(northwold_df)
 
         # Show operations summary
-        show_operations_summary(bess_df, northwold_df, bess_analysis, northwold_analysis)
+        show_operations_summary(bess_df, northwold_df, bess_analysis, northwold_analysis, month=selected_month)
     elif page == "🚀 Multi-Market Optimization":
-        show_multimarket_optimization()
+        show_multimarket_optimization(selected_month)
     elif page == "🔋 BESS Health":
-        show_bess_health()
+        show_bess_health(selected_month)
     elif page == "📑 Performance Report":
-        show_report_page()
+        show_report_page(selected_month)
 
 if __name__ == "__main__":
     main()
