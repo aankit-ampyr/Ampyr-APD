@@ -1078,6 +1078,8 @@ def show_bess_health(month: str = "September 2025"):
     st.markdown("---")
     st.subheader("📊 Daily Cycles: Actual vs Multi-Market Optimization")
 
+    st.caption("**Calculation:** Daily Cycles = Discharge Energy (MWh) / 8.4 MWh capacity. Warranty limit is 1.5 cycles/day (547/year).")
+
     # Calculate daily cycles for each day
     master_df['Date'] = master_df['Timestamp'].dt.date
     multi_df['Date'] = multi_df['Timestamp'].dt.date
@@ -1151,13 +1153,17 @@ def show_bess_health(month: str = "September 2025"):
     # Summary stats
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        st.metric("Actual Avg Daily Cycles", f"{daily_cycles_df['Actual_Cycles'].mean():.3f}")
+        st.metric("Actual Avg Daily Cycles", f"{daily_cycles_df['Actual_Cycles'].mean():.3f}",
+                 help="Average cycles/day = Total discharge MWh / 8.4 MWh capacity / days")
     with col2:
-        st.metric("Multi-Market Avg Daily", f"{daily_cycles_df['Multi_Cycles'].mean():.3f}")
+        st.metric("Multi-Market Avg Daily", f"{daily_cycles_df['Multi_Cycles'].mean():.3f}",
+                 help="Simulated daily cycles under multi-market optimization strategy")
     with col3:
-        st.metric("Actual Max Day", f"{daily_cycles_df['Actual_Cycles'].max():.3f}")
+        st.metric("Actual Max Day", f"{daily_cycles_df['Actual_Cycles'].max():.3f}",
+                 help="Highest single-day cycling for actual GridBeyond operation")
     with col4:
-        st.metric("Multi-Market Max Day", f"{daily_cycles_df['Multi_Cycles'].max():.3f}")
+        st.metric("Multi-Market Max Day", f"{daily_cycles_df['Multi_Cycles'].max():.3f}",
+                 help="Highest single-day cycling for simulated multi-market strategy")
 
     # ==================== NEW SECTION: WARRANTY EXCEEDANCE TABLE ====================
     st.markdown("---")
@@ -1717,7 +1723,8 @@ def show_executive_comparison():
             "Sept Actual",
             f"£{sept_actual['total']:,.0f}",
             delta=f"{sept_capture:.1f}% captured",
-            delta_color="off"
+            delta_color="off",
+            help="Actual revenue from GridBeyond operations. Capture % = Actual/Optimal."
         )
 
     with col2:
@@ -1725,7 +1732,8 @@ def show_executive_comparison():
             "Sept Optimal",
             f"£{sept_optimal:,.0f}",
             delta=f"Gap: £{sept_gap:,.0f}",
-            delta_color="inverse"
+            delta_color="inverse",
+            help="Simulated maximum using multi-market optimization with perfect price foresight. Gap = Optimal - Actual."
         )
 
     with col3:
@@ -1733,7 +1741,8 @@ def show_executive_comparison():
             "Oct Actual",
             f"£{oct_actual['total']:,.0f}",
             delta=f"{oct_capture:.1f}% captured",
-            delta_color="off"
+            delta_color="off",
+            help="Actual revenue from GridBeyond operations. Capture % = Actual/Optimal."
         )
 
     with col4:
@@ -1741,7 +1750,8 @@ def show_executive_comparison():
             "Oct Optimal",
             f"£{oct_optimal:,.0f}",
             delta=f"Gap: £{oct_gap:,.0f}",
-            delta_color="inverse"
+            delta_color="inverse",
+            help="Simulated maximum using multi-market optimization with perfect price foresight. Gap = Optimal - Actual."
         )
 
     # Month-over-month improvement
@@ -1779,6 +1789,8 @@ def show_executive_comparison():
 
     # ==================== SECTION 3: GAP ANALYSIS TABLE ====================
     st.header("3️⃣ Performance Gap Analysis")
+
+    st.caption("**Methodology:** Gap = Optimal - Actual. Optimal uses hindsight-based multi-market simulation. Trend shows 'pp' (percentage points) for absolute % changes.")
 
     # Calculate trends
     gap_reduction = ((sept_gap - oct_gap) / sept_gap * 100) if sept_gap != 0 else 0
@@ -1950,13 +1962,17 @@ def show_market_price_analysis(month: str = "September 2025"):
     sbp_prices = pd.to_numeric(df['SBP'], errors='coerce').dropna()
 
     with col1:
-        st.metric("EPEX DA Avg", f"£{epex_prices.mean():.2f}/MWh")
+        st.metric("EPEX DA Avg", f"£{epex_prices.mean():.2f}/MWh",
+                 help="Average Day Ahead price across all 30-min periods")
     with col2:
-        st.metric("EPEX DA Max", f"£{epex_prices.max():.2f}/MWh")
+        st.metric("EPEX DA Max", f"£{epex_prices.max():.2f}/MWh",
+                 help="Highest Day Ahead price in the month - best selling opportunity")
     with col3:
-        st.metric("SSP Max", f"£{ssp_prices.max():.2f}/MWh")
+        st.metric("SSP Max", f"£{ssp_prices.max():.2f}/MWh",
+                 help="Highest System Sell Price - max price grid pays you to export")
     with col4:
-        st.metric("SBP Max", f"£{sbp_prices.max():.2f}/MWh")
+        st.metric("SBP Max", f"£{sbp_prices.max():.2f}/MWh",
+                 help="Highest System Buy Price - worst price to buy from grid")
 
     st.markdown("---")
 
@@ -2137,7 +2153,8 @@ def show_market_price_analysis(month: str = "September 2025"):
             st.metric("Idle During High Spread", f"{missed_periods} periods",
                      help="30-min periods where battery was idle but spreads were high")
         with col2:
-            st.metric("Missed Hours", f"{missed_hours:.1f} hours")
+            st.metric("Missed Hours", f"{missed_hours:.1f} hours",
+                     help="Total hours idle during high-spread windows (periods × 0.5)")
         with col3:
             st.metric("Est. Missed Revenue", f"£{estimated_missed_revenue:,.0f}",
                      help="Conservative estimate of potential additional revenue")
@@ -2225,16 +2242,20 @@ def show_imbalance_deep_dive(month: str = "September 2025"):
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.metric("Imbalance Revenue", f"£{total_revenue:,.0f}",
-                 delta=f"{periods_with_revenue} periods", delta_color="off")
+                 delta=f"{periods_with_revenue} periods", delta_color="off",
+                 help="Revenue earned from imbalance market positions")
     with col2:
         st.metric("Imbalance Charges", f"£{total_charge:,.0f}",
-                 delta=f"{periods_with_charge} periods", delta_color="off")
+                 delta=f"{periods_with_charge} periods", delta_color="off",
+                 help="Penalties paid for imbalance positions")
     with col3:
         color = "normal" if net_imbalance >= 0 else "inverse"
         st.metric("Net Imbalance", f"£{net_imbalance:,.0f}",
-                 delta="Profit" if net_imbalance >= 0 else "Loss", delta_color=color)
+                 delta="Profit" if net_imbalance >= 0 else "Loss", delta_color=color,
+                 help="Revenue - Charges. Negative = net loss from imbalance")
     with col4:
-        st.metric("% of Periods with Charges", f"{periods_with_charge/len(df)*100:.1f}%")
+        st.metric("% of Periods with Charges", f"{periods_with_charge/len(df)*100:.1f}%",
+                 help="% of 30-min settlement periods that incurred charges")
 
     if net_imbalance < 0:
         st.error(f"⚠️ **Critical:** Net imbalance loss of **£{abs(net_imbalance):,.0f}** this month")
@@ -2330,13 +2351,16 @@ def show_imbalance_deep_dive(month: str = "September 2025"):
 
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.metric("Avg SSP/SBP Spread (All)", f"£{avg_spread_overall:.2f}/MWh")
+            st.metric("Avg SSP/SBP Spread (All)", f"£{avg_spread_overall:.2f}/MWh",
+                     help="Average system price spread across all periods")
         with col2:
             st.metric("Avg Spread (During Charges)", f"£{avg_spread_during_charge:.2f}/MWh",
-                     delta=f"{avg_spread_during_charge - avg_spread_overall:+.2f}")
+                     delta=f"{avg_spread_during_charge - avg_spread_overall:+.2f}",
+                     help="Average spread when charges occurred vs overall")
         with col3:
             correlation = charged_periods['Imbalance Charge'].corr(charged_periods['SSP_SBP_Spread'])
-            st.metric("Charge-Spread Correlation", f"{correlation:.2f}")
+            st.metric("Charge-Spread Correlation", f"{correlation:.2f}",
+                     help="How charges relate to price volatility (-1 to +1). High = charges during volatile periods")
 
         # Scatter plot: charge vs spread
         fig = px.scatter(
@@ -2476,18 +2500,22 @@ def show_ancillary_services_analysis(month: str = "September 2025"):
 
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        st.metric("Total Ancillary Revenue", f"£{total_ancillary:,.0f}")
+        st.metric("Total Ancillary Revenue", f"£{total_ancillary:,.0f}",
+                 help="Sum of all frequency response service revenues (SFFR, DC, DM, DR)")
     with col2:
         if top_service is not None:
             st.metric("Top Service", top_service['Service'],
-                     delta=f"£{top_service['Total Revenue']:,.0f}")
+                     delta=f"£{top_service['Total Revenue']:,.0f}",
+                     help="Service generating most revenue this month")
     with col3:
         services_used = (metrics_df['Total Revenue'] > 0).sum()
-        st.metric("Services Used", f"{services_used} / {len(services)}")
+        st.metric("Services Used", f"{services_used} / {len(services)}",
+                 help="Number of different services with non-zero revenue")
     with col4:
         if top_service is not None:
             share = top_service['Total Revenue'] / total_ancillary * 100 if total_ancillary > 0 else 0
-            st.metric("Top Service Share", f"{share:.0f}%")
+            st.metric("Top Service Share", f"{share:.0f}%",
+                     help="% of total ancillary revenue from top service")
 
     st.markdown("---")
 
@@ -2593,13 +2621,16 @@ def show_ancillary_services_analysis(month: str = "September 2025"):
 
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.metric("Current Avg Rate", f"£{current_rate:.2f}/MW-h")
+            st.metric("Current Avg Rate", f"£{current_rate:.2f}/MW-h",
+                     help="Actual revenue / MW-hours committed across all services")
         with col2:
-            st.metric("Best Service Rate", f"£{most_efficient_rate:.2f}/MW-h")
+            st.metric("Best Service Rate", f"£{most_efficient_rate:.2f}/MW-h",
+                     help="Highest £/MW-hour achieved by any single service")
         with col3:
             st.metric("Opportunity Cost", f"£{opportunity_cost:,.0f}",
                      delta="Potential additional revenue" if opportunity_cost > 0 else "Optimal mix achieved",
-                     delta_color="inverse" if opportunity_cost > 0 else "normal")
+                     delta_color="inverse" if opportunity_cost > 0 else "normal",
+                     help="Theoretical gain if all capacity went to best service (ignores market constraints)")
 
         if opportunity_cost > 0:
             st.warning(f"""
@@ -2919,6 +2950,32 @@ def main():
     **Location:** Hall Farm
     **Capacity:** 8.4 MWh
     """)
+
+    # Glossary of terms
+    with st.sidebar.expander("📖 Glossary"):
+        st.markdown("""
+**Markets:**
+- **EPEX** - European Power Exchange (Day Ahead)
+- **IDA1** - Intraday Auction 1
+- **IDC** - Intraday Continuous
+- **SSP** - System Sell Price (grid pays you)
+- **SBP** - System Buy Price (you pay grid)
+
+**Ancillary Services:**
+- **SFFR** - Static Firm Frequency Response
+- **DC** - Dynamic Containment (L=Low, H=High)
+- **DM** - Dynamic Moderation (L=Low, H=High)
+- **DR** - Dynamic Regulation (L=Low, H=High)
+
+**Other Terms:**
+- **EFA** - Electricity Forward Agreement (4-hour blocks)
+- **SOC** - State of Charge (%)
+- **MWh** - Megawatt-hours (energy)
+- **MW** - Megawatts (power)
+- **pp** - Percentage points (absolute % change)
+- **Capture Rate** - Actual / Optimal revenue (%)
+- **Gap** - Optimal - Actual revenue (£)
+        """)
 
     # Display General pages if clicked (these take priority)
     if show_asset_page:
