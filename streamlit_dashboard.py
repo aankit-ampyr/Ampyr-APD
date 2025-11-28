@@ -3067,8 +3067,8 @@ def show_pdf_export_page(month: str = "September 2025"):
 
 def show_benchmark_comparison():
     """Display industry benchmark comparison page."""
-    st.title("📊 Industry Benchmarks")
-    st.markdown("Compare Northwold's performance against UK BESS industry benchmarks")
+    st.title("📊 Benchmarks")
+    st.markdown("Compare Northwold's performance against UK BESS industry benchmarks and IAR projections")
 
     # Load and calculate Northwold metrics first
     try:
@@ -3161,7 +3161,7 @@ def show_benchmark_comparison():
         sept_revenue = oct_revenue = avg_annual = 0
 
     # Combined benchmark table with Northwold data
-    st.header("Northwold vs Industry Benchmarks")
+    st.header("1. Northwold vs Industry")
 
     if data_loaded:
         # Build combined table
@@ -3225,6 +3225,80 @@ def show_benchmark_comparison():
             st.markdown("**Combined Average:**")
             st.metric("£/MW/year", f"£{round(avg_annual):,}")
 
+    st.markdown("---")
+
+    # Section 2: IAR vs Actual Revenue Comparison
+    st.header("2. Revenue IAR vs Actual")
+    st.caption("Comparison of Internal Appraisal Report (IAR) projections against actual GridBeyond revenues")
+
+    iar_data = {
+        'Revenue Stream': [
+            'Wholesale Day Ahead',
+            'Wholesale Intraday',
+            'Balancing Mechanism',
+            'Frequency Response',
+            'Capacity Market',
+            'DUoS Battery',
+            'DUoS Fixed Charges',
+            'TNUoS',
+            'Imbalance Revenue',
+            'Imbalance Charge',
+            'TOTAL (excl. BM, CM, DUoS, TNUoS)'
+        ],
+        'Sept IAR (£)': [
+            '14,343', '4,246', '1,863', '1,383', '4,438', '9,188', '-6,462', '835', '-', '-', '19,973'
+        ],
+        'Sept Actual (£)': [
+            '1,880', '3,670', '-', '17,164', '-', '-', '-', '-', '-8,297', '40', '14,457'
+        ],
+        'Sept Var': [
+            '-87%', '-14%', '-', '+1,141%', '-', '-', '-', '-', '-', '-', '-28%'
+        ],
+        'Oct IAR (£)': [
+            '17,178', '4,918', '4,237', '1,038', '4,586', '10,088', '-6,678', '863', '-', '-', '23,134'
+        ],
+        'Oct Actual (£)': [
+            '-2,994', '13,283', '-', '28,382', '-', '-', '-', '-', '-816', '489', '38,344'
+        ],
+        'Oct Var': [
+            '-117%', '+170%', '-', '+2,634%', '-', '-', '-', '-', '-', '-', '+66%'
+        ]
+    }
+    iar_df = pd.DataFrame(iar_data)
+
+    # Style the Total row (last row) to be bold
+    def highlight_total(row):
+        if row.name == len(iar_df) - 1:  # Last row (Total)
+            return ['font-weight: bold; background-color: #f0f2f6'] * len(row)
+        return [''] * len(row)
+
+    styled_iar_df = iar_df.style.apply(highlight_total, axis=1)
+    st.dataframe(styled_iar_df, use_container_width=True, hide_index=True, height=425)
+
+    st.caption("*IAR projections based on 4.2 MW capacity with indexation factor 1.073. Total excludes BM, CM, DUoS, TNUoS for like-for-like comparison.*")
+
+    # Summary metrics for IAR comparison
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Sept vs IAR", "72%", "-28%", delta_color="inverse",
+                  help="Actual revenue as % of IAR projection")
+    with col2:
+        st.metric("Oct vs IAR", "166%", "+66%",
+                  help="Actual revenue as % of IAR projection")
+    with col3:
+        combined_capture = (14457 + 38344) / (19973 + 23134) * 100
+        st.metric("Combined", f"{combined_capture:.0f}%",
+                  help="Total actual vs total projected")
+
+    st.info("""
+    **Key Insights from IAR Comparison:**
+    - **Frequency Response** revenue massively exceeded projections (~20x) due to higher ancillary service market rates
+    - **Wholesale Day Ahead** significantly underperformed, with October showing negative values
+    - **Overall:** September underperformed (-28%), but October significantly outperformed (+66%), resulting in a combined 122% of IAR projections
+    """)
+
+    st.markdown("---")
+
     # Source links
     with st.expander("📎 Data Sources"):
         st.markdown("""
@@ -3284,7 +3358,7 @@ def show_benchmark_comparison():
         ))
 
         fig.update_layout(
-            title="Northwold vs Industry Benchmarks",
+            title="Northwold vs Industry",
             yaxis_title="£/MW/year",
             yaxis=dict(range=[0, max(120000, oct_annual_per_mw * 1.1)]),
             height=400,
@@ -3340,7 +3414,7 @@ def main():
     show_asset_page = st.sidebar.button("🏭 Asset Details", use_container_width=True)
     show_import_page = st.sidebar.button("📥 Data Import", use_container_width=True)
     show_exec_comparison = st.sidebar.button("📊 Executive Comparison", use_container_width=True)
-    show_benchmark_page = st.sidebar.button("📈 Industry Benchmarks", use_container_width=True)
+    show_benchmark_page = st.sidebar.button("📈 Benchmarks", use_container_width=True)
     show_export_page = st.sidebar.button("📄 Export Reports", use_container_width=True)
 
     st.sidebar.markdown("---")
