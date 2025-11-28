@@ -227,6 +227,45 @@ def analyze_northwold_data(northwold_df):
 
     return analysis
 
+def calculate_cycles(df, power_col, capacity_mwh=8.4, dt_hours=0.5):
+    """
+    Calculate battery cycles using three methodologies.
+
+    Args:
+        df: DataFrame with power data
+        power_col: Column name for power (positive = discharge, negative = charge)
+        capacity_mwh: Battery capacity (default 8.4)
+        dt_hours: Time step in hours (default 0.5 for 30-min)
+
+    Returns:
+        dict with cycles_discharge, cycles_full, cycles_throughput
+    """
+    power = pd.to_numeric(df[power_col], errors='coerce').fillna(0)
+
+    # Convert power (MW) to energy (MWh) for each period
+    energy = power * dt_hours
+
+    # Method A: Discharge-only (current method)
+    discharge_mwh = energy[energy > 0].sum()
+    cycles_discharge = discharge_mwh / capacity_mwh
+
+    # Method B: Full Equivalent Cycles (Industry Standard)
+    charge_mwh = abs(energy[energy < 0].sum())
+    cycles_full = (discharge_mwh + charge_mwh) / 2 / capacity_mwh
+
+    # Method C: Throughput-based (mathematically same as B)
+    total_throughput = discharge_mwh + charge_mwh
+    cycles_throughput = total_throughput / (2 * capacity_mwh)
+
+    return {
+        'discharge_mwh': discharge_mwh,
+        'charge_mwh': charge_mwh,
+        'cycles_discharge': cycles_discharge,
+        'cycles_full': cycles_full,
+        'cycles_throughput': cycles_throughput
+    }
+
+
 def show_asset_details():
     """Display asset details from digital twin configuration"""
     st.title("🏭 Asset Details")
@@ -810,25 +849,117 @@ def show_bess_health(month: str = "September 2025"):
     # Calculate number of days from data
     num_days = (master_df['Timestamp'].max() - master_df['Timestamp'].min()).days + 1
 
-    # Find actual battery output column
-    actual_col = None
-    for col in master_df.columns:
-        if 'Battery MWh' in col and 'Output' in col:
-            actual_col = col
-            break
-    if actual_col is None:
-        actual_col = 'Physical_Power_MW'  # Fallback
-        if actual_col in master_df.columns:
-            # Convert MW to MWh for 30-min periods
-            master_df[actual_col] = master_df[actual_col] * 0.5
+    # Find actual battery power column (in MW, not pre-converted to MWh)
+    actual_power_col = None
+    if 'Physical_Power_MW' in master_df.columns:
+        actual_power_col = 'Physical_Power_MW'
+    elif 'Power_MW' in master_df.columns:
+        actual_power_col = 'Power_MW'
 
-    # Calculate metrics for each strategy
+    # ==================== CYCLE METHODOLOGY COMPARISON ====================
+    st.subheader("📐 Cycle Calculation Methods Comparison")
+
+    st.caption("""
+**Cycle Calculation Methods:**
+- **A: Discharge-only** = Discharge MWh / Capacity (current method)
+- **B: Full Equivalent** = (Discharge + Charge) / 2 / Capacity ⭐ Industry Standard
+- **C: Throughput** = Total Throughput / (2 × Capacity) (mathematically same as B)
+
+Warranty limit: 1.5 cycles/day (547 cycles/year)
+""")
+
+    # Calculate cycles using all 3 methods for Actual and Multi-Market
+    if actual_power_col and actual_power_col in master_df.columns:
+        actual_cycles_all = calculate_cycles(master_df, actual_power_col, CAPACITY_MWH, dt_hours=0.5)
+    else:
+        actual_cycles_all = {'discharge_mwh': 0, 'charge_mwh': 0, 'cycles_discharge': 0, 'cycles_full': 0, 'cycles_throughput': 0}
+
+    # For Multi-Market, the values are already in MWh (not MW), so dt_hours=1
+    multi_cycles_all = calculate_cycles(multi_df, 'Optimised_Net_MWh_Multi', CAPACITY_MWH, dt_hours=1.0)
+
+    # Create comparison table for all 3 methods
+    method_comparison = pd.DataFrame({
+        'Method': ['A: Discharge-only', 'B: Full Equivalent (Industry Std)', 'C: Throughput-based'],
+        'Actual Total Cycles': [
+            actual_cycles_all['cycles_discharge'],
+            actual_cycles_all['cycles_full'],
+            actual_cycles_all['cycles_throughput']
+        ],
+        'Multi-Market Total Cycles': [
+            multi_cycles_all['cycles_discharge'],
+            multi_cycles_all['cycles_full'],
+            multi_cycles_all['cycles_throughput']
+        ],
+        'Actual Daily Avg': [
+            actual_cycles_all['cycles_discharge'] / num_days,
+            actual_cycles_all['cycles_full'] / num_days,
+            actual_cycles_all['cycles_throughput'] / num_days
+        ],
+        'Multi-Market Daily Avg': [
+            multi_cycles_all['cycles_discharge'] / num_days,
+            multi_cycles_all['cycles_full'] / num_days,
+            multi_cycles_all['cycles_throughput'] / num_days
+        ]
+    })
+
+    st.dataframe(
+        method_comparison.style.format({
+            'Actual Total Cycles': '{:.2f}',
+            'Multi-Market Total Cycles': '{:.2f}',
+            'Actual Daily Avg': '{:.3f}',
+            'Multi-Market Daily Avg': '{:.3f}'
+        }),
+        use_container_width=True,
+        hide_index=True
+    )
+
+    # Show energy totals
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("Actual Discharge Energy", f"{actual_cycles_all['discharge_mwh']:.2f} MWh",
+                 help="Total energy discharged (exported to grid)")
+        st.metric("Actual Charge Energy", f"{actual_cycles_all['charge_mwh']:.2f} MWh",
+                 help="Total energy charged (imported from grid)")
+    with col2:
+        st.metric("Multi-Market Discharge Energy", f"{multi_cycles_all['discharge_mwh']:.2f} MWh",
+                 help="Total simulated discharge energy")
+        st.metric("Multi-Market Charge Energy", f"{multi_cycles_all['charge_mwh']:.2f} MWh",
+                 help="Total simulated charge energy")
+
+    st.markdown("---")
+
+    # ==================== STRATEGY COMPARISON WITH METHOD SELECTOR ====================
+    st.subheader("📊 Strategy Cycling Comparison")
+
+    # Method selector
+    cycle_method = st.radio(
+        "Select Cycle Calculation Method for Strategy Comparison:",
+        ["A: Discharge-only", "B: Full Equivalent (Industry Std)", "C: Throughput-based"],
+        index=1,  # Default to industry standard
+        horizontal=True,
+        help="Method B (Full Equivalent) is the industry standard for battery cycling"
+    )
+
+    # Map selection to cycle key
+    method_key_map = {
+        "A: Discharge-only": 'cycles_discharge',
+        "B: Full Equivalent (Industry Std)": 'cycles_full',
+        "C: Throughput-based": 'cycles_throughput'
+    }
+    selected_key = method_key_map[cycle_method]
+
+    # Calculate cycles for all strategies using selected method
     strategies_data = []
 
+    # Helper to get cycles and discharge based on selected method
+    def get_strategy_metrics(df, col, is_mwh=False):
+        dt = 1.0 if is_mwh else 0.5
+        cycles_data = calculate_cycles(df, col, CAPACITY_MWH, dt_hours=dt)
+        return cycles_data[selected_key], cycles_data['discharge_mwh']
+
     # 1. Actual (Original) Operation
-    if actual_col in master_df.columns:
-        actual_discharge = master_df[master_df[actual_col] > 0][actual_col].sum()
-        actual_cycles = actual_discharge / CAPACITY_MWH
+    if actual_power_col and actual_power_col in master_df.columns:
+        actual_cycles, actual_discharge = get_strategy_metrics(master_df, actual_power_col, is_mwh=False)
         actual_daily_cycles = actual_cycles / num_days
         actual_degradation = actual_cycles * DEGRADATION_PER_CYCLE_PCT
         strategies_data.append({
@@ -841,8 +972,7 @@ def show_bess_health(month: str = "September 2025"):
         })
 
     # 2. EPEX-Only Daily Strategy
-    epex_daily_discharge = (multi_df[multi_df['Optimised_Net_MWh_Daily'] > 0]['Optimised_Net_MWh_Daily'].sum())
-    epex_daily_cycles = epex_daily_discharge / CAPACITY_MWH
+    epex_daily_cycles, epex_daily_discharge = get_strategy_metrics(multi_df, 'Optimised_Net_MWh_Daily', is_mwh=True)
     epex_daily_daily_cycles = epex_daily_cycles / num_days
     epex_daily_degradation = epex_daily_cycles * DEGRADATION_PER_CYCLE_PCT
     strategies_data.append({
@@ -855,8 +985,7 @@ def show_bess_health(month: str = "September 2025"):
     })
 
     # 3. EPEX-Only EFA Strategy
-    epex_efa_discharge = (multi_df[multi_df['Optimised_Net_MWh_EFA'] > 0]['Optimised_Net_MWh_EFA'].sum())
-    epex_efa_cycles = epex_efa_discharge / CAPACITY_MWH
+    epex_efa_cycles, epex_efa_discharge = get_strategy_metrics(multi_df, 'Optimised_Net_MWh_EFA', is_mwh=True)
     epex_efa_daily_cycles = epex_efa_cycles / num_days
     epex_efa_degradation = epex_efa_cycles * DEGRADATION_PER_CYCLE_PCT
     strategies_data.append({
@@ -869,8 +998,7 @@ def show_bess_health(month: str = "September 2025"):
     })
 
     # 4. Multi-Market Strategy
-    multi_discharge = (multi_df[multi_df['Optimised_Net_MWh_Multi'] > 0]['Optimised_Net_MWh_Multi'].sum())
-    multi_cycles = multi_discharge / CAPACITY_MWH
+    multi_cycles, multi_discharge = get_strategy_metrics(multi_df, 'Optimised_Net_MWh_Multi', is_mwh=True)
     multi_daily_cycles = multi_cycles / num_days
     multi_degradation = multi_cycles * DEGRADATION_PER_CYCLE_PCT
     strategies_data.append({
@@ -885,8 +1013,7 @@ def show_bess_health(month: str = "September 2025"):
     # Create DataFrame
     health_df = pd.DataFrame(strategies_data)
 
-    # Summary metrics
-    st.subheader("📊 Cycling & Degradation Comparison")
+    st.info(f"**Using Method: {cycle_method}**")
 
     # Display comparison table
     st.dataframe(
@@ -1078,25 +1205,45 @@ def show_bess_health(month: str = "September 2025"):
     st.markdown("---")
     st.subheader("📊 Daily Cycles: Actual vs Multi-Market Optimization")
 
-    st.caption("**Calculation:** Daily Cycles = Discharge Energy (MWh) / 8.4 MWh capacity. Warranty limit is 1.5 cycles/day (547/year).")
+    st.info(f"**Using Method: {cycle_method}** (same as strategy comparison above)")
+
+    # Helper function for daily cycle calculation based on selected method
+    def calc_daily_cycles(df, col, date_col, is_mwh=False):
+        """Calculate daily cycles using selected method."""
+        dt = 1.0 if is_mwh else 0.5
+        power = pd.to_numeric(df[col], errors='coerce').fillna(0)
+        energy = power * dt
+
+        if selected_key == 'cycles_discharge':
+            # Method A: Discharge only
+            df_temp = df.copy()
+            df_temp['_energy'] = energy
+            df_temp['_discharge'] = df_temp['_energy'].apply(lambda x: x if x > 0 else 0)
+            daily = df_temp.groupby(date_col)['_discharge'].sum() / CAPACITY_MWH
+        elif selected_key in ['cycles_full', 'cycles_throughput']:
+            # Method B/C: Full equivalent (discharge + charge) / 2
+            df_temp = df.copy()
+            df_temp['_energy'] = energy
+            df_temp['_discharge'] = df_temp['_energy'].apply(lambda x: x if x > 0 else 0)
+            df_temp['_charge'] = df_temp['_energy'].apply(lambda x: abs(x) if x < 0 else 0)
+            daily_discharge = df_temp.groupby(date_col)['_discharge'].sum()
+            daily_charge = df_temp.groupby(date_col)['_charge'].sum()
+            daily = (daily_discharge + daily_charge) / 2 / CAPACITY_MWH
+        return daily.reset_index()
 
     # Calculate daily cycles for each day
     master_df['Date'] = master_df['Timestamp'].dt.date
     multi_df['Date'] = multi_df['Timestamp'].dt.date
 
     # Actual daily cycles
-    if actual_col in master_df.columns:
-        actual_daily = master_df.groupby('Date').apply(
-            lambda x: x[x[actual_col] > 0][actual_col].sum() / CAPACITY_MWH
-        ).reset_index()
+    if actual_power_col and actual_power_col in master_df.columns:
+        actual_daily = calc_daily_cycles(master_df, actual_power_col, 'Date', is_mwh=False)
         actual_daily.columns = ['Date', 'Actual_Cycles']
     else:
         actual_daily = pd.DataFrame({'Date': master_df['Date'].unique(), 'Actual_Cycles': 0})
 
     # Multi-market daily cycles
-    multi_daily = multi_df.groupby('Date').apply(
-        lambda x: x[x['Optimised_Net_MWh_Multi'] > 0]['Optimised_Net_MWh_Multi'].sum() / CAPACITY_MWH
-    ).reset_index()
+    multi_daily = calc_daily_cycles(multi_df, 'Optimised_Net_MWh_Multi', 'Date', is_mwh=True)
     multi_daily.columns = ['Date', 'Multi_Cycles']
 
     # Merge the two
@@ -1151,19 +1298,24 @@ def show_bess_health(month: str = "September 2025"):
     st.plotly_chart(fig_daily, use_container_width=True)
 
     # Summary stats
+    method_help = {
+        'cycles_discharge': 'Discharge-only method (A)',
+        'cycles_full': 'Full Equivalent method (B) - Industry Standard',
+        'cycles_throughput': 'Throughput method (C)'
+    }
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.metric("Actual Avg Daily Cycles", f"{daily_cycles_df['Actual_Cycles'].mean():.3f}",
-                 help="Average cycles/day = Total discharge MWh / 8.4 MWh capacity / days")
+                 help=f"Using {method_help[selected_key]}. Average cycles per day for actual operation.")
     with col2:
         st.metric("Multi-Market Avg Daily", f"{daily_cycles_df['Multi_Cycles'].mean():.3f}",
-                 help="Simulated daily cycles under multi-market optimization strategy")
+                 help=f"Using {method_help[selected_key]}. Simulated daily cycles under multi-market optimization.")
     with col3:
         st.metric("Actual Max Day", f"{daily_cycles_df['Actual_Cycles'].max():.3f}",
-                 help="Highest single-day cycling for actual GridBeyond operation")
+                 help=f"Using {method_help[selected_key]}. Highest single-day cycling for actual operation.")
     with col4:
         st.metric("Multi-Market Max Day", f"{daily_cycles_df['Multi_Cycles'].max():.3f}",
-                 help="Highest single-day cycling for simulated multi-market strategy")
+                 help=f"Using {method_help[selected_key]}. Highest single-day cycling for simulated strategy.")
 
     # ==================== NEW SECTION: WARRANTY EXCEEDANCE TABLE ====================
     st.markdown("---")

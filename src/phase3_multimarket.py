@@ -61,7 +61,10 @@ def solve_dispatch_multimarket(buy_prices, sell_prices, ffr_mask, start_soc, mar
         A_eq[t, idx_chg[t]] = -config.EFF_ONE_WAY * dt
         A_eq[t, idx_dis[t]] = (1/config.EFF_ONE_WAY) * dt
 
-    # Inequality Constraint: Daily Cycle Limit
+    # Inequality Constraint: Daily Throughput Limit (Industry Standard - Method B)
+    # Based on full equivalent cycles: throughput / (2 * capacity) <= 1.5 cycles/day
+    # MAX_DAILY_THROUGHPUT_MWH = 12.6 MWh = 1.5 cycles * 8.4 MWh capacity
+    # Note: This constrains discharge only; charge is implicitly limited by SOC bounds
     A_ub = np.zeros((1, num_vars))
     b_ub = np.zeros(1)
     A_ub[0, idx_dis] = dt
