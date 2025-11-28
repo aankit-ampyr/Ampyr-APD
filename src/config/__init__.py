@@ -1,13 +1,10 @@
 """
-Phase 2: Digital Twin Configuration
+Configuration Module for BESS Dashboard
 
-DEPRECATED: This file is maintained for backwards compatibility.
-Please import from src.config instead:
-    from config import CAPACITY_MWH, P_IMP_MAX_MW, ...
+Centralized configuration for the Northwold Solar Farm battery asset.
 """
 
-# Re-export everything from the new config location
-from config.asset_config import (
+from .asset_config import (
     ASSET_NAME,
     P_IMP_MAX_MW,
     P_EXP_MAX_MW,
