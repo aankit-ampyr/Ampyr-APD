@@ -1074,6 +1074,189 @@ def show_bess_health(month: str = "September 2025"):
         - Warranty compliance maintained
         """)
 
+    # ==================== NEW SECTION: DAILY CYCLES COMPARISON ====================
+    st.markdown("---")
+    st.subheader("📊 Daily Cycles: Actual vs Multi-Market Optimization")
+
+    # Calculate daily cycles for each day
+    master_df['Date'] = master_df['Timestamp'].dt.date
+    multi_df['Date'] = multi_df['Timestamp'].dt.date
+
+    # Actual daily cycles
+    if actual_col in master_df.columns:
+        actual_daily = master_df.groupby('Date').apply(
+            lambda x: x[x[actual_col] > 0][actual_col].sum() / CAPACITY_MWH
+        ).reset_index()
+        actual_daily.columns = ['Date', 'Actual_Cycles']
+    else:
+        actual_daily = pd.DataFrame({'Date': master_df['Date'].unique(), 'Actual_Cycles': 0})
+
+    # Multi-market daily cycles
+    multi_daily = multi_df.groupby('Date').apply(
+        lambda x: x[x['Optimised_Net_MWh_Multi'] > 0]['Optimised_Net_MWh_Multi'].sum() / CAPACITY_MWH
+    ).reset_index()
+    multi_daily.columns = ['Date', 'Multi_Cycles']
+
+    # Merge the two
+    daily_cycles_df = pd.merge(actual_daily, multi_daily, on='Date', how='outer').fillna(0)
+    daily_cycles_df['Date'] = pd.to_datetime(daily_cycles_df['Date'])
+    daily_cycles_df = daily_cycles_df.sort_values('Date')
+
+    # Create comparison chart
+    fig_daily = go.Figure()
+
+    fig_daily.add_trace(go.Bar(
+        x=daily_cycles_df['Date'],
+        y=daily_cycles_df['Actual_Cycles'],
+        name='Actual (GridBeyond)',
+        marker_color='#3498db',
+        opacity=0.8
+    ))
+
+    fig_daily.add_trace(go.Bar(
+        x=daily_cycles_df['Date'],
+        y=daily_cycles_df['Multi_Cycles'],
+        name='Multi-Market Optimized',
+        marker_color='#2ecc71',
+        opacity=0.8
+    ))
+
+    # Add warranty limit line
+    fig_daily.add_hline(
+        y=WARRANTY_CYCLES_DAILY,
+        line_dash="dash",
+        line_color="red",
+        annotation_text=f"Warranty Limit ({WARRANTY_CYCLES_DAILY} cycles/day)",
+        annotation_position="top right"
+    )
+
+    fig_daily.update_layout(
+        title=f"Daily Battery Cycles - {month}",
+        xaxis_title="Date",
+        yaxis_title="Cycles per Day",
+        barmode='group',
+        height=450,
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1
+        ),
+        hovermode='x unified'
+    )
+
+    st.plotly_chart(fig_daily, use_container_width=True)
+
+    # Summary stats
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("Actual Avg Daily Cycles", f"{daily_cycles_df['Actual_Cycles'].mean():.3f}")
+    with col2:
+        st.metric("Multi-Market Avg Daily", f"{daily_cycles_df['Multi_Cycles'].mean():.3f}")
+    with col3:
+        st.metric("Actual Max Day", f"{daily_cycles_df['Actual_Cycles'].max():.3f}")
+    with col4:
+        st.metric("Multi-Market Max Day", f"{daily_cycles_df['Multi_Cycles'].max():.3f}")
+
+    # ==================== NEW SECTION: WARRANTY EXCEEDANCE TABLE ====================
+    st.markdown("---")
+    st.subheader("⚠️ Warranty Limit Exceedance Analysis")
+
+    # Find days exceeding warranty limits
+    daily_cycles_df['Actual_Exceeded'] = daily_cycles_df['Actual_Cycles'] > WARRANTY_CYCLES_DAILY
+    daily_cycles_df['Multi_Exceeded'] = daily_cycles_df['Multi_Cycles'] > WARRANTY_CYCLES_DAILY
+
+    actual_exceeded_days = daily_cycles_df[daily_cycles_df['Actual_Exceeded']]
+    multi_exceeded_days = daily_cycles_df[daily_cycles_df['Multi_Exceeded']]
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown(f"**Actual Operation: {len(actual_exceeded_days)} days exceeded**")
+        if len(actual_exceeded_days) > 0:
+            exceeded_display = actual_exceeded_days[['Date', 'Actual_Cycles']].copy()
+            exceeded_display['Date'] = exceeded_display['Date'].dt.strftime('%Y-%m-%d')
+            exceeded_display['Over Limit By'] = exceeded_display['Actual_Cycles'] - WARRANTY_CYCLES_DAILY
+            exceeded_display.columns = ['Date', 'Cycles', 'Over Limit']
+            exceeded_display = exceeded_display.sort_values('Cycles', ascending=False)
+
+            st.dataframe(
+                exceeded_display.style.format({
+                    'Cycles': '{:.3f}',
+                    'Over Limit': '{:+.3f}'
+                }).background_gradient(subset=['Over Limit'], cmap='Reds'),
+                use_container_width=True,
+                hide_index=True
+            )
+        else:
+            st.success("✅ No days exceeded warranty limits!")
+
+    with col2:
+        st.markdown(f"**Multi-Market Optimized: {len(multi_exceeded_days)} days exceeded**")
+        if len(multi_exceeded_days) > 0:
+            exceeded_display = multi_exceeded_days[['Date', 'Multi_Cycles']].copy()
+            exceeded_display['Date'] = exceeded_display['Date'].dt.strftime('%Y-%m-%d')
+            exceeded_display['Over Limit By'] = exceeded_display['Multi_Cycles'] - WARRANTY_CYCLES_DAILY
+            exceeded_display.columns = ['Date', 'Cycles', 'Over Limit']
+            exceeded_display = exceeded_display.sort_values('Cycles', ascending=False)
+
+            st.dataframe(
+                exceeded_display.style.format({
+                    'Cycles': '{:.3f}',
+                    'Over Limit': '{:+.3f}'
+                }).background_gradient(subset=['Over Limit'], cmap='Reds'),
+                use_container_width=True,
+                hide_index=True
+            )
+        else:
+            st.success("✅ No days exceeded warranty limits!")
+
+    # Comparison summary
+    st.markdown("---")
+    st.subheader("📋 Warranty Compliance Summary")
+
+    summary_data = {
+        'Metric': [
+            'Total Days Analyzed',
+            'Days Exceeding Warranty (Actual)',
+            'Days Exceeding Warranty (Multi-Market)',
+            'Compliance Rate (Actual)',
+            'Compliance Rate (Multi-Market)',
+            'Total Excess Cycles (Actual)',
+            'Total Excess Cycles (Multi-Market)'
+        ],
+        'Value': [
+            f"{len(daily_cycles_df)} days",
+            f"{len(actual_exceeded_days)} days",
+            f"{len(multi_exceeded_days)} days",
+            f"{(1 - len(actual_exceeded_days)/len(daily_cycles_df))*100:.1f}%",
+            f"{(1 - len(multi_exceeded_days)/len(daily_cycles_df))*100:.1f}%",
+            f"{daily_cycles_df[daily_cycles_df['Actual_Exceeded']]['Actual_Cycles'].sum() - len(actual_exceeded_days)*WARRANTY_CYCLES_DAILY:.3f}" if len(actual_exceeded_days) > 0 else "0.000",
+            f"{daily_cycles_df[daily_cycles_df['Multi_Exceeded']]['Multi_Cycles'].sum() - len(multi_exceeded_days)*WARRANTY_CYCLES_DAILY:.3f}" if len(multi_exceeded_days) > 0 else "0.000"
+        ]
+    }
+
+    summary_df = pd.DataFrame(summary_data)
+    st.dataframe(summary_df, use_container_width=True, hide_index=True)
+
+    # Insight box
+    if len(actual_exceeded_days) > len(multi_exceeded_days):
+        st.warning(f"""
+        **⚠️ Finding:** Actual operation exceeded warranty limits on **{len(actual_exceeded_days) - len(multi_exceeded_days)} more days**
+        than the multi-market optimized strategy. This indicates GridBeyond is cycling the battery more aggressively than optimal.
+        """)
+    elif len(multi_exceeded_days) > len(actual_exceeded_days):
+        st.info(f"""
+        **ℹ️ Finding:** Multi-market optimization would exceed warranty limits on **{len(multi_exceeded_days) - len(actual_exceeded_days)} more days**
+        than actual operation. The optimization prioritizes revenue over battery preservation.
+        """)
+    else:
+        st.success("""
+        **✅ Finding:** Both strategies have similar warranty compliance. Battery health is being managed consistently.
+        """)
+
+
 def show_report_page(month: str = "September 2025"):
     """Display comprehensive performance report comparing actual vs multi-market optimization"""
 
@@ -1467,6 +1650,1238 @@ def show_report_page(month: str = "September 2025"):
     - Better utilize the asset's full capabilities
     """)
 
+def show_executive_comparison():
+    """Display executive comparison dashboard - Sept vs Oct, Actual vs Optimal"""
+    st.title("📊 Executive Comparison Dashboard")
+    st.markdown("### Multi-Month Performance Overview for Management")
+    st.markdown("---")
+
+    # Load all 4 data files
+    try:
+        # September data
+        sept_master = pd.read_csv(os.path.join(DATA_DIR, "Master_BESS_Analysis_Sept_2025.csv"))
+        sept_opt = pd.read_csv(os.path.join(DATA_DIR, "Optimized_Results_Sept_2025.csv"))
+
+        # October data
+        oct_master = pd.read_csv(os.path.join(DATA_DIR, "Master_BESS_Analysis_Oct_2025.csv"))
+        oct_opt = pd.read_csv(os.path.join(DATA_DIR, "Optimized_Results_Oct_2025.csv"))
+    except Exception as e:
+        st.error(f"Error loading data files: {str(e)}")
+        st.info("Please ensure all data files exist for both September and October.")
+        return
+
+    # Helper function to safely get numeric values
+    def safe_sum(df, col):
+        if col in df.columns:
+            return pd.to_numeric(df[col], errors='coerce').fillna(0).sum()
+        return 0
+
+    # Calculate actual revenues for each month
+    def calc_actual_revenue(df):
+        sffr = safe_sum(df, 'SFFR revenues')
+        epex = safe_sum(df, 'EPEX 30 DA Revenue') + safe_sum(df, 'EPEX DA Revenues')
+        ida1 = safe_sum(df, 'IDA1 Revenue')
+        idc = safe_sum(df, 'IDC Revenue')
+        imb_rev = safe_sum(df, 'Imbalance Revenue')
+        imb_charge = safe_sum(df, 'Imbalance Charge')
+        return {
+            'total': sffr + epex + ida1 + idc + imb_rev - imb_charge,
+            'sffr': sffr,
+            'epex': epex,
+            'ida1': ida1,
+            'idc': idc,
+            'imbalance': imb_rev - imb_charge
+        }
+
+    # Calculate metrics
+    sept_actual = calc_actual_revenue(sept_master)
+    oct_actual = calc_actual_revenue(oct_master)
+    sept_optimal = sept_opt['Optimised_Revenue_Multi'].sum()
+    oct_optimal = oct_opt['Optimised_Revenue_Multi'].sum()
+
+    # Capture rates
+    sept_capture = (sept_actual['total'] / sept_optimal * 100) if sept_optimal > 0 else 0
+    oct_capture = (oct_actual['total'] / oct_optimal * 100) if oct_optimal > 0 else 0
+
+    # Gaps
+    sept_gap = sept_optimal - sept_actual['total']
+    oct_gap = oct_optimal - oct_actual['total']
+
+    # ==================== SECTION 1: KEY METRICS ====================
+    st.header("1️⃣ Key Performance Metrics")
+
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        st.metric(
+            "Sept Actual",
+            f"£{sept_actual['total']:,.0f}",
+            delta=f"{sept_capture:.1f}% captured",
+            delta_color="off"
+        )
+
+    with col2:
+        st.metric(
+            "Sept Optimal",
+            f"£{sept_optimal:,.0f}",
+            delta=f"Gap: £{sept_gap:,.0f}",
+            delta_color="inverse"
+        )
+
+    with col3:
+        st.metric(
+            "Oct Actual",
+            f"£{oct_actual['total']:,.0f}",
+            delta=f"{oct_capture:.1f}% captured",
+            delta_color="off"
+        )
+
+    with col4:
+        st.metric(
+            "Oct Optimal",
+            f"£{oct_optimal:,.0f}",
+            delta=f"Gap: £{oct_gap:,.0f}",
+            delta_color="inverse"
+        )
+
+    # Month-over-month improvement
+    mom_improvement = oct_actual['total'] - sept_actual['total']
+    mom_pct = (mom_improvement / sept_actual['total'] * 100) if sept_actual['total'] != 0 else 0
+
+    st.success(f"📈 **Month-over-Month Improvement**: GridBeyond increased actual revenue by **£{mom_improvement:,.0f}** ({mom_pct:+.0f}%) from September to October")
+
+    st.markdown("---")
+
+    # ==================== SECTION 2: REVENUE COMPARISON BAR CHART ====================
+    st.header("2️⃣ Revenue Comparison")
+
+    comparison_data = pd.DataFrame({
+        'Scenario': ['Sept Actual', 'Sept Optimal', 'Oct Actual', 'Oct Optimal'],
+        'Revenue': [sept_actual['total'], sept_optimal, oct_actual['total'], oct_optimal],
+        'Type': ['Actual', 'Optimal', 'Actual', 'Optimal'],
+        'Month': ['September', 'September', 'October', 'October']
+    })
+
+    fig_bar = px.bar(
+        comparison_data,
+        x='Scenario',
+        y='Revenue',
+        color='Type',
+        color_discrete_map={'Actual': '#3498db', 'Optimal': '#2ecc71'},
+        title="Revenue: Actual vs Optimal by Month",
+        text=comparison_data['Revenue'].apply(lambda x: f'£{x:,.0f}')
+    )
+    fig_bar.update_traces(textposition='outside')
+    fig_bar.update_layout(yaxis_title="Revenue (£)", xaxis_title="", showlegend=True, height=400)
+    st.plotly_chart(fig_bar, use_container_width=True)
+
+    st.markdown("---")
+
+    # ==================== SECTION 3: GAP ANALYSIS TABLE ====================
+    st.header("3️⃣ Performance Gap Analysis")
+
+    # Calculate trends
+    gap_reduction = ((sept_gap - oct_gap) / sept_gap * 100) if sept_gap != 0 else 0
+    capture_improvement = oct_capture - sept_capture
+    imb_improvement = ((sept_actual['imbalance'] - oct_actual['imbalance']) / abs(sept_actual['imbalance']) * 100) if sept_actual['imbalance'] != 0 else 0
+
+    gap_data = pd.DataFrame({
+        'Metric': ['Revenue Gap (£)', 'Capture Rate (%)', 'Imbalance Cost (£)', 'Actual Revenue (£)'],
+        'September': [
+            f"£{sept_gap:,.0f}",
+            f"{sept_capture:.1f}%",
+            f"£{sept_actual['imbalance']:,.0f}",
+            f"£{sept_actual['total']:,.0f}"
+        ],
+        'October': [
+            f"£{oct_gap:,.0f}",
+            f"{oct_capture:.1f}%",
+            f"£{oct_actual['imbalance']:,.0f}",
+            f"£{oct_actual['total']:,.0f}"
+        ],
+        'Trend': [
+            f"✅ {gap_reduction:.0f}% reduction" if gap_reduction > 0 else f"❌ {abs(gap_reduction):.0f}% increase",
+            f"✅ +{capture_improvement:.1f}pp" if capture_improvement > 0 else f"❌ {capture_improvement:.1f}pp",
+            f"✅ {imb_improvement:.0f}% improvement" if imb_improvement > 0 else f"❌ {abs(imb_improvement):.0f}% worse",
+            f"✅ +{mom_pct:.0f}%" if mom_pct > 0 else f"❌ {mom_pct:.0f}%"
+        ]
+    })
+
+    st.dataframe(gap_data, use_container_width=True, hide_index=True)
+
+    st.markdown("---")
+
+    # ==================== SECTION 4: MARKET MIX COMPARISON ====================
+    st.header("4️⃣ Revenue by Market")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        # September market mix
+        sept_markets = pd.DataFrame({
+            'Market': ['SFFR', 'EPEX', 'IDA1', 'IDC', 'Imbalance'],
+            'Revenue': [sept_actual['sffr'], sept_actual['epex'], sept_actual['ida1'],
+                       sept_actual['idc'], sept_actual['imbalance']]
+        })
+        sept_markets = sept_markets[sept_markets['Revenue'].abs() > 0.01]
+
+        fig_sept = px.pie(
+            sept_markets,
+            values=sept_markets['Revenue'].abs(),
+            names='Market',
+            title="September - Market Mix",
+            hole=0.4
+        )
+        fig_sept.update_traces(textposition='inside', textinfo='percent+label')
+        st.plotly_chart(fig_sept, use_container_width=True)
+
+    with col2:
+        # October market mix
+        oct_markets = pd.DataFrame({
+            'Market': ['SFFR', 'EPEX', 'IDA1', 'IDC', 'Imbalance'],
+            'Revenue': [oct_actual['sffr'], oct_actual['epex'], oct_actual['ida1'],
+                       oct_actual['idc'], oct_actual['imbalance']]
+        })
+        oct_markets = oct_markets[oct_markets['Revenue'].abs() > 0.01]
+
+        fig_oct = px.pie(
+            oct_markets,
+            values=oct_markets['Revenue'].abs(),
+            names='Market',
+            title="October - Market Mix",
+            hole=0.4
+        )
+        fig_oct.update_traces(textposition='inside', textinfo='percent+label')
+        st.plotly_chart(fig_oct, use_container_width=True)
+
+    # Market comparison table
+    market_comparison = pd.DataFrame({
+        'Market': ['SFFR', 'EPEX', 'IDA1', 'IDC', 'Imbalance', 'TOTAL'],
+        'Sept (£)': [f"£{sept_actual['sffr']:,.0f}", f"£{sept_actual['epex']:,.0f}",
+                     f"£{sept_actual['ida1']:,.0f}", f"£{sept_actual['idc']:,.0f}",
+                     f"£{sept_actual['imbalance']:,.0f}", f"£{sept_actual['total']:,.0f}"],
+        'Oct (£)': [f"£{oct_actual['sffr']:,.0f}", f"£{oct_actual['epex']:,.0f}",
+                    f"£{oct_actual['ida1']:,.0f}", f"£{oct_actual['idc']:,.0f}",
+                    f"£{oct_actual['imbalance']:,.0f}", f"£{oct_actual['total']:,.0f}"],
+        'Change': [
+            f"£{oct_actual['sffr'] - sept_actual['sffr']:+,.0f}",
+            f"£{oct_actual['epex'] - sept_actual['epex']:+,.0f}",
+            f"£{oct_actual['ida1'] - sept_actual['ida1']:+,.0f}",
+            f"£{oct_actual['idc'] - sept_actual['idc']:+,.0f}",
+            f"£{oct_actual['imbalance'] - sept_actual['imbalance']:+,.0f}",
+            f"£{oct_actual['total'] - sept_actual['total']:+,.0f}"
+        ]
+    })
+    st.dataframe(market_comparison, use_container_width=True, hide_index=True)
+
+    st.markdown("---")
+
+    # ==================== SECTION 5: EXECUTIVE SUMMARY ====================
+    st.header("5️⃣ Executive Summary")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.error(f"""
+        **September Issues:**
+        - Capture Rate: Only {sept_capture:.1f}% of optimal
+        - Revenue Gap: £{sept_gap:,.0f} left on table
+        - Imbalance Penalties: £{abs(sept_actual['imbalance']):,.0f} in losses
+        - Root Cause: Excessive imbalance exposure
+        """)
+
+    with col2:
+        st.success(f"""
+        **October Improvements:**
+        - Capture Rate: {oct_capture:.1f}% of optimal
+        - Revenue Gap: Reduced to £{oct_gap:,.0f}
+        - Imbalance Controlled: £{abs(oct_actual['imbalance']):,.0f}
+        - Result: Near-optimal performance achieved
+        """)
+
+    st.info(f"""
+    **💡 Key Recommendations:**
+
+    1. **Continue October Strategy**: GridBeyond achieved {oct_capture:.1f}% capture rate - maintain this approach
+    2. **Investigate September**: Root cause analysis needed for the £{sept_gap:,.0f} gap
+    3. **Imbalance Management**: October's strategy reduced imbalance impact by {imb_improvement:.0f}%
+    4. **Annualized Impact**: If October performance continues, projected annual revenue: **£{oct_actual['total'] * 12:,.0f}**
+    """)
+
+
+def show_market_price_analysis(month: str = "September 2025"):
+    """Display market price analysis - spreads, missed opportunities, volatility"""
+    st.title(f"📈 Market Price Analysis - {month}")
+    st.markdown("### Price Spreads, Arbitrage Opportunities & Volatility Metrics")
+    st.markdown("---")
+
+    # Load data
+    month_config = AVAILABLE_MONTHS.get(month, AVAILABLE_MONTHS["September 2025"])
+    master_file = month_config.get("master_file", "Master_BESS_Analysis_Sept_2025.csv")
+
+    try:
+        df = pd.read_csv(os.path.join(DATA_DIR, master_file))
+        if 'Unnamed: 0' in df.columns:
+            df.rename(columns={'Unnamed: 0': 'Timestamp'}, inplace=True)
+        df['Timestamp'] = pd.to_datetime(df['Timestamp'])
+        df['Date'] = df['Timestamp'].dt.date
+        df['Hour'] = df['Timestamp'].dt.hour
+        df['DayOfWeek'] = df['Timestamp'].dt.day_name()
+    except Exception as e:
+        st.error(f"Error loading data: {str(e)}")
+        return
+
+    # Price columns
+    price_cols = {
+        'Day Ahead Price (EPEX)': 'EPEX DA',
+        'GB-ISEM Intraday 1 Price': 'Intraday',
+        'SSP': 'SSP (System Sell)',
+        'SBP': 'SBP (System Buy)',
+        'IDC Price': 'IDC'
+    }
+
+    # ==================== SECTION 1: KEY PRICE METRICS ====================
+    st.header("1️⃣ Price Summary")
+
+    col1, col2, col3, col4 = st.columns(4)
+
+    epex_prices = pd.to_numeric(df['Day Ahead Price (EPEX)'], errors='coerce').dropna()
+    ssp_prices = pd.to_numeric(df['SSP'], errors='coerce').dropna()
+    sbp_prices = pd.to_numeric(df['SBP'], errors='coerce').dropna()
+
+    with col1:
+        st.metric("EPEX DA Avg", f"£{epex_prices.mean():.2f}/MWh")
+    with col2:
+        st.metric("EPEX DA Max", f"£{epex_prices.max():.2f}/MWh")
+    with col3:
+        st.metric("SSP Max", f"£{ssp_prices.max():.2f}/MWh")
+    with col4:
+        st.metric("SBP Max", f"£{sbp_prices.max():.2f}/MWh")
+
+    st.markdown("---")
+
+    # ==================== SECTION 2: PRICE SPREAD ANALYSIS ====================
+    st.header("2️⃣ Price Spread Analysis (Arbitrage Opportunities)")
+
+    # Calculate spreads
+    df['EPEX_Spread'] = df['Day Ahead Price (EPEX)'].rolling(48).max() - df['Day Ahead Price (EPEX)'].rolling(48).min()
+    df['SSP_SBP_Spread'] = pd.to_numeric(df['SBP'], errors='coerce') - pd.to_numeric(df['SSP'], errors='coerce')
+
+    # Daily spread analysis
+    daily_spreads = df.groupby('Date').agg({
+        'Day Ahead Price (EPEX)': ['min', 'max', lambda x: x.max() - x.min()],
+        'SSP': ['min', 'max'],
+        'SBP': ['min', 'max']
+    }).reset_index()
+    daily_spreads.columns = ['Date', 'EPEX_Min', 'EPEX_Max', 'EPEX_Spread', 'SSP_Min', 'SSP_Max', 'SBP_Min', 'SBP_Max']
+    daily_spreads['Date'] = pd.to_datetime(daily_spreads['Date'])
+
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Avg Daily EPEX Spread", f"£{daily_spreads['EPEX_Spread'].mean():.2f}/MWh",
+                 help="Average difference between daily max and min EPEX prices")
+    with col2:
+        st.metric("Best EPEX Spread Day", f"£{daily_spreads['EPEX_Spread'].max():.2f}/MWh",
+                 help="Highest single-day arbitrage opportunity")
+    with col3:
+        avg_ssb_spread = (daily_spreads['SBP_Max'] - daily_spreads['SSP_Min']).mean()
+        st.metric("Avg SSP/SBP Spread", f"£{avg_ssb_spread:.2f}/MWh",
+                 help="Average spread between system prices")
+
+    # Daily spread chart
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=daily_spreads['Date'],
+        y=daily_spreads['EPEX_Spread'],
+        name='EPEX Daily Spread',
+        marker_color='#3498db'
+    ))
+    fig.update_layout(
+        title="Daily EPEX Price Spread (Max - Min)",
+        xaxis_title="Date",
+        yaxis_title="Spread (£/MWh)",
+        height=350
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+    st.markdown("---")
+
+    # ==================== SECTION 3: HOURLY PRICE PATTERNS ====================
+    st.header("3️⃣ Hourly Price Patterns (Best Trading Windows)")
+
+    # Calculate hourly averages
+    hourly_avg = df.groupby('Hour').agg({
+        'Day Ahead Price (EPEX)': 'mean',
+        'SSP': 'mean',
+        'SBP': 'mean'
+    }).reset_index()
+
+    # Identify best buy/sell hours
+    buy_hour = hourly_avg.loc[hourly_avg['Day Ahead Price (EPEX)'].idxmin(), 'Hour']
+    sell_hour = hourly_avg.loc[hourly_avg['Day Ahead Price (EPEX)'].idxmax(), 'Hour']
+    buy_price = hourly_avg['Day Ahead Price (EPEX)'].min()
+    sell_price = hourly_avg['Day Ahead Price (EPEX)'].max()
+
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.success(f"**Best Buy Hour:** {int(buy_hour):02d}:00 (Avg £{buy_price:.2f}/MWh)")
+    with col2:
+        st.error(f"**Best Sell Hour:** {int(sell_hour):02d}:00 (Avg £{sell_price:.2f}/MWh)")
+    with col3:
+        st.info(f"**Hourly Arbitrage:** £{sell_price - buy_price:.2f}/MWh potential")
+
+    # Hourly price heatmap
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=hourly_avg['Hour'],
+        y=hourly_avg['Day Ahead Price (EPEX)'],
+        mode='lines+markers',
+        name='EPEX DA',
+        line=dict(color='#3498db', width=3),
+        fill='tozeroy',
+        fillcolor='rgba(52, 152, 219, 0.3)'
+    ))
+    fig.add_trace(go.Scatter(
+        x=hourly_avg['Hour'],
+        y=hourly_avg['SSP'],
+        mode='lines+markers',
+        name='SSP',
+        line=dict(color='#2ecc71', width=2)
+    ))
+    fig.add_trace(go.Scatter(
+        x=hourly_avg['Hour'],
+        y=hourly_avg['SBP'],
+        mode='lines+markers',
+        name='SBP',
+        line=dict(color='#e74c3c', width=2)
+    ))
+    fig.update_layout(
+        title="Average Price by Hour of Day",
+        xaxis_title="Hour",
+        yaxis_title="Price (£/MWh)",
+        xaxis=dict(tickmode='linear', tick0=0, dtick=2),
+        height=400
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+    st.markdown("---")
+
+    # ==================== SECTION 4: VOLATILITY ANALYSIS ====================
+    st.header("4️⃣ Price Volatility (High-Value Trading Days)")
+
+    # Calculate daily volatility (std dev)
+    daily_volatility = df.groupby('Date').agg({
+        'Day Ahead Price (EPEX)': ['std', 'mean']
+    }).reset_index()
+    daily_volatility.columns = ['Date', 'EPEX_Std', 'EPEX_Mean']
+    daily_volatility['Date'] = pd.to_datetime(daily_volatility['Date'])
+    daily_volatility['CV'] = daily_volatility['EPEX_Std'] / daily_volatility['EPEX_Mean'] * 100  # Coefficient of variation
+
+    # Identify high volatility days (top quartile)
+    high_vol_threshold = daily_volatility['EPEX_Std'].quantile(0.75)
+    high_vol_days = daily_volatility[daily_volatility['EPEX_Std'] >= high_vol_threshold]
+
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Avg Daily Volatility", f"£{daily_volatility['EPEX_Std'].mean():.2f}",
+                 help="Standard deviation of daily prices")
+    with col2:
+        st.metric("High Volatility Days", f"{len(high_vol_days)} days",
+                 help=f"Days with std > £{high_vol_threshold:.2f}")
+    with col3:
+        st.metric("Max Volatility Day", f"£{daily_volatility['EPEX_Std'].max():.2f}",
+                 help="Highest single-day price volatility")
+
+    # Volatility chart
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=daily_volatility['Date'],
+        y=daily_volatility['EPEX_Std'],
+        name='Price Volatility (Std Dev)',
+        marker_color=np.where(daily_volatility['EPEX_Std'] >= high_vol_threshold, '#e74c3c', '#3498db')
+    ))
+    fig.add_hline(y=high_vol_threshold, line_dash="dash", line_color="red",
+                  annotation_text=f"High volatility threshold: £{high_vol_threshold:.2f}")
+    fig.update_layout(
+        title="Daily Price Volatility (Red = High Value Trading Days)",
+        xaxis_title="Date",
+        yaxis_title="Volatility (£/MWh Std Dev)",
+        height=350
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+    st.markdown("---")
+
+    # ==================== SECTION 5: MISSED OPPORTUNITIES ====================
+    st.header("5️⃣ Missed Opportunity Tracker")
+
+    # Load actual trading data
+    power_col = 'Physical_Power_MW' if 'Physical_Power_MW' in df.columns else None
+
+    if power_col:
+        # Identify periods where battery was idle during high spread
+        df['Was_Idle'] = df[power_col].abs() < 0.1
+        df['High_Spread'] = df['EPEX_Spread'] > df['EPEX_Spread'].quantile(0.75)
+
+        # Missed opportunities: idle during high spread periods
+        missed = df[df['Was_Idle'] & df['High_Spread']]
+        missed_periods = len(missed)
+        missed_hours = missed_periods * 0.5  # 30-min periods
+
+        # Estimate missed revenue (conservative: assume 50% of spread captured with 2MW)
+        avg_spread_missed = df.loc[missed.index, 'EPEX_Spread'].mean() if len(missed) > 0 else 0
+        estimated_missed_revenue = missed_hours * 2 * avg_spread_missed * 0.5 if avg_spread_missed > 0 else 0
+
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Idle During High Spread", f"{missed_periods} periods",
+                     help="30-min periods where battery was idle but spreads were high")
+        with col2:
+            st.metric("Missed Hours", f"{missed_hours:.1f} hours")
+        with col3:
+            st.metric("Est. Missed Revenue", f"£{estimated_missed_revenue:,.0f}",
+                     help="Conservative estimate of potential additional revenue")
+
+        # Top missed opportunity days
+        if len(missed) > 0:
+            missed_by_day = missed.groupby('Date').size().reset_index(name='Missed_Periods')
+            missed_by_day = missed_by_day.sort_values('Missed_Periods', ascending=False).head(5)
+
+            st.subheader("Top 5 Days with Missed Opportunities")
+            for _, row in missed_by_day.iterrows():
+                st.warning(f"**{row['Date']}**: {row['Missed_Periods']} periods idle during high-spread windows")
+    else:
+        st.info("Physical power data not available to calculate missed opportunities")
+
+    st.markdown("---")
+
+    # ==================== SECTION 6: PRICE CORRELATION ====================
+    st.header("6️⃣ Market Price Correlation")
+
+    # Calculate correlation matrix
+    price_data = df[['Day Ahead Price (EPEX)', 'GB-ISEM Intraday 1 Price', 'SSP', 'SBP']].copy()
+    price_data = price_data.apply(pd.to_numeric, errors='coerce')
+    correlation = price_data.corr()
+
+    fig = px.imshow(
+        correlation,
+        labels=dict(color="Correlation"),
+        x=['EPEX DA', 'Intraday', 'SSP', 'SBP'],
+        y=['EPEX DA', 'Intraday', 'SSP', 'SBP'],
+        color_continuous_scale='RdBu_r',
+        zmin=-1, zmax=1,
+        text_auto='.2f'
+    )
+    fig.update_layout(title="Price Correlation Matrix", height=400)
+    st.plotly_chart(fig, use_container_width=True)
+
+    st.info("""
+    **Correlation Insights:**
+    - High correlation (>0.8) between markets suggests limited arbitrage opportunities between them
+    - Low correlation indicates potential for cross-market arbitrage
+    - SSP/SBP divergence creates imbalance market opportunities
+    """)
+
+
+def show_imbalance_deep_dive(month: str = "September 2025"):
+    """Display imbalance deep dive analysis"""
+    st.title(f"⚠️ Imbalance Deep Dive - {month}")
+    st.markdown("### Root Cause Analysis of Imbalance Penalties")
+    st.markdown("---")
+
+    # Load data
+    month_config = AVAILABLE_MONTHS.get(month, AVAILABLE_MONTHS["September 2025"])
+    master_file = month_config.get("master_file", "Master_BESS_Analysis_Sept_2025.csv")
+
+    try:
+        df = pd.read_csv(os.path.join(DATA_DIR, master_file))
+        if 'Unnamed: 0' in df.columns:
+            df.rename(columns={'Unnamed: 0': 'Timestamp'}, inplace=True)
+        df['Timestamp'] = pd.to_datetime(df['Timestamp'])
+        df['Date'] = df['Timestamp'].dt.date
+        df['Hour'] = df['Timestamp'].dt.hour
+        df['DayOfWeek'] = df['Timestamp'].dt.day_name()
+    except Exception as e:
+        st.error(f"Error loading data: {str(e)}")
+        return
+
+    # Calculate imbalance columns
+    df['Imbalance Revenue'] = pd.to_numeric(df.get('Imbalance Revenue', 0), errors='coerce').fillna(0)
+    df['Imbalance Charge'] = pd.to_numeric(df.get('Imbalance Charge', 0), errors='coerce').fillna(0)
+    df['Net_Imbalance'] = df['Imbalance Revenue'] - df['Imbalance Charge']
+    df['SSP'] = pd.to_numeric(df['SSP'], errors='coerce').fillna(0)
+    df['SBP'] = pd.to_numeric(df['SBP'], errors='coerce').fillna(0)
+    df['SSP_SBP_Spread'] = df['SBP'] - df['SSP']
+
+    # ==================== SECTION 1: IMBALANCE SUMMARY ====================
+    st.header("1️⃣ Imbalance Summary")
+
+    total_revenue = df['Imbalance Revenue'].sum()
+    total_charge = df['Imbalance Charge'].sum()
+    net_imbalance = total_revenue - total_charge
+    periods_with_charge = (df['Imbalance Charge'] > 0).sum()
+    periods_with_revenue = (df['Imbalance Revenue'] > 0).sum()
+
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("Imbalance Revenue", f"£{total_revenue:,.0f}",
+                 delta=f"{periods_with_revenue} periods", delta_color="off")
+    with col2:
+        st.metric("Imbalance Charges", f"£{total_charge:,.0f}",
+                 delta=f"{periods_with_charge} periods", delta_color="off")
+    with col3:
+        color = "normal" if net_imbalance >= 0 else "inverse"
+        st.metric("Net Imbalance", f"£{net_imbalance:,.0f}",
+                 delta="Profit" if net_imbalance >= 0 else "Loss", delta_color=color)
+    with col4:
+        st.metric("% of Periods with Charges", f"{periods_with_charge/len(df)*100:.1f}%")
+
+    if net_imbalance < 0:
+        st.error(f"⚠️ **Critical:** Net imbalance loss of **£{abs(net_imbalance):,.0f}** this month")
+    else:
+        st.success(f"✅ Net imbalance profit of **£{net_imbalance:,.0f}** this month")
+
+    st.markdown("---")
+
+    # ==================== SECTION 2: DAILY BREAKDOWN ====================
+    st.header("2️⃣ Daily Imbalance Breakdown")
+
+    daily_imbalance = df.groupby('Date').agg({
+        'Imbalance Revenue': 'sum',
+        'Imbalance Charge': 'sum',
+        'Net_Imbalance': 'sum'
+    }).reset_index()
+    daily_imbalance['Date'] = pd.to_datetime(daily_imbalance['Date'])
+
+    # Identify worst days
+    worst_days = daily_imbalance.nsmallest(5, 'Net_Imbalance')
+
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=daily_imbalance['Date'],
+        y=daily_imbalance['Imbalance Revenue'],
+        name='Revenue',
+        marker_color='#2ecc71'
+    ))
+    fig.add_trace(go.Bar(
+        x=daily_imbalance['Date'],
+        y=-daily_imbalance['Imbalance Charge'],
+        name='Charges',
+        marker_color='#e74c3c'
+    ))
+    fig.update_layout(
+        title="Daily Imbalance Revenue vs Charges",
+        xaxis_title="Date",
+        yaxis_title="Amount (£)",
+        barmode='relative',
+        height=400
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+    # Worst days table
+    st.subheader("Top 5 Worst Imbalance Days")
+    worst_display = worst_days.copy()
+    worst_display['Date'] = worst_display['Date'].dt.strftime('%Y-%m-%d')
+    worst_display.columns = ['Date', 'Revenue (£)', 'Charges (£)', 'Net (£)']
+    st.dataframe(worst_display, use_container_width=True, hide_index=True)
+
+    st.markdown("---")
+
+    # ==================== SECTION 3: HOURLY PATTERN ====================
+    st.header("3️⃣ Imbalance by Hour of Day")
+
+    hourly_imbalance = df.groupby('Hour').agg({
+        'Imbalance Charge': 'sum',
+        'Net_Imbalance': 'sum'
+    }).reset_index()
+
+    worst_hour = hourly_imbalance.loc[hourly_imbalance['Imbalance Charge'].idxmax(), 'Hour']
+    worst_hour_amount = hourly_imbalance['Imbalance Charge'].max()
+
+    st.warning(f"**Peak Imbalance Hour:** {int(worst_hour):02d}:00 - £{worst_hour_amount:,.0f} in charges")
+
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=hourly_imbalance['Hour'],
+        y=hourly_imbalance['Imbalance Charge'],
+        name='Total Charges by Hour',
+        marker_color='#e74c3c'
+    ))
+    fig.update_layout(
+        title="Imbalance Charges by Hour of Day",
+        xaxis_title="Hour",
+        yaxis_title="Total Charges (£)",
+        xaxis=dict(tickmode='linear', tick0=0, dtick=2),
+        height=350
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+    st.markdown("---")
+
+    # ==================== SECTION 4: CORRELATION WITH MARKET CONDITIONS ====================
+    st.header("4️⃣ Correlation with Market Conditions")
+
+    # Filter periods with imbalance charges
+    charged_periods = df[df['Imbalance Charge'] > 0].copy()
+
+    if len(charged_periods) > 0:
+        avg_spread_during_charge = charged_periods['SSP_SBP_Spread'].mean()
+        avg_spread_overall = df['SSP_SBP_Spread'].mean()
+
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Avg SSP/SBP Spread (All)", f"£{avg_spread_overall:.2f}/MWh")
+        with col2:
+            st.metric("Avg Spread (During Charges)", f"£{avg_spread_during_charge:.2f}/MWh",
+                     delta=f"{avg_spread_during_charge - avg_spread_overall:+.2f}")
+        with col3:
+            correlation = charged_periods['Imbalance Charge'].corr(charged_periods['SSP_SBP_Spread'])
+            st.metric("Charge-Spread Correlation", f"{correlation:.2f}")
+
+        # Scatter plot: charge vs spread
+        fig = px.scatter(
+            charged_periods,
+            x='SSP_SBP_Spread',
+            y='Imbalance Charge',
+            color='Hour',
+            title="Imbalance Charges vs SSP/SBP Spread",
+            labels={'SSP_SBP_Spread': 'SSP/SBP Spread (£/MWh)', 'Imbalance Charge': 'Charge (£)'},
+            color_continuous_scale='Viridis'
+        )
+        fig.update_layout(height=400)
+        st.plotly_chart(fig, use_container_width=True)
+
+        st.info("""
+        **Analysis:**
+        - If charges correlate with high spreads, imbalance is occurring during volatile periods (forecast error)
+        - If charges occur during low spreads, it may indicate systematic position errors
+        """)
+    else:
+        st.success("No imbalance charges recorded this month!")
+
+    st.markdown("---")
+
+    # ==================== SECTION 5: ROOT CAUSE ANALYSIS ====================
+    st.header("5️⃣ Root Cause Analysis")
+
+    if len(charged_periods) > 0:
+        # Categorize by time of day
+        morning_charges = charged_periods[(charged_periods['Hour'] >= 6) & (charged_periods['Hour'] < 12)]['Imbalance Charge'].sum()
+        afternoon_charges = charged_periods[(charged_periods['Hour'] >= 12) & (charged_periods['Hour'] < 18)]['Imbalance Charge'].sum()
+        evening_charges = charged_periods[(charged_periods['Hour'] >= 18) & (charged_periods['Hour'] < 22)]['Imbalance Charge'].sum()
+        night_charges = charged_periods[(charged_periods['Hour'] >= 22) | (charged_periods['Hour'] < 6)]['Imbalance Charge'].sum()
+
+        # Pie chart
+        fig = go.Figure(data=[go.Pie(
+            labels=['Morning (6-12)', 'Afternoon (12-18)', 'Evening (18-22)', 'Night (22-6)'],
+            values=[morning_charges, afternoon_charges, evening_charges, night_charges],
+            hole=0.4,
+            marker_colors=['#f39c12', '#e74c3c', '#9b59b6', '#3498db']
+        )])
+        fig.update_layout(title="Imbalance Charges by Time of Day", height=350)
+        st.plotly_chart(fig, use_container_width=True)
+
+        # Key findings
+        max_period = max([
+            ('Morning', morning_charges),
+            ('Afternoon', afternoon_charges),
+            ('Evening', evening_charges),
+            ('Night', night_charges)
+        ], key=lambda x: x[1])
+
+        st.error(f"""
+        **Key Finding:** {max_period[1]/total_charge*100:.0f}% of imbalance charges (£{max_period[0]}: £{max_period[1]:,.0f}) occur during **{max_period[0]}** periods.
+
+        **Potential Causes:**
+        - Forecast errors during high-demand periods
+        - Unexpected frequency response activations
+        - Market position adjustments arriving late
+        - Physical constraints preventing optimal dispatch
+        """)
+
+        # Recommendations
+        st.subheader("💡 Recommendations")
+        st.markdown(f"""
+        1. **Focus on {max_period[0]} periods** - Review dispatch decisions during these hours
+        2. **Improve forecasting** - Better predict imbalance exposure during volatile periods
+        3. **Reduce position size** - During peak charge hours ({int(worst_hour):02d}:00), consider smaller positions
+        4. **Monitor SSP/SBP spread** - High spreads (>£{avg_spread_during_charge:.0f}/MWh) correlate with charges
+        5. **Consider imbalance hedging** - Use intraday markets to reduce exposure
+        """)
+    else:
+        st.success("No imbalance issues to analyze - excellent performance!")
+
+
+def show_ancillary_services_analysis(month: str = "September 2025"):
+    """Display ancillary services analysis - SFFR, DC, DM, DR comparison"""
+    st.title(f"⚡ Ancillary Services Analysis - {month}")
+    st.markdown("### Service Utilization, Revenue Comparison & Opportunity Cost")
+    st.markdown("---")
+
+    # Load data
+    month_config = AVAILABLE_MONTHS.get(month, AVAILABLE_MONTHS["September 2025"])
+    master_file = month_config.get("master_file", "Master_BESS_Analysis_Sept_2025.csv")
+
+    try:
+        df = pd.read_csv(os.path.join(DATA_DIR, master_file))
+        if 'Unnamed: 0' in df.columns:
+            df.rename(columns={'Unnamed: 0': 'Timestamp'}, inplace=True)
+        df['Timestamp'] = pd.to_datetime(df['Timestamp'])
+        df['Date'] = df['Timestamp'].dt.date
+        df['Hour'] = df['Timestamp'].dt.hour
+    except Exception as e:
+        st.error(f"Error loading data: {str(e)}")
+        return
+
+    # Ancillary service definitions
+    services = {
+        'SFFR': {'avail': 'SFFR Availability', 'price': 'SFFR Clearing Price', 'rev': 'SFFR revenues', 'name': 'Static FFR'},
+        'DCL': {'avail': 'DCL Availability', 'price': 'DCL Clearing Price', 'rev': 'DCL revenues', 'name': 'DC Low'},
+        'DCH': {'avail': 'DCH Availability', 'price': 'DCH Clearing Price', 'rev': 'DCH revenues', 'name': 'DC High'},
+        'DML': {'avail': 'DML Availability', 'price': 'DML Clearing Price', 'rev': 'DML revenues', 'name': 'DM Low'},
+        'DMH': {'avail': 'DMH Availability', 'price': 'DMH Clearing Price', 'rev': 'DMH revenues', 'name': 'DM High'},
+        'DRL': {'avail': 'DRL Availability', 'price': 'DRL Clearing Price', 'rev': 'DRL revenues', 'name': 'DR Low'},
+        'DRH': {'avail': 'DRH Availability', 'price': 'DRH Clearing Price', 'rev': 'DRH revenues', 'name': 'DR High'},
+    }
+
+    # Calculate metrics for each service
+    service_metrics = []
+    for code, cols in services.items():
+        if cols['rev'] in df.columns:
+            revenue = pd.to_numeric(df[cols['rev']], errors='coerce').fillna(0).sum()
+            avail = pd.to_numeric(df.get(cols['avail'], 0), errors='coerce').fillna(0)
+            price = pd.to_numeric(df.get(cols['price'], 0), errors='coerce').fillna(0)
+            periods_active = (avail > 0).sum()
+            avg_price = price[avail > 0].mean() if periods_active > 0 else 0
+            total_mw_hours = (avail * 0.5).sum()  # 30-min periods
+
+            service_metrics.append({
+                'Service': code,
+                'Name': cols['name'],
+                'Total Revenue': revenue,
+                'Periods Active': periods_active,
+                'Avg Price': avg_price,
+                'MW-Hours': total_mw_hours,
+                'Revenue per MW-Hour': revenue / total_mw_hours if total_mw_hours > 0 else 0
+            })
+
+    metrics_df = pd.DataFrame(service_metrics)
+    metrics_df = metrics_df.sort_values('Total Revenue', ascending=False)
+
+    # ==================== SECTION 1: REVENUE SUMMARY ====================
+    st.header("1️⃣ Ancillary Revenue Summary")
+
+    total_ancillary = metrics_df['Total Revenue'].sum()
+    top_service = metrics_df.iloc[0] if len(metrics_df) > 0 else None
+
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("Total Ancillary Revenue", f"£{total_ancillary:,.0f}")
+    with col2:
+        if top_service is not None:
+            st.metric("Top Service", top_service['Service'],
+                     delta=f"£{top_service['Total Revenue']:,.0f}")
+    with col3:
+        services_used = (metrics_df['Total Revenue'] > 0).sum()
+        st.metric("Services Used", f"{services_used} / {len(services)}")
+    with col4:
+        if top_service is not None:
+            share = top_service['Total Revenue'] / total_ancillary * 100 if total_ancillary > 0 else 0
+            st.metric("Top Service Share", f"{share:.0f}%")
+
+    st.markdown("---")
+
+    # ==================== SECTION 2: REVENUE BY SERVICE ====================
+    st.header("2️⃣ Revenue by Service")
+
+    fig = px.bar(
+        metrics_df,
+        x='Service',
+        y='Total Revenue',
+        color='Total Revenue',
+        color_continuous_scale='Greens',
+        title="Revenue by Ancillary Service",
+        text=metrics_df['Total Revenue'].apply(lambda x: f'£{x:,.0f}')
+    )
+    fig.update_traces(textposition='outside')
+    fig.update_layout(yaxis_title="Revenue (£)", xaxis_title="Service", showlegend=False, height=400)
+    st.plotly_chart(fig, use_container_width=True)
+
+    # Summary table
+    display_df = metrics_df[['Service', 'Name', 'Total Revenue', 'Periods Active', 'Avg Price', 'Revenue per MW-Hour']].copy()
+    display_df['Total Revenue'] = display_df['Total Revenue'].apply(lambda x: f"£{x:,.0f}")
+    display_df['Avg Price'] = display_df['Avg Price'].apply(lambda x: f"£{x:.2f}/MW/h")
+    display_df['Revenue per MW-Hour'] = display_df['Revenue per MW-Hour'].apply(lambda x: f"£{x:.2f}")
+    st.dataframe(display_df, use_container_width=True, hide_index=True)
+
+    st.markdown("---")
+
+    # ==================== SECTION 3: SERVICE UTILIZATION ====================
+    st.header("3️⃣ Service Utilization Patterns")
+
+    # Pie chart of utilization
+    active_services = metrics_df[metrics_df['Total Revenue'] > 0]
+
+    if len(active_services) > 0:
+        fig = go.Figure(data=[go.Pie(
+            labels=active_services['Service'],
+            values=active_services['Total Revenue'],
+            hole=0.4,
+            textinfo='label+percent'
+        )])
+        fig.update_layout(title="Revenue Distribution by Service", height=400)
+        st.plotly_chart(fig, use_container_width=True)
+
+    # Hourly heatmap for SFFR (main service)
+    if 'SFFR revenues' in df.columns:
+        hourly_sffr = df.groupby('Hour')['SFFR revenues'].sum().reset_index()
+
+        fig = go.Figure()
+        fig.add_trace(go.Bar(
+            x=hourly_sffr['Hour'],
+            y=hourly_sffr['SFFR revenues'],
+            marker_color='#2ecc71'
+        ))
+        fig.update_layout(
+            title="SFFR Revenue by Hour of Day",
+            xaxis_title="Hour",
+            yaxis_title="Revenue (£)",
+            xaxis=dict(tickmode='linear', tick0=0, dtick=2),
+            height=350
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+    st.markdown("---")
+
+    # ==================== SECTION 4: REVENUE PER MW COMPARISON ====================
+    st.header("4️⃣ Revenue per MW-Hour (Efficiency)")
+
+    efficient_df = metrics_df[metrics_df['MW-Hours'] > 0].sort_values('Revenue per MW-Hour', ascending=False)
+
+    if len(efficient_df) > 0:
+        fig = px.bar(
+            efficient_df,
+            x='Service',
+            y='Revenue per MW-Hour',
+            color='Revenue per MW-Hour',
+            color_continuous_scale='Blues',
+            title="Revenue per MW-Hour by Service (Higher = More Efficient)",
+            text=efficient_df['Revenue per MW-Hour'].apply(lambda x: f'£{x:.2f}')
+        )
+        fig.update_traces(textposition='outside')
+        fig.update_layout(yaxis_title="£/MW-Hour", xaxis_title="Service", showlegend=False, height=400)
+        st.plotly_chart(fig, use_container_width=True)
+
+        most_efficient = efficient_df.iloc[0]
+        st.success(f"**Most Efficient Service:** {most_efficient['Service']} ({most_efficient['Name']}) at £{most_efficient['Revenue per MW-Hour']:.2f}/MW-Hour")
+
+    st.markdown("---")
+
+    # ==================== SECTION 5: OPPORTUNITY COST ANALYSIS ====================
+    st.header("5️⃣ Opportunity Cost Analysis")
+
+    st.markdown("*What if GridBeyond had used a different service mix?*")
+
+    if len(efficient_df) > 0 and len(metrics_df) > 0:
+        # Calculate what revenue would be if all MW-hours went to most efficient service
+        total_mw_hours = metrics_df['MW-Hours'].sum()
+        most_efficient_rate = efficient_df.iloc[0]['Revenue per MW-Hour']
+        current_rate = total_ancillary / total_mw_hours if total_mw_hours > 0 else 0
+
+        optimal_revenue = total_mw_hours * most_efficient_rate
+        opportunity_cost = optimal_revenue - total_ancillary
+
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Current Avg Rate", f"£{current_rate:.2f}/MW-h")
+        with col2:
+            st.metric("Best Service Rate", f"£{most_efficient_rate:.2f}/MW-h")
+        with col3:
+            st.metric("Opportunity Cost", f"£{opportunity_cost:,.0f}",
+                     delta="Potential additional revenue" if opportunity_cost > 0 else "Optimal mix achieved",
+                     delta_color="inverse" if opportunity_cost > 0 else "normal")
+
+        if opportunity_cost > 0:
+            st.warning(f"""
+            **Analysis:** If all {total_mw_hours:,.0f} MW-hours had been allocated to {efficient_df.iloc[0]['Service']}
+            instead of the current mix, revenue could have been **£{optimal_revenue:,.0f}** instead of **£{total_ancillary:,.0f}**.
+
+            *Note: This is theoretical - market availability and grid requirements constrain actual allocation.*
+            """)
+        else:
+            st.success("Current service allocation appears optimal for the available market conditions.")
+
+    st.markdown("---")
+
+    # ==================== SECTION 6: RECOMMENDATIONS ====================
+    st.header("6️⃣ Recommendations")
+
+    if len(metrics_df) > 0:
+        sffr_share = metrics_df[metrics_df['Service'] == 'SFFR']['Total Revenue'].sum() / total_ancillary * 100 if total_ancillary > 0 else 0
+
+        st.info(f"""
+        **Current Strategy Analysis:**
+        - SFFR accounts for **{sffr_share:.0f}%** of ancillary revenue
+        - {(metrics_df['Total Revenue'] == 0).sum()} services were not utilized this month
+
+        **Recommendations:**
+        1. **Diversification**: Consider utilizing more DC/DM/DR services for risk mitigation
+        2. **Price Monitoring**: Track clearing prices across all services to identify arbitrage
+        3. **Stacking Strategy**: Explore combining services during different time windows
+        4. **Market Analysis**: Review why certain services show zero revenue - market conditions or strategy choice?
+        """)
+
+
+def generate_pdf_report(month: str = "September 2025"):
+    """Generate PDF executive summary report"""
+    from io import BytesIO
+
+    # Load data
+    month_config = AVAILABLE_MONTHS.get(month, AVAILABLE_MONTHS["September 2025"])
+    master_file = month_config.get("master_file", "Master_BESS_Analysis_Sept_2025.csv")
+    optimization_file = month_config.get("optimization_file", "Optimized_Results_Sept_2025.csv")
+
+    try:
+        df = pd.read_csv(os.path.join(DATA_DIR, master_file))
+        opt_df = pd.read_csv(os.path.join(DATA_DIR, optimization_file))
+    except Exception as e:
+        return None, f"Error loading data: {str(e)}"
+
+    # Calculate metrics
+    def safe_sum(dataframe, col):
+        if col in dataframe.columns:
+            return pd.to_numeric(dataframe[col], errors='coerce').fillna(0).sum()
+        return 0
+
+    sffr = safe_sum(df, 'SFFR revenues')
+    epex = safe_sum(df, 'EPEX 30 DA Revenue') + safe_sum(df, 'EPEX DA Revenues')
+    ida1 = safe_sum(df, 'IDA1 Revenue')
+    idc = safe_sum(df, 'IDC Revenue')
+    imb_rev = safe_sum(df, 'Imbalance Revenue')
+    imb_charge = safe_sum(df, 'Imbalance Charge')
+    total_actual = sffr + epex + ida1 + idc + imb_rev - imb_charge
+
+    optimal = opt_df['Optimised_Revenue_Multi'].sum() if 'Optimised_Revenue_Multi' in opt_df.columns else 0
+    capture_rate = (total_actual / optimal * 100) if optimal > 0 else 0
+    gap = optimal - total_actual
+
+    # Generate text report
+    report = f"""
+================================================================================
+                    BESS PERFORMANCE EXECUTIVE SUMMARY
+                           {month}
+================================================================================
+
+ASSET: Northwold Solar Farm BESS
+AGGREGATOR: GridBeyond
+REPORT DATE: {datetime.now().strftime('%Y-%m-%d')}
+
+--------------------------------------------------------------------------------
+                           KEY METRICS
+--------------------------------------------------------------------------------
+
+ACTUAL REVENUE:         £{total_actual:,.0f}
+OPTIMAL (SIMULATED):    £{optimal:,.0f}
+REVENUE GAP:            £{gap:,.0f}
+CAPTURE RATE:           {capture_rate:.1f}%
+
+--------------------------------------------------------------------------------
+                        REVENUE BREAKDOWN
+--------------------------------------------------------------------------------
+
+SFFR (Frequency Response):     £{sffr:,.0f}
+EPEX Trading:                  £{epex:,.0f}
+IDA1 Trading:                  £{ida1:,.0f}
+IDC Trading:                   £{idc:,.0f}
+Imbalance Revenue:             £{imb_rev:,.0f}
+Imbalance Charges:            -£{imb_charge:,.0f}
+                              ──────────
+TOTAL:                         £{total_actual:,.0f}
+
+--------------------------------------------------------------------------------
+                        PERFORMANCE ASSESSMENT
+--------------------------------------------------------------------------------
+
+"""
+    if capture_rate >= 90:
+        report += "ASSESSMENT: EXCELLENT - Near-optimal performance achieved\n"
+    elif capture_rate >= 70:
+        report += "ASSESSMENT: GOOD - Solid performance with room for improvement\n"
+    elif capture_rate >= 50:
+        report += "ASSESSMENT: MODERATE - Significant revenue left on table\n"
+    else:
+        report += "ASSESSMENT: POOR - Major optimization opportunities exist\n"
+
+    if imb_charge > 1000:
+        report += f"\n⚠️  WARNING: High imbalance charges of £{imb_charge:,.0f} detected\n"
+
+    report += f"""
+--------------------------------------------------------------------------------
+                        RECOMMENDATIONS
+--------------------------------------------------------------------------------
+
+1. {'MAINTAIN current strategy - excellent capture rate' if capture_rate >= 90 else 'REVIEW trading strategy to close revenue gap'}
+2. {'Imbalance management is effective' if imb_charge < 1000 else f'INVESTIGATE imbalance charges (£{imb_charge:,.0f} this month)'}
+3. Continue monitoring multi-market optimization opportunities
+4. Review ancillary service allocation for efficiency
+
+--------------------------------------------------------------------------------
+                           ANNUALIZED PROJECTION
+--------------------------------------------------------------------------------
+
+Based on {month} performance:
+- Projected Annual Revenue: £{total_actual * 12:,.0f}
+- Projected Optimal:        £{optimal * 12:,.0f}
+- Projected Annual Gap:     £{gap * 12:,.0f}
+
+================================================================================
+Generated by BESS Analysis Dashboard
+🤖 Automated Report - {datetime.now().strftime('%Y-%m-%d %H:%M')}
+================================================================================
+"""
+
+    return report, None
+
+
+def show_pdf_export_page(month: str = "September 2025"):
+    """Display PDF export page"""
+    st.title("📄 Export Executive Summary")
+    st.markdown("### Generate Reports for GridBeyond Meetings")
+    st.markdown("---")
+
+    st.subheader("Select Report Options")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        report_month = st.selectbox(
+            "Report Month",
+            list(AVAILABLE_MONTHS.keys()),
+            index=list(AVAILABLE_MONTHS.keys()).index(month) if month in AVAILABLE_MONTHS else 0
+        )
+
+    with col2:
+        report_format = st.radio(
+            "Report Format",
+            ["Text Summary", "CSV Data Export"],
+            horizontal=True
+        )
+
+    st.markdown("---")
+
+    if st.button("📥 Generate Report", type="primary"):
+        with st.spinner("Generating report..."):
+            if report_format == "Text Summary":
+                report, error = generate_pdf_report(report_month)
+
+                if error:
+                    st.error(error)
+                else:
+                    st.success("Report generated successfully!")
+
+                    # Preview
+                    st.subheader("Report Preview")
+                    st.text(report)
+
+                    # Download button
+                    st.download_button(
+                        label="📥 Download Report",
+                        data=report,
+                        file_name=f"BESS_Executive_Summary_{report_month.replace(' ', '_')}.txt",
+                        mime="text/plain"
+                    )
+
+            else:  # CSV Export
+                month_config = AVAILABLE_MONTHS.get(report_month)
+                if month_config:
+                    try:
+                        master_df = pd.read_csv(os.path.join(DATA_DIR, month_config['master_file']))
+                        opt_df = pd.read_csv(os.path.join(DATA_DIR, month_config['optimization_file']))
+
+                        st.success("Data loaded successfully!")
+
+                        col1, col2 = st.columns(2)
+
+                        with col1:
+                            csv1 = master_df.to_csv(index=False)
+                            st.download_button(
+                                label="📥 Download Master Data",
+                                data=csv1,
+                                file_name=f"Master_Data_{report_month.replace(' ', '_')}.csv",
+                                mime="text/csv"
+                            )
+
+                        with col2:
+                            csv2 = opt_df.to_csv(index=False)
+                            st.download_button(
+                                label="📥 Download Optimization Results",
+                                data=csv2,
+                                file_name=f"Optimization_{report_month.replace(' ', '_')}.csv",
+                                mime="text/csv"
+                            )
+
+                    except Exception as e:
+                        st.error(f"Error loading data: {str(e)}")
+
+    st.markdown("---")
+
+    # Quick comparison export
+    st.subheader("Multi-Month Comparison Export")
+
+    if st.button("📊 Export Sept vs Oct Comparison"):
+        with st.spinner("Generating comparison..."):
+            try:
+                # Load both months
+                sept_master = pd.read_csv(os.path.join(DATA_DIR, "Master_BESS_Analysis_Sept_2025.csv"))
+                oct_master = pd.read_csv(os.path.join(DATA_DIR, "Master_BESS_Analysis_Oct_2025.csv"))
+                sept_opt = pd.read_csv(os.path.join(DATA_DIR, "Optimized_Results_Sept_2025.csv"))
+                oct_opt = pd.read_csv(os.path.join(DATA_DIR, "Optimized_Results_Oct_2025.csv"))
+
+                def calc_metrics(master_df, opt_df):
+                    def safe_sum(dataframe, col):
+                        if col in dataframe.columns:
+                            return pd.to_numeric(dataframe[col], errors='coerce').fillna(0).sum()
+                        return 0
+
+                    sffr = safe_sum(master_df, 'SFFR revenues')
+                    epex = safe_sum(master_df, 'EPEX 30 DA Revenue') + safe_sum(master_df, 'EPEX DA Revenues')
+                    imb = safe_sum(master_df, 'Imbalance Revenue') - safe_sum(master_df, 'Imbalance Charge')
+                    total = sffr + epex + safe_sum(master_df, 'IDA1 Revenue') + safe_sum(master_df, 'IDC Revenue') + imb
+                    optimal = opt_df['Optimised_Revenue_Multi'].sum() if 'Optimised_Revenue_Multi' in opt_df.columns else 0
+
+                    return {
+                        'SFFR': sffr,
+                        'EPEX': epex,
+                        'Imbalance': imb,
+                        'Total Actual': total,
+                        'Optimal': optimal,
+                        'Capture Rate': total / optimal * 100 if optimal > 0 else 0,
+                        'Gap': optimal - total
+                    }
+
+                sept_metrics = calc_metrics(sept_master, sept_opt)
+                oct_metrics = calc_metrics(oct_master, oct_opt)
+
+                comparison_df = pd.DataFrame({
+                    'Metric': list(sept_metrics.keys()),
+                    'September': [f"£{v:,.0f}" if 'Rate' not in k else f"{v:.1f}%" for k, v in sept_metrics.items()],
+                    'October': [f"£{v:,.0f}" if 'Rate' not in k else f"{v:.1f}%" for k, v in oct_metrics.items()],
+                })
+
+                st.dataframe(comparison_df, use_container_width=True, hide_index=True)
+
+                csv = comparison_df.to_csv(index=False)
+                st.download_button(
+                    label="📥 Download Comparison CSV",
+                    data=csv,
+                    file_name="Sept_Oct_Comparison.csv",
+                    mime="text/csv"
+                )
+
+            except Exception as e:
+                st.error(f"Error generating comparison: {str(e)}")
+
+
 def main():
     """Main application with sidebar navigation"""
 
@@ -1477,6 +2892,8 @@ def main():
     st.sidebar.markdown("### General")
     show_asset_page = st.sidebar.button("🏭 Asset Details", use_container_width=True)
     show_import_page = st.sidebar.button("📥 Data Import", use_container_width=True)
+    show_exec_comparison = st.sidebar.button("📊 Executive Comparison", use_container_width=True)
+    show_export_page = st.sidebar.button("📄 Export Reports", use_container_width=True)
 
     st.sidebar.markdown("---")
 
@@ -1491,7 +2908,7 @@ def main():
     # Navigation menu for month-dependent pages
     page = st.sidebar.radio(
         "Pages",
-        ["📊 Operations Summary", "🚀 Multi-Market Optimization", "🔋 BESS Health", "📑 Performance Report"],
+        ["📊 Operations Summary", "🚀 Multi-Market Optimization", "📈 Market Prices", "⚠️ Imbalance Analysis", "⚡ Ancillary Services", "🔋 BESS Health", "📑 Performance Report"],
         index=0,  # Default to operations summary
         label_visibility="collapsed"
     )
@@ -1509,6 +2926,12 @@ def main():
         return
     if show_import_page:
         show_data_quality_page()
+        return
+    if show_exec_comparison:
+        show_executive_comparison()
+        return
+    if show_export_page:
+        show_pdf_export_page(selected_month)
         return
 
     # Display selected monthly page
@@ -1529,6 +2952,12 @@ def main():
         show_operations_summary(bess_df, northwold_df, bess_analysis, northwold_analysis, month=selected_month)
     elif page == "🚀 Multi-Market Optimization":
         show_multimarket_optimization(selected_month)
+    elif page == "📈 Market Prices":
+        show_market_price_analysis(selected_month)
+    elif page == "⚠️ Imbalance Analysis":
+        show_imbalance_deep_dive(selected_month)
+    elif page == "⚡ Ancillary Services":
+        show_ancillary_services_analysis(selected_month)
     elif page == "🔋 BESS Health":
         show_bess_health(selected_month)
     elif page == "📑 Performance Report":
