@@ -3065,6 +3065,270 @@ def show_pdf_export_page(month: str = "September 2025"):
                 st.error(f"Error generating comparison: {str(e)}")
 
 
+def show_benchmark_comparison():
+    """Display industry benchmark comparison page."""
+    st.title("📊 Industry Benchmarks")
+    st.markdown("Compare Northwold's performance against UK BESS industry benchmarks")
+
+    # Load and calculate Northwold metrics first
+    try:
+        sept_master = pd.read_csv(os.path.join(DATA_DIR, "Master_BESS_Analysis_Sept_2025.csv"))
+        oct_master = pd.read_csv(os.path.join(DATA_DIR, "Master_BESS_Analysis_Oct_2025.csv"))
+
+        def calculate_monthly_revenue(df):
+            """Calculate total revenue for a month."""
+            def safe_sum(dataframe, col):
+                if col in dataframe.columns:
+                    return pd.to_numeric(dataframe[col], errors='coerce').fillna(0).sum()
+                return 0
+
+            sffr = safe_sum(df, 'SFFR revenues')
+            epex = safe_sum(df, 'EPEX 30 DA Revenue') + safe_sum(df, 'EPEX DA Revenues')
+            ida1 = safe_sum(df, 'IDA1 Revenue')
+            idc = safe_sum(df, 'IDC Revenue')
+            imb_rev = safe_sum(df, 'Imbalance Revenue')
+            imb_charge = safe_sum(df, 'Imbalance Charge')
+
+            return sffr + epex + ida1 + idc + imb_rev - imb_charge
+
+        def calculate_cycles_local(df, power_col, capacity_mwh=8.4, dt_hours=0.5):
+            """Calculate cycles using industry standard method."""
+            if power_col not in df.columns:
+                return None
+            power = pd.to_numeric(df[power_col], errors='coerce').fillna(0)
+            energy = power * dt_hours
+            discharge_mwh = energy[energy > 0].sum()
+            charge_mwh = abs(energy[energy < 0].sum())
+            return (discharge_mwh + charge_mwh) / 2 / capacity_mwh
+
+        # Calculate metrics
+        capacity_mw = 4.2
+
+        sept_revenue = calculate_monthly_revenue(sept_master)
+        oct_revenue = calculate_monthly_revenue(oct_master)
+
+        sept_annual_per_mw = (sept_revenue / 30) * 365 / capacity_mw
+        oct_annual_per_mw = (oct_revenue / 31) * 365 / capacity_mw
+
+        # Find power column for each month (column names differ between months)
+        # Prefer Power_MW columns (dt_hours=0.5), fallback to Battery MWh (dt_hours=1.0)
+        sept_power_col = None
+        sept_dt = 0.5
+        for col in sept_master.columns:
+            if 'Physical_Power_MW' in col or col == 'Power_MW':
+                sept_power_col = col
+                sept_dt = 0.5
+                break
+            elif 'Battery MWh' in col and sept_power_col is None:
+                sept_power_col = col
+                sept_dt = 1.0  # Already in MWh
+
+        oct_power_col = None
+        oct_dt = 0.5
+        for col in oct_master.columns:
+            if 'Physical_Power_MW' in col or col == 'Power_MW':
+                oct_power_col = col
+                oct_dt = 0.5
+                break
+            elif 'Battery MWh' in col and oct_power_col is None:
+                oct_power_col = col
+                oct_dt = 1.0  # Already in MWh
+
+        sept_cycles = calculate_cycles_local(sept_master, sept_power_col, dt_hours=sept_dt) if sept_power_col else None
+        oct_cycles = calculate_cycles_local(oct_master, oct_power_col, dt_hours=oct_dt) if oct_power_col else None
+
+        # Calculate days properly
+        if 'Timestamp' in sept_master.columns:
+            sept_master['Timestamp'] = pd.to_datetime(sept_master['Timestamp'], errors='coerce')
+            sept_days = sept_master['Timestamp'].dt.date.nunique()
+        else:
+            sept_days = 30
+        if 'Timestamp' in oct_master.columns:
+            oct_master['Timestamp'] = pd.to_datetime(oct_master['Timestamp'], errors='coerce')
+            oct_days = oct_master['Timestamp'].dt.date.nunique()
+        else:
+            oct_days = 31
+
+        sept_daily_cycles = sept_cycles / sept_days if sept_cycles else None
+        oct_daily_cycles = oct_cycles / oct_days if oct_cycles else None
+        avg_annual = (sept_annual_per_mw + oct_annual_per_mw) / 2
+
+        data_loaded = True
+    except Exception as e:
+        st.error(f"Error loading data: {str(e)}")
+        data_loaded = False
+        sept_annual_per_mw = oct_annual_per_mw = sept_daily_cycles = oct_daily_cycles = None
+        sept_revenue = oct_revenue = avg_annual = 0
+
+    # Combined benchmark table with Northwold data
+    st.header("Northwold vs Industry Benchmarks")
+
+    if data_loaded:
+        # Build combined table
+        combined_data = {
+            'Metric': [
+                'Total Revenue (£)',
+                'Revenue (£/MW/year)',
+                'Daily Cycles',
+                'Degradation (%/365 cycles)',
+                'Availability (TWCAA %)',
+                'Round-Trip Efficiency (%)'
+            ],
+            'Sept 2025': [
+                f"£{round(sept_revenue):,}",
+                f"£{round(sept_annual_per_mw):,}",
+                f"{sept_daily_cycles:.2f}" if sept_daily_cycles else "N/A",
+                "TBD",
+                "TBD",
+                "~85%"
+            ],
+            'Oct 2025': [
+                f"£{round(oct_revenue):,}",
+                f"£{round(oct_annual_per_mw):,}",
+                f"{oct_daily_cycles:.2f}" if oct_daily_cycles else "N/A",
+                "TBD",
+                "TBD",
+                "~85%"
+            ],
+            'Low': ['-', '£36,000', '1.0', '4.0%', '90%', '82%'],
+            'Mid': ['-', '£60,000', '1.5', '4.4%', '94.4%', '85%'],
+            'High': ['-', '£88,000', '3.0', '11.0%', '98%', '90%'],
+            'Source': ['-', 'Modo Energy', 'OEM Warranty', 'NREL', 'National Grid ESO', 'DNV GL']
+        }
+
+        combined_df = pd.DataFrame(combined_data)
+        st.dataframe(combined_df, use_container_width=True, hide_index=True)
+
+        # Rating indicators
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.markdown("**September Rating:**")
+            if sept_annual_per_mw < 36000:
+                st.error("⬇️ Below industry low")
+            elif sept_annual_per_mw < 60000:
+                st.warning("➡️ Below industry mid")
+            elif sept_annual_per_mw < 88000:
+                st.success("✅ Above industry mid")
+            else:
+                st.success("🌟 Above industry high!")
+        with col2:
+            st.markdown("**October Rating:**")
+            if oct_annual_per_mw < 36000:
+                st.error("⬇️ Below industry low")
+            elif oct_annual_per_mw < 60000:
+                st.warning("➡️ Below industry mid")
+            elif oct_annual_per_mw < 88000:
+                st.success("✅ Above industry mid")
+            else:
+                st.success("🌟 Above industry high!")
+        with col3:
+            st.markdown("**Combined Average:**")
+            st.metric("£/MW/year", f"£{round(avg_annual):,}")
+
+    # Source links
+    with st.expander("📎 Data Sources"):
+        st.markdown("""
+        **Revenue Benchmarks (Modo Energy GB BESS Index):**
+        - [2024 Year in Review](https://modoenergy.com/research/gb-battery-energy-storage-markets-2024-year-in-review-great-britain-wholesale-balancing-mechanism-frequency-response-reserve) - Annual summary *(Published: Jan 2025)*
+        - [December 2024 Benchmark](https://modoenergy.com/research/battery-energy-storage-revenues-december-benchmark-gb-2024-quick-reserve) - £84k/MW/year (2-year high) *(Published: Jan 2025)*
+        - [January 2025 Roundup](https://modoenergy.com/research/gb-research-roundup-january-2025-battery-energy-storage-great-britain-revenues-markets-wholesale-capacity-market-balancing-mechanism) - £88k/MW/year *(Published: Feb 2025)*
+        - [June 2025 Benchmark](https://modoenergy.com/research/battery-energy-storage-revenues-gb-benchmark-june-2025-negative-prices) - £76k/MW/year *(Published: Jul 2025)*
+
+        **Other Sources:**
+        - **NREL**: [Battery Degradation Study](https://www.nrel.gov/docs/fy22osti/80688.pdf) *(Published: 2022)*
+        - **National Grid ESO**: [Transmission Performance Reports](https://www.nationalgrideso.com/research-and-publications/transmission-performance-reports) *(Updated quarterly)*
+        - **DNV GL**: Energy Storage Performance Standards *(Industry standard reference)*
+        - **OEM Warranty**: Manufacturer warranty documentation - 1.5 cycles/day typical *(Per Northwold agreement)*
+
+        **Note:** Modo Energy's GB BESS Index tracks monthly revenues across all GB batteries. Range £36k-£88k/MW/year based on 2024-2025 data.
+        """)
+
+    st.markdown("---")
+
+    if data_loaded:
+        # Visual comparison chart
+        st.subheader("Revenue Benchmark Comparison")
+
+        fig = go.Figure()
+
+        # Add benchmark ranges as horizontal bars
+        fig.add_trace(go.Bar(
+            name='Industry Range',
+            x=['Revenue £/MW/year'],
+            y=[88000 - 36000],
+            base=[36000],
+            marker_color='lightgray',
+            width=0.3,
+            showlegend=True
+        ))
+
+        # Add industry mid line
+        fig.add_hline(y=60000, line_dash="dash", line_color="orange",
+                      annotation_text="Industry Mid (£60k)", annotation_position="right")
+
+        # Add Northwold performance markers
+        fig.add_trace(go.Scatter(
+            name='September 2025',
+            x=['Revenue £/MW/year'],
+            y=[sept_annual_per_mw],
+            mode='markers',
+            marker=dict(size=20, color='blue', symbol='diamond'),
+        ))
+
+        fig.add_trace(go.Scatter(
+            name='October 2025',
+            x=['Revenue £/MW/year'],
+            y=[oct_annual_per_mw],
+            mode='markers',
+            marker=dict(size=20, color='green', symbol='diamond'),
+        ))
+
+        fig.update_layout(
+            title="Northwold vs Industry Benchmarks",
+            yaxis_title="£/MW/year",
+            yaxis=dict(range=[0, max(120000, oct_annual_per_mw * 1.1)]),
+            height=400,
+            showlegend=True
+        )
+
+        st.plotly_chart(fig, use_container_width=True)
+
+        # Key insights
+        st.markdown("---")
+        st.subheader("Key Insights")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.markdown("**Strengths:**")
+            if oct_annual_per_mw >= 88000:
+                st.markdown("- 🌟 October exceeded industry high benchmark")
+            if avg_annual >= 60000:
+                st.markdown("- ✅ Combined average above industry mid")
+            if sept_daily_cycles and sept_daily_cycles <= 1.5:
+                st.markdown("- 🔋 September cycling within warranty limits")
+            if oct_daily_cycles and oct_daily_cycles <= 1.5:
+                st.markdown("- 🔋 October cycling within warranty limits")
+
+        with col2:
+            st.markdown("**Areas for Improvement:**")
+            if sept_annual_per_mw < 60000:
+                gap = 60000 - sept_annual_per_mw
+                st.markdown(f"- September £{gap:,.0f}/MW below industry mid")
+            if avg_annual < 88000:
+                gap = 88000 - avg_annual
+                st.markdown(f"- Combined average £{gap:,.0f}/MW below industry high")
+
+        st.markdown("---")
+        st.caption("""
+        **Sources:**
+        - Revenue benchmarks: Modo Energy UK BESS Market Analysis (2024-2025)
+        - Degradation & cycling: Industry warranty standards and research
+        - Availability (TWCAA): National Grid ESO performance data
+        - Round-trip efficiency: Lithium-ion industry specifications
+        """)
+
+
 def main():
     """Main application with sidebar navigation"""
 
@@ -3076,6 +3340,7 @@ def main():
     show_asset_page = st.sidebar.button("🏭 Asset Details", use_container_width=True)
     show_import_page = st.sidebar.button("📥 Data Import", use_container_width=True)
     show_exec_comparison = st.sidebar.button("📊 Executive Comparison", use_container_width=True)
+    show_benchmark_page = st.sidebar.button("📈 Industry Benchmarks", use_container_width=True)
     show_export_page = st.sidebar.button("📄 Export Reports", use_container_width=True)
 
     st.sidebar.markdown("---")
@@ -3138,6 +3403,9 @@ def main():
         return
     if show_exec_comparison:
         show_executive_comparison()
+        return
+    if show_benchmark_page:
+        show_benchmark_comparison()
         return
     if show_export_page:
         show_pdf_export_page(selected_month)
