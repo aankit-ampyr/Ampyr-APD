@@ -266,6 +266,123 @@ def calculate_cycles(df, power_col, capacity_mwh=8.4, dt_hours=0.5):
     }
 
 
+def calculate_tb_spreads(df, price_col='Day Ahead Price (EPEX)'):
+    """
+    Calculate Top-Bottom (TB) spreads from price data.
+
+    TB spreads measure daily arbitrage potential:
+    - TB1 = highest hourly price - lowest hourly price
+    - TB2 = sum of 2 highest - sum of 2 lowest hourly prices
+    - TB3 = sum of 3 highest - sum of 3 lowest hourly prices
+
+    Args:
+        df: DataFrame with half-hourly price data
+        price_col: Column name for price data
+
+    Returns:
+        DataFrame with columns: Date, TB1, TB2, TB3
+    """
+    df = df.copy()
+
+    # Handle timestamp column
+    if 'Timestamp' in df.columns:
+        df['Timestamp'] = pd.to_datetime(df['Timestamp'], errors='coerce')
+    elif 'Unnamed: 0' in df.columns:
+        df['Timestamp'] = pd.to_datetime(df['Unnamed: 0'], errors='coerce')
+    else:
+        return pd.DataFrame(columns=['Date', 'TB1', 'TB2', 'TB3'])
+
+    # Parse price data
+    if price_col not in df.columns:
+        return pd.DataFrame(columns=['Date', 'TB1', 'TB2', 'TB3'])
+
+    df['Price'] = pd.to_numeric(df[price_col], errors='coerce')
+
+    # Extract date and hour for grouping
+    df['Date'] = df['Timestamp'].dt.date
+    df['Hour'] = df['Timestamp'].dt.hour
+
+    # Aggregate half-hourly to hourly (average of two HH periods)
+    hourly_prices = df.groupby(['Date', 'Hour'])['Price'].mean().reset_index()
+
+    # Calculate TB spreads per day
+    tb_results = []
+
+    for date in hourly_prices['Date'].unique():
+        day_prices = hourly_prices[hourly_prices['Date'] == date]['Price'].dropna()
+
+        if len(day_prices) < 3:
+            continue
+
+        sorted_desc = day_prices.sort_values(ascending=False).values
+        sorted_asc = day_prices.sort_values(ascending=True).values
+
+        # TB1: Highest - Lowest
+        tb1 = sorted_desc[0] - sorted_asc[0]
+
+        # TB2: Sum of 2 highest - Sum of 2 lowest
+        tb2 = sum(sorted_desc[:2]) - sum(sorted_asc[:2])
+
+        # TB3: Sum of 3 highest - Sum of 3 lowest
+        tb3 = sum(sorted_desc[:3]) - sum(sorted_asc[:3])
+
+        tb_results.append({
+            'Date': date,
+            'TB1': tb1,
+            'TB2': tb2,
+            'TB3': tb3
+        })
+
+    return pd.DataFrame(tb_results)
+
+
+def calculate_daily_arbitrage(df):
+    """
+    Calculate daily wholesale trading revenue (arbitrage).
+
+    Arbitrage revenue = EPEX DA + IDA1 + IDC revenues
+    (excludes SFFR as it's frequency response, not arbitrage)
+
+    Args:
+        df: DataFrame with revenue columns
+
+    Returns:
+        DataFrame with columns: Date, Arbitrage_Revenue
+    """
+    df = df.copy()
+
+    # Handle timestamp column
+    if 'Timestamp' in df.columns:
+        df['Timestamp'] = pd.to_datetime(df['Timestamp'], errors='coerce')
+    elif 'Unnamed: 0' in df.columns:
+        df['Timestamp'] = pd.to_datetime(df['Unnamed: 0'], errors='coerce')
+    else:
+        return pd.DataFrame(columns=['Date', 'Arbitrage_Revenue'])
+
+    df['Date'] = df['Timestamp'].dt.date
+
+    # Sum revenue columns (handle both naming conventions)
+    def safe_col(dataframe, col):
+        if col in dataframe.columns:
+            return pd.to_numeric(dataframe[col], errors='coerce').fillna(0)
+        return 0
+
+    df['EPEX_Revenue'] = safe_col(df, 'EPEX 30 DA Revenue') + safe_col(df, 'EPEX DA Revenues')
+    df['IDA1_Revenue'] = safe_col(df, 'IDA1 Revenue')
+    df['IDC_Revenue'] = safe_col(df, 'IDC Revenue')
+
+    df['Arbitrage_Total'] = df['EPEX_Revenue'] + df['IDA1_Revenue'] + df['IDC_Revenue']
+
+    # Group by date
+    daily = df.groupby('Date').agg({
+        'Arbitrage_Total': 'sum'
+    }).reset_index()
+
+    daily.columns = ['Date', 'Arbitrage_Revenue']
+
+    return daily
+
+
 def show_asset_details():
     """Display asset details from digital twin configuration"""
     st.title("🏭 Asset Details")
@@ -3296,6 +3413,212 @@ def show_benchmark_comparison():
     - **Wholesale Day Ahead** significantly underperformed, with October showing negative values
     - **Overall:** September underperformed (-28%), but October significantly outperformed (+66%), resulting in a combined 122% of IAR projections
     """)
+
+    st.markdown("---")
+
+    # Section 3: TB Spread Benchmarks
+    st.header("3. TB Spread Benchmarks")
+    st.caption("Top-Bottom spread analysis: comparing theoretical arbitrage potential to actual wholesale trading revenue")
+
+    if data_loaded:
+        try:
+            # Calculate TB spreads for both months
+            sept_tb = calculate_tb_spreads(sept_master)
+            oct_tb = calculate_tb_spreads(oct_master)
+
+            # Calculate daily arbitrage revenue
+            sept_arb = calculate_daily_arbitrage(sept_master)
+            oct_arb = calculate_daily_arbitrage(oct_master)
+
+            # Merge TB spreads with arbitrage
+            sept_combined = sept_tb.merge(sept_arb, on='Date', how='inner')
+            oct_combined = oct_tb.merge(oct_arb, on='Date', how='inner')
+
+            if len(sept_combined) > 0 and len(oct_combined) > 0:
+                # Calculate capture rates (as % of TB spread * capacity)
+                capacity_mwh = 8.4
+
+                # TB spread is in £/MWh, multiply by capacity for theoretical max revenue
+                sept_combined['TB1_Max'] = sept_combined['TB1'] * capacity_mwh
+                sept_combined['TB2_Max'] = sept_combined['TB2'] * capacity_mwh
+                sept_combined['TB3_Max'] = sept_combined['TB3'] * capacity_mwh
+
+                oct_combined['TB1_Max'] = oct_combined['TB1'] * capacity_mwh
+                oct_combined['TB2_Max'] = oct_combined['TB2'] * capacity_mwh
+                oct_combined['TB3_Max'] = oct_combined['TB3'] * capacity_mwh
+
+                # Calculate capture rates
+                sept_combined['TB1_Capture'] = (sept_combined['Arbitrage_Revenue'] / sept_combined['TB1_Max']) * 100
+                sept_combined['TB2_Capture'] = (sept_combined['Arbitrage_Revenue'] / sept_combined['TB2_Max']) * 100
+                sept_combined['TB3_Capture'] = (sept_combined['Arbitrage_Revenue'] / sept_combined['TB3_Max']) * 100
+
+                oct_combined['TB1_Capture'] = (oct_combined['Arbitrage_Revenue'] / oct_combined['TB1_Max']) * 100
+                oct_combined['TB2_Capture'] = (oct_combined['Arbitrage_Revenue'] / oct_combined['TB2_Max']) * 100
+                oct_combined['TB3_Capture'] = (oct_combined['Arbitrage_Revenue'] / oct_combined['TB3_Max']) * 100
+
+                # Replace inf values with NaN
+                sept_combined = sept_combined.replace([float('inf'), float('-inf')], float('nan'))
+                oct_combined = oct_combined.replace([float('inf'), float('-inf')], float('nan'))
+
+                # Summary metrics
+                col1, col2, col3, col4 = st.columns(4)
+
+                avg_tb2 = (sept_combined['TB2'].mean() + oct_combined['TB2'].mean()) / 2
+                avg_arb = (sept_combined['Arbitrage_Revenue'].mean() + oct_combined['Arbitrage_Revenue'].mean()) / 2
+                avg_capture_tb2 = (sept_combined['TB2_Capture'].mean() + oct_combined['TB2_Capture'].mean()) / 2
+
+                with col1:
+                    st.metric("Avg Daily TB2", f"£{avg_tb2:.0f}/MWh",
+                              help="Average daily TB2 spread (sum of 2 highest - 2 lowest hourly prices)")
+
+                with col2:
+                    st.metric("Avg Daily Arbitrage", f"£{avg_arb:.0f}",
+                              help="Average daily wholesale trading revenue")
+
+                with col3:
+                    delta_val = avg_capture_tb2 - 142 if not pd.isna(avg_capture_tb2) else 0
+                    st.metric("TB2 Capture Rate", f"{avg_capture_tb2:.0f}%" if not pd.isna(avg_capture_tb2) else "N/A",
+                              delta=f"{delta_val:+.0f}% vs benchmark",
+                              help="Actual arbitrage as % of TB2 theoretical max. Industry benchmark: 142% for 2-hr batteries")
+
+                with col4:
+                    st.metric("Industry Benchmark", "142%",
+                              help="2-hour batteries typically earn ~142% of TB2 spread (Source: Modo Energy)")
+
+                # Monthly comparison table
+                st.subheader("Monthly TB Spread Summary")
+
+                summary_data = {
+                    'Metric': ['Avg TB1 (£/MWh)', 'Avg TB2 (£/MWh)', 'Avg TB3 (£/MWh)',
+                               'Avg Daily Arbitrage (£)', 'TB2 Capture Rate (%)'],
+                    'September': [
+                        f"£{sept_combined['TB1'].mean():.1f}",
+                        f"£{sept_combined['TB2'].mean():.1f}",
+                        f"£{sept_combined['TB3'].mean():.1f}",
+                        f"£{sept_combined['Arbitrage_Revenue'].mean():.0f}",
+                        f"{sept_combined['TB2_Capture'].mean():.0f}%" if not pd.isna(sept_combined['TB2_Capture'].mean()) else "N/A"
+                    ],
+                    'October': [
+                        f"£{oct_combined['TB1'].mean():.1f}",
+                        f"£{oct_combined['TB2'].mean():.1f}",
+                        f"£{oct_combined['TB3'].mean():.1f}",
+                        f"£{oct_combined['Arbitrage_Revenue'].mean():.0f}",
+                        f"{oct_combined['TB2_Capture'].mean():.0f}%" if not pd.isna(oct_combined['TB2_Capture'].mean()) else "N/A"
+                    ]
+                }
+                summary_df = pd.DataFrame(summary_data)
+                st.dataframe(summary_df, use_container_width=True, hide_index=True)
+
+                # Time series chart
+                st.subheader("Daily TB2 Spread vs Actual Arbitrage")
+
+                # Combine both months
+                all_combined = pd.concat([
+                    sept_combined.assign(Month='September'),
+                    oct_combined.assign(Month='October')
+                ])
+                all_combined['Date'] = pd.to_datetime(all_combined['Date'])
+
+                fig_tb = go.Figure()
+
+                # TB2 theoretical max area
+                fig_tb.add_trace(go.Scatter(
+                    x=all_combined['Date'],
+                    y=all_combined['TB2_Max'],
+                    name='TB2 Theoretical Max (£)',
+                    mode='lines',
+                    line=dict(color='lightblue', width=2),
+                    fill='tozeroy',
+                    fillcolor='rgba(173, 216, 230, 0.3)'
+                ))
+
+                # Actual arbitrage revenue
+                fig_tb.add_trace(go.Scatter(
+                    x=all_combined['Date'],
+                    y=all_combined['Arbitrage_Revenue'],
+                    name='Actual Arbitrage (£)',
+                    mode='lines+markers',
+                    line=dict(color='green', width=2),
+                    marker=dict(size=4)
+                ))
+
+                # Industry benchmark (142% of TB2)
+                fig_tb.add_trace(go.Scatter(
+                    x=all_combined['Date'],
+                    y=all_combined['TB2_Max'] * 1.42,
+                    name='Industry Benchmark (142%)',
+                    mode='lines',
+                    line=dict(color='orange', dash='dash', width=1)
+                ))
+
+                fig_tb.update_layout(
+                    xaxis_title="Date",
+                    yaxis_title="Revenue (£)",
+                    height=400,
+                    showlegend=True,
+                    legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01)
+                )
+
+                st.plotly_chart(fig_tb, use_container_width=True)
+
+                # Performance rating
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    st.markdown("**Performance Rating:**")
+                    sept_avg = sept_combined['TB2_Capture'].mean()
+                    oct_avg = oct_combined['TB2_Capture'].mean()
+
+                    if not pd.isna(sept_avg):
+                        if sept_avg >= 142:
+                            st.success(f"September: {sept_avg:.0f}% - At or above benchmark")
+                        elif sept_avg >= 100:
+                            st.warning(f"September: {sept_avg:.0f}% - Below benchmark but positive")
+                        else:
+                            st.info(f"September: {sept_avg:.0f}% - Below 100%")
+
+                    if not pd.isna(oct_avg):
+                        if oct_avg >= 142:
+                            st.success(f"October: {oct_avg:.0f}% - At or above benchmark")
+                        elif oct_avg >= 100:
+                            st.warning(f"October: {oct_avg:.0f}% - Below benchmark but positive")
+                        else:
+                            st.info(f"October: {oct_avg:.0f}% - Below 100%")
+
+                with col2:
+                    st.markdown("**TB Spread Interpretation:**")
+                    st.markdown("""
+                    - **TB2 Capture > 142%**: Exceeding industry benchmark for 2-hr batteries
+                    - **TB2 Capture 100-142%**: Capturing spread but below benchmark
+                    - **TB2 Capture < 100%**: Not fully capturing available spread
+
+                    *Capture rates >100% achieved through intraday trading and frequency response stacking.*
+                    """)
+
+                # Expandable daily details
+                with st.expander("View Daily TB Spread Details"):
+                    tab1, tab2 = st.tabs(["September", "October"])
+
+                    with tab1:
+                        sept_display = sept_combined[['Date', 'TB1', 'TB2', 'TB3', 'Arbitrage_Revenue', 'TB2_Capture']].copy()
+                        sept_display.columns = ['Date', 'TB1 (£/MWh)', 'TB2 (£/MWh)', 'TB3 (£/MWh)', 'Arbitrage (£)', 'Capture (%)']
+                        sept_display['Date'] = pd.to_datetime(sept_display['Date']).dt.strftime('%Y-%m-%d')
+                        st.dataframe(sept_display, use_container_width=True, hide_index=True)
+
+                    with tab2:
+                        oct_display = oct_combined[['Date', 'TB1', 'TB2', 'TB3', 'Arbitrage_Revenue', 'TB2_Capture']].copy()
+                        oct_display.columns = ['Date', 'TB1 (£/MWh)', 'TB2 (£/MWh)', 'TB3 (£/MWh)', 'Arbitrage (£)', 'Capture (%)']
+                        oct_display['Date'] = pd.to_datetime(oct_display['Date']).dt.strftime('%Y-%m-%d')
+                        st.dataframe(oct_display, use_container_width=True, hide_index=True)
+
+                st.caption("""
+                **TB Spread Benchmark Source:** [Modo Energy - Benchmarking European battery revenue with TB spreads](https://modoenergy.com/research/top-bottom-spread-revenue-benchmark-battery-energy-storage-sytems-gb-europe-spain-germany-solar-2025)
+                """)
+            else:
+                st.warning("Insufficient data to calculate TB spreads. Ensure price data is available.")
+
+        except Exception as e:
+            st.error(f"Error calculating TB spreads: {str(e)}")
 
     st.markdown("---")
 

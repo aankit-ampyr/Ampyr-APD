@@ -165,12 +165,13 @@ if uploaded_file:
 
 ## Implementation Order
 
-1. **Market Price Analysis** - Add spread analysis, missed opportunities
-2. **GridBeyond vs Optimal View** - Enhanced comparison dashboard
-3. **Imbalance Deep Dive** - Root cause analysis for penalties
-4. **Excel Import** - Easy monthly report upload
-5. **Multi-Month Tracking** - Trend analysis over time
+1. **Market Price Analysis** - Add spread analysis, missed opportunities ✅ DONE
+2. **GridBeyond vs Optimal View** - Enhanced comparison dashboard ✅ DONE
+3. **Imbalance Deep Dive** - Root cause analysis for penalties ✅ DONE
+4. **Excel Import** - Easy monthly report upload ✅ DONE
+5. **Multi-Month Tracking** - Trend analysis over time ✅ DONE (Sept + Oct)
 6. **Export/Reports** - PDF/Excel for GridBeyond meetings
+7. **Benchmarks Page** - IAR vs Actual comparison ✅ DONE (28 Nov 2025)
 
 ---
 
@@ -256,3 +257,33 @@ if uploaded_file:
 - Streamlit Cloud deployment remains supported
 - No database migration required (CSV-based storage continues)
 - Focus first on analysis features, then code quality
+
+---
+
+## Completed Work Log
+
+### 28 November 2025
+
+**Benchmarks Page Added:**
+
+- Renamed "Industry Benchmarks" → "Benchmarks"
+- Section 1: Industry Performance Summary table
+- Section 2: IAR vs Actual Revenue comparison
+  - 11 revenue streams from IAR Excel data
+  - Variance calculations (Sept -28%, Oct +66%)
+  - Capture rate metrics
+  - Styled Total row with bold formatting
+- Data source: `extra/Northwold BESS Revenue_IAR.xlsx`
+
+**Documentation Updated:**
+
+- README.md - Added Benchmarks page, Oct 2025 data, version 1.1.0
+- dashboard_README.md - Added Benchmarks section, Oct revenue data
+- metrics_documentation_plan.md - Marked all items complete
+- project_plan_27_nov.md - This file
+
+**Key Metrics:**
+
+- Sept 2025: IAR £19,973 → Actual £14,457 (72% capture, -28%)
+- Oct 2025: IAR £23,134 → Actual £38,344 (166% capture, +66%)
+- Frequency Response: Significantly outperformed IAR (20x+ in Oct)

@@ -10,6 +10,7 @@ This dashboard provides in-depth analysis of:
 - Multi-market optimization strategies
 - Battery health and degradation analysis
 - Performance comparison between actual and optimized strategies
+- Industry benchmarks and IAR (Internal Appraisal Report) comparison
 
 ## 🚀 Features
 
@@ -42,12 +43,32 @@ This dashboard provides in-depth analysis of:
 - Key drivers of revenue loss
 - Strategic recommendations
 
-## 📊 Key Metrics (September 2025)
+### 6. **Benchmarks**
 
-- **Actual Revenue**: £14,376
-- **Optimized Revenue**: £39,196 (172% improvement)
-- **Daily Cycles**: 0.95 (well below 1.5 warranty limit)
+- Industry performance benchmarks (revenue per MW, utilization rates)
+- IAR (Internal Appraisal Report) vs Actual revenue comparison
+- Variance analysis by revenue stream (Day Ahead, Intraday, Frequency Response, etc.)
+- Monthly capture rate metrics (Sept: 72%, Oct: 166%)
+
+## 📊 Key Metrics
+
+### September 2025
+
+- **Actual Revenue**: £14,457
+- **IAR Projected**: £19,973
+- **Capture Rate**: 72%
+
+### October 2025
+
+- **Actual Revenue**: £38,344
+- **IAR Projected**: £23,134
+- **Capture Rate**: 166%
+
+### Battery Operations
+
+- **Daily Cycles**: ~0.95 (well below 1.5 warranty limit)
 - **Round-trip Efficiency**: 87%
+- **Capacity**: 8.4 MWh
 
 ## 🛠️ Technology Stack
 
@@ -65,8 +86,14 @@ bess-analysis-dashboard/
 ├── data/                      # Data files
 │   ├── BESS_Sept_2025_converted.csv
 │   ├── Northwold_Sep_2025_converted.csv
+│   ├── BESS_Oct_2025.csv
+│   ├── Northwold_Oct_2025.csv
 │   ├── Master_BESS_Analysis_Sept_2025.csv
+│   ├── Master_BESS_Analysis_Oct_2025.csv
 │   └── Optimized_Results_MultiMarket.csv
+│
+├── extra/                     # Additional data sources
+│   └── Northwold BESS Revenue_IAR.xlsx  # IAR projections
 │
 ├── src/                       # Source modules
 │   ├── digital_twin_config.py
@@ -138,7 +165,17 @@ Monitors battery cycling and degradation:
 - Projected lifespan analysis
 
 ### Performance Report
+
 Executive summary comparing actual vs optimized performance with key recommendations.
+
+### Benchmarks
+
+Industry benchmarks and IAR vs Actual comparison:
+
+- Performance benchmarks against industry standards
+- IAR projected revenue vs actual GridBeyond revenue
+- Variance analysis by revenue stream
+- Capture rate metrics with monthly trends
 
 ## 🔑 Key Insights
 
@@ -162,5 +199,5 @@ For questions or support, please contact the development team.
 
 ---
 
-*Dashboard Version: 1.0.0*
-*Last Updated: November 2024*
+*Dashboard Version: 1.1.0*
+*Last Updated: November 2025*
