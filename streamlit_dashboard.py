@@ -3342,6 +3342,128 @@ def show_benchmark_comparison():
             st.markdown("**Combined Average:**")
             st.metric("£/MW/year", f"£{round(avg_annual):,}")
 
+        # Calculation explanations for Section 1
+        st.subheader("Metric Calculations")
+
+        with st.expander("📐 Total Revenue - How is it calculated?"):
+            st.markdown("""
+**Formula:**
+```
+Total Revenue = SFFR + EPEX DA + IDA1 + IDC + Imbalance Revenue - Imbalance Charge
+```
+
+**Explanation:**
+Sum of all wholesale market revenues minus imbalance penalties. Includes frequency response (SFFR),
+day-ahead trading (EPEX), intraday markets (IDA1, IDC), and net imbalance settlements.
+
+**Example (September 2025):**
+- SFFR revenues: £17,164
+- EPEX DA: £1,880
+- IDA1: £3,670
+- IDC: £0
+- Imbalance Revenue: £0
+- Imbalance Charge: -£8,257
+- **Total: £14,457**
+            """)
+
+        with st.expander("📐 Revenue (£/MW/year) - How is it calculated?"):
+            st.markdown("""
+**Formula:**
+```
+£/MW/year = (Monthly Revenue ÷ Days in Month) × 365 ÷ Capacity_MW
+```
+
+**Explanation:**
+Annualizes monthly revenue and normalizes by installed capacity (4.2 MW) to enable
+comparison with industry benchmarks regardless of asset size.
+
+**Example (September 2025):**
+- Monthly Revenue: £14,457
+- Days in September: 30
+- Daily average: £14,457 ÷ 30 = £482/day
+- Annualized: £482 × 365 = £175,878/year
+- Per MW: £175,878 ÷ 4.2 MW = **£41,876/MW/year**
+            """)
+
+        with st.expander("📐 Daily Cycles - How is it calculated?"):
+            st.markdown("""
+**Formula:**
+```
+Daily Cycles = (Discharge_MWh + Charge_MWh) ÷ 2 ÷ Capacity_MWh ÷ Days
+```
+
+**Explanation:**
+One full cycle = fully charging then fully discharging the battery (8.4 MWh).
+We sum all energy throughput, divide by 2 (to count charge+discharge as one cycle),
+then divide by capacity and number of days.
+
+**Example (September 2025):**
+- Total Discharge: 126 MWh
+- Total Charge: 126 MWh
+- Total throughput: 252 MWh
+- Equivalent full cycles: 252 ÷ 2 ÷ 8.4 = 15 cycles
+- Daily average: 15 ÷ 30 days = **0.5 cycles/day**
+            """)
+
+        with st.expander("📐 Degradation - How is it calculated?"):
+            st.markdown("""
+**Formula:**
+```
+Degradation = Capacity loss (%) per 365 equivalent full cycles
+```
+
+**Explanation:**
+Battery capacity degrades with use. Industry benchmarks measure this as percentage
+capacity loss per year of typical cycling (365 cycles). Lower is better.
+
+**Industry Range (NREL Study):**
+- Low: 4.0% (high-quality cells, conservative operation)
+- Mid: 4.4% (typical lithium-ion)
+- High: 11.0% (aggressive cycling, poor thermal management)
+
+*Northwold TBD - requires long-term capacity testing data.*
+            """)
+
+        with st.expander("📐 Availability (TWCAA) - How is it calculated?"):
+            st.markdown("""
+**Formula:**
+```
+TWCAA = Technical Weighted Contracted Availability Assessment
+```
+
+**Explanation:**
+National Grid ESO metric measuring the percentage of time the asset is available
+to deliver contracted services. Accounts for planned maintenance, forced outages,
+and partial availability.
+
+**Industry Range (National Grid ESO):**
+- Low: 90% (significant downtime)
+- Mid: 94.4% (typical BESS performance)
+- High: 98% (excellent availability)
+
+*Northwold TBD - requires ESO reporting data.*
+            """)
+
+        with st.expander("📐 Round-Trip Efficiency - How is it calculated?"):
+            st.markdown("""
+**Formula:**
+```
+RTE = (Energy Discharged ÷ Energy Charged) × 100
+```
+
+**Explanation:**
+Measures energy losses during charge/discharge cycles. A battery charged with
+100 MWh that discharges 85 MWh has 85% RTE. Losses occur in power electronics,
+battery cells, and thermal management.
+
+**Industry Range (DNV GL):**
+- Low: 82% (older systems, poor conditions)
+- Mid: 85% (typical Li-ion NMC/LFP)
+- High: 90% (optimized operation)
+
+*Northwold: ~85% (estimated from system design)*
+            """)
+
     st.markdown("---")
 
     # Section 2: IAR vs Actual Revenue Comparison
@@ -3414,10 +3536,314 @@ def show_benchmark_comparison():
     - **Overall:** September underperformed (-28%), but October significantly outperformed (+66%), resulting in a combined 122% of IAR projections
     """)
 
+    # Calculation explanations for Section 2
+    st.subheader("Metric Calculations")
+
+    with st.expander("📐 Variance (%) - How is it calculated?"):
+        st.markdown("""
+**Formula:**
+```
+Variance % = ((Actual - IAR) ÷ IAR) × 100
+```
+
+**Explanation:**
+Compares actual GridBeyond revenues against Internal Appraisal Report (IAR) projections.
+Positive variance means outperformance; negative means underperformance.
+
+**Example (October Frequency Response):**
+- IAR Projection: £1,038
+- Actual Revenue: £28,382
+- Variance: ((28,382 - 1,038) ÷ 1,038) × 100 = **+2,634%**
+
+*The massive outperformance in Frequency Response offset underperformance in Wholesale.*
+        """)
+
+    with st.expander("📐 Revenue Streams - What do they mean?"):
+        st.markdown("""
+| Stream | Description |
+|--------|-------------|
+| **Wholesale Day Ahead** | EPEX power exchange - trading for next-day delivery |
+| **Wholesale Intraday** | IDA1/IDC - same-day trading to balance positions |
+| **Balancing Mechanism** | National Grid dispatch instructions for system balancing |
+| **Frequency Response** | SFFR/DC/DM/DR - grid frequency stabilization services |
+| **Capacity Market** | Annual payments for availability during stress events |
+| **DUoS Battery** | Distribution Use of System - embedded generation benefits |
+| **DUoS Fixed Charges** | Fixed network charges (cost, shown negative) |
+| **TNUoS** | Transmission Network Use of System charges |
+| **Imbalance Revenue** | Payments when grid position helps system balance |
+| **Imbalance Charge** | Penalties when grid position hurts system balance |
+
+*Streams marked "-" are not tracked in GridBeyond monthly reports or not applicable.*
+        """)
+
     st.markdown("---")
 
-    # Section 3: TB Spread Benchmarks
-    st.header("3. TB Spread Benchmarks")
+    # Section 3: Multi-Market Optimization vs Actual
+    st.header("3. Multi-Market Optimization vs Actual")
+    st.caption("Compare actual GridBeyond performance against optimized multi-market strategy with perfect foresight")
+
+    # Load optimized results
+    try:
+        sept_opt = pd.read_csv(os.path.join(DATA_DIR, "Optimized_Results_Sept_2025.csv"))
+        oct_opt = pd.read_csv(os.path.join(DATA_DIR, "Optimized_Results_Oct_2025.csv"))
+        opt_loaded = True
+    except Exception as e:
+        st.warning(f"Could not load optimization results: {str(e)}")
+        opt_loaded = False
+
+    if data_loaded and opt_loaded:
+        # Calculate actual revenue breakdown
+        def get_revenue_breakdown(df):
+            def safe_sum(dataframe, col):
+                if col in dataframe.columns:
+                    return pd.to_numeric(dataframe[col], errors='coerce').fillna(0).sum()
+                return 0
+
+            sffr = safe_sum(df, 'SFFR revenues')
+            epex = safe_sum(df, 'EPEX 30 DA Revenue') + safe_sum(df, 'EPEX DA Revenues')
+            ida1 = safe_sum(df, 'IDA1 Revenue')
+            idc = safe_sum(df, 'IDC Revenue')
+            imb_rev = safe_sum(df, 'Imbalance Revenue')
+            imb_charge = safe_sum(df, 'Imbalance Charge')
+
+            return {
+                'SFFR': sffr,
+                'EPEX DA': epex,
+                'IDA1': ida1,
+                'IDC': idc,
+                'Imbalance': imb_rev - imb_charge,
+                'Total': sffr + epex + ida1 + idc + imb_rev - imb_charge
+            }
+
+        # Calculate optimized revenues with market breakdown
+        def get_opt_revenue_breakdown(df):
+            """Calculate optimized revenue breakdown by market."""
+            df = df.copy()
+            df['Revenue'] = pd.to_numeric(df['Optimised_Revenue_Multi'], errors='coerce').fillna(0)
+            df['Market'] = df['Market_Used_Multi'].fillna('Idle')
+
+            # Group revenues by market type
+            sffr = df[df['Market'] == 'SFFR']['Revenue'].sum()
+
+            # EPEX includes both buy and sell operations
+            epex = df[df['Market'].str.contains('EPEX', na=False)]['Revenue'].sum()
+
+            # ISEM (IDA1 equivalent in optimization)
+            isem = df[df['Market'].str.contains('ISEM', na=False)]['Revenue'].sum()
+
+            # SSP/SBP (System prices - imbalance market)
+            ssp = df[df['Market'].str.contains('SSP|SBP', na=False)]['Revenue'].sum()
+
+            # DA_HH (Day Ahead Half-Hourly)
+            da_hh = df[df['Market'].str.contains('DA_HH', na=False)]['Revenue'].sum()
+
+            total = df['Revenue'].sum()
+
+            return {
+                'SFFR': sffr,
+                'EPEX DA': epex + da_hh,  # Combine EPEX and DA_HH as day-ahead
+                'IDA1': isem,  # ISEM is intraday
+                'IDC': 0,  # Not used in optimization
+                'Imbalance': ssp,  # SSP/SBP is system imbalance
+                'Total': total
+            }
+
+        sept_actual = get_revenue_breakdown(sept_master)
+        oct_actual = get_revenue_breakdown(oct_master)
+        sept_optimized = get_opt_revenue_breakdown(sept_opt)
+        oct_optimized = get_opt_revenue_breakdown(oct_opt)
+
+        # Summary metrics
+        col1, col2, col3, col4 = st.columns(4)
+
+        sept_gap = sept_optimized['Total'] - sept_actual['Total']
+        oct_gap = oct_optimized['Total'] - oct_actual['Total']
+        sept_capture = (sept_actual['Total'] / sept_optimized['Total'] * 100) if sept_optimized['Total'] > 0 else 0
+        oct_capture = (oct_actual['Total'] / oct_optimized['Total'] * 100) if oct_optimized['Total'] > 0 else 0
+
+        with col1:
+            st.metric("Sept Revenue Gap", f"£{sept_gap:,.0f}",
+                      help="Multi-Market Optimal - Actual Revenue")
+        with col2:
+            st.metric("Sept Capture Rate", f"{sept_capture:.0f}%",
+                      delta=f"{sept_capture - 100:+.0f}%" if sept_capture != 100 else None,
+                      help="Actual as % of Multi-Market Optimal")
+        with col3:
+            st.metric("Oct Revenue Gap", f"£{oct_gap:,.0f}",
+                      help="Multi-Market Optimal - Actual Revenue")
+        with col4:
+            st.metric("Oct Capture Rate", f"{oct_capture:.0f}%",
+                      delta=f"{oct_capture - 100:+.0f}%" if oct_capture != 100 else None,
+                      help="Actual as % of Multi-Market Optimal")
+
+        # Comparison table - Side by side Actual vs Optimised per month
+        st.subheader("Monthly Revenue Comparison")
+
+        # Create side-by-side comparison table with 4 data columns
+        comparison_data = {
+            'Revenue Stream': [
+                'SFFR (Frequency Response)',
+                'EPEX DA (Day Ahead)',
+                'IDA1/ISEM (Intraday)',
+                'IDC (Continuous)',
+                'SSP/SBP (Imbalance)',
+                'TOTAL',
+                'Revenue Gap',
+                'Capture Rate'
+            ],
+            'Sept Actual': [
+                f"£{sept_actual['SFFR']:,.0f}",
+                f"£{sept_actual['EPEX DA']:,.0f}",
+                f"£{sept_actual['IDA1']:,.0f}",
+                f"£{sept_actual['IDC']:,.0f}",
+                f"£{sept_actual['Imbalance']:,.0f}",
+                f"£{sept_actual['Total']:,.0f}",
+                '-',
+                '-'
+            ],
+            'Sept Optimised': [
+                f"£{sept_optimized['SFFR']:,.0f}",
+                f"£{sept_optimized['EPEX DA']:,.0f}",
+                f"£{sept_optimized['IDA1']:,.0f}",
+                f"£{sept_optimized['IDC']:,.0f}",
+                f"£{sept_optimized['Imbalance']:,.0f}",
+                f"£{sept_optimized['Total']:,.0f}",
+                f"£{sept_gap:,.0f}",
+                f"{sept_capture:.0f}%"
+            ],
+            'Oct Actual': [
+                f"£{oct_actual['SFFR']:,.0f}",
+                f"£{oct_actual['EPEX DA']:,.0f}",
+                f"£{oct_actual['IDA1']:,.0f}",
+                f"£{oct_actual['IDC']:,.0f}",
+                f"£{oct_actual['Imbalance']:,.0f}",
+                f"£{oct_actual['Total']:,.0f}",
+                '-',
+                '-'
+            ],
+            'Oct Optimised': [
+                f"£{oct_optimized['SFFR']:,.0f}",
+                f"£{oct_optimized['EPEX DA']:,.0f}",
+                f"£{oct_optimized['IDA1']:,.0f}",
+                f"£{oct_optimized['IDC']:,.0f}",
+                f"£{oct_optimized['Imbalance']:,.0f}",
+                f"£{oct_optimized['Total']:,.0f}",
+                f"£{oct_gap:,.0f}",
+                f"{oct_capture:.0f}%"
+            ]
+        }
+
+        comparison_df = pd.DataFrame(comparison_data)
+
+        # Style the table
+        def style_comparison_table(row):
+            if row.name == 5:  # TOTAL row
+                return ['font-weight: bold; background-color: #e6f3ff'] * len(row)
+            elif row.name in [6, 7]:  # Gap and Capture Rate rows
+                return ['font-weight: bold; background-color: #fff3e6'] * len(row)
+            return [''] * len(row)
+
+        styled_df = comparison_df.style.apply(style_comparison_table, axis=1)
+        st.dataframe(styled_df, use_container_width=True, hide_index=True)
+
+        # Insights
+        total_gap = sept_gap + oct_gap
+        avg_capture = (sept_capture + oct_capture) / 2
+
+        if avg_capture >= 100:
+            st.success(f"""
+            **Performance Summary:** Actual revenue exceeded multi-market optimization by £{abs(total_gap):,.0f} over both months.
+            This suggests GridBeyond is effectively capturing market opportunities, potentially through strategies not modeled in the optimization.
+            """)
+        else:
+            st.warning(f"""
+            **Performance Summary:** Total revenue gap of £{total_gap:,.0f} identified over both months (average capture rate: {avg_capture:.0f}%).
+
+            **Key Drivers of Gap:**
+            - Imbalance penalties: £{abs(sept_actual['Imbalance']) + abs(oct_actual['Imbalance']):,.0f} net impact
+            - The optimization uses perfect price foresight which is not achievable in practice
+            - Actual operations face real-time constraints not modeled
+            """)
+
+        # Calculation explanations
+        st.subheader("Metric Calculations")
+
+        with st.expander("📐 Multi-Market Optimization - How is it calculated?"):
+            st.markdown("""
+**Formula:**
+```
+Optimized Revenue = Sum of (Discharge_MW × Sell_Price - Charge_MW × Buy_Price) × 0.5hr
+```
+
+**Explanation:**
+A linear optimization model that dispatches the battery across 5 markets (EPEX, ISEM, SSP, SBP, DA HH)
+using **perfect price foresight**. For each 30-minute period, it decides whether to:
+- Charge from the lowest-priced market
+- Discharge to the highest-priced market
+- Remain idle if spread is insufficient
+
+**Constraints Applied:**
+- SOC range: 5% - 95% (0.42 - 7.98 MWh)
+- Max daily throughput: 12.6 MWh (1.5 cycles)
+- Round-trip efficiency: 87%
+
+**Example (September 1st, 18:00):**
+- Best sell price: £95/MWh (SSP)
+- Best buy price: £42/MWh (EPEX)
+- Spread: £53/MWh
+- Action: Discharge 4.2 MW for 0.5hr = 2.1 MWh
+- Revenue: 2.1 × £95 = £199.50
+            """)
+
+        with st.expander("📐 Revenue Gap - How is it calculated?"):
+            st.markdown("""
+**Formula:**
+```
+Revenue Gap = Optimized Multi-Market Revenue - Actual GridBeyond Revenue
+```
+
+**Explanation:**
+Measures the theoretical revenue improvement possible if the battery had been operated
+with perfect market foresight across all available markets.
+
+**Example (September 2025):**
+- Multi-Market Optimal: £39,196
+- Actual Revenue: £14,457
+- Revenue Gap: £39,196 - £14,457 = **£24,739**
+
+**Important Caveats:**
+- Optimization uses **perfect foresight** (knows future prices)
+- Does not account for market liquidity or execution costs
+- Represents theoretical maximum, not achievable in practice
+            """)
+
+        with st.expander("📐 Capture Rate - How is it calculated?"):
+            st.markdown("""
+**Formula:**
+```
+Capture Rate = (Actual Revenue ÷ Optimized Revenue) × 100
+```
+
+**Explanation:**
+Shows what percentage of the theoretical optimal revenue was actually captured.
+A capture rate of 100% means actual matched optimal; >100% means outperformance.
+
+**Example (October 2025):**
+- Actual Revenue: £38,344
+- Multi-Market Optimal: £45,000 (example)
+- Capture Rate: (38,344 ÷ 45,000) × 100 = **85%**
+
+**Interpretation:**
+- **>100%**: Outperforming optimization (possibly from strategies not modeled)
+- **80-100%**: Good performance, close to theoretical optimal
+- **60-80%**: Room for improvement in market participation
+- **<60%**: Significant opportunity gap to investigate
+            """)
+
+    st.markdown("---")
+
+    # Section 4: TB Spread Benchmarks
+    st.header("4. TB Spread Benchmarks")
     st.caption("Top-Bottom spread analysis: comparing theoretical arbitrage potential to actual wholesale trading revenue")
 
     if data_loaded:
@@ -3508,6 +3934,126 @@ def show_benchmark_comparison():
                 }
                 summary_df = pd.DataFrame(summary_data)
                 st.dataframe(summary_df, use_container_width=True, hide_index=True)
+
+                # Calculation explanations for Section 3
+                st.subheader("Metric Calculations")
+
+                with st.expander("📐 TB1 - How is it calculated?"):
+                    st.markdown("""
+**Formula:**
+```
+TB1 = Highest hourly price − Lowest hourly price (for the day)
+```
+
+**Explanation:**
+The simplest measure of daily price spread. Represents the theoretical maximum
+profit from a single 1-hour charge/discharge cycle buying at the lowest price
+and selling at the highest.
+
+**Example (1st September 2025):**
+- Highest hourly EPEX price: £85/MWh (at 6pm)
+- Lowest hourly EPEX price: £32/MWh (at 3am)
+- **TB1 = £85 - £32 = £53/MWh**
+                    """)
+
+                with st.expander("📐 TB2 - How is it calculated?"):
+                    st.markdown("""
+**Formula:**
+```
+TB2 = (Sum of 2 highest hourly prices) − (Sum of 2 lowest hourly prices)
+```
+
+**Explanation:**
+Represents the theoretical maximum profit for a 2-hour battery (like Northwold)
+that can charge for 2 hours at the cheapest prices and discharge for 2 hours
+at the most expensive prices.
+
+**Example (1st September 2025):**
+- 2 highest prices: £85 + £78 = £163
+- 2 lowest prices: £32 + £35 = £67
+- **TB2 = £163 - £67 = £96/MWh**
+
+*TB2 is the primary benchmark for 2-hour duration batteries.*
+                    """)
+
+                with st.expander("📐 TB3 - How is it calculated?"):
+                    st.markdown("""
+**Formula:**
+```
+TB3 = (Sum of 3 highest hourly prices) − (Sum of 3 lowest hourly prices)
+```
+
+**Explanation:**
+Theoretical maximum for a 3-hour battery. Useful for comparing against longer
+duration assets or understanding diminishing returns of longer duration.
+
+**Example (1st September 2025):**
+- 3 highest prices: £85 + £78 + £72 = £235
+- 3 lowest prices: £32 + £35 + £38 = £105
+- **TB3 = £235 - £105 = £130/MWh**
+                    """)
+
+                with st.expander("📐 Daily Arbitrage Revenue - How is it calculated?"):
+                    st.markdown("""
+**Formula:**
+```
+Daily Arbitrage = EPEX DA Revenue + IDA1 Revenue + IDC Revenue
+```
+
+**Explanation:**
+Sum of all wholesale trading revenues for the day. Excludes frequency response
+(SFFR) since that's an ancillary service, not arbitrage.
+
+**Example (1st September 2025):**
+- EPEX DA Revenue: £180
+- IDA1 Revenue: £95
+- IDC Revenue: £0
+- **Daily Arbitrage = £275**
+
+*This is compared against TB2 theoretical maximum to calculate capture rate.*
+                    """)
+
+                with st.expander("📐 TB2 Capture Rate - How is it calculated?"):
+                    st.markdown("""
+**Formula:**
+```
+TB2 Capture Rate = (Arbitrage Revenue ÷ (TB2 × Capacity_MWh)) × 100
+```
+
+**Explanation:**
+Measures how much of the theoretical maximum arbitrage revenue was actually captured.
+The denominator (TB2 × 8.4 MWh) represents perfect trading at best prices.
+
+**Example (1st September 2025):**
+- TB2 spread: £96/MWh
+- Capacity: 8.4 MWh
+- Theoretical max: £96 × 8.4 = £806
+- Actual arbitrage: £275
+- **Capture Rate = (275 ÷ 806) × 100 = 34%**
+
+*Note: Capture rates >100% are possible through intraday trading (multiple cycles)
+and stacking frequency response on top of arbitrage.*
+                    """)
+
+                with st.expander("📐 Industry Benchmark (142%) - What does it mean?"):
+                    st.markdown("""
+**Source:** Modo Energy - "Benchmarking European battery revenue with TB spreads"
+
+**Explanation:**
+Modo Energy analyzed revenues from GB BESS assets and found that well-operated
+2-hour batteries typically earn ~142% of the TB2 theoretical spread. This is
+achieved through:
+
+1. **Multiple daily cycles** - Trading more than once per day
+2. **Intraday optimization** - Capturing price spikes in real-time markets
+3. **Ancillary service stacking** - Earning frequency response alongside arbitrage
+4. **Balancing Mechanism participation** - Additional revenue from grid balancing
+
+**Rating Guide:**
+- **≥142%**: At or above industry benchmark (excellent)
+- **100-142%**: Capturing spread but below benchmark (room for improvement)
+- **<100%**: Not fully capturing available spread (needs investigation)
+                    """)
 
                 # Time series chart
                 st.subheader("Daily TB2 Spread vs Actual Arbitrage")
