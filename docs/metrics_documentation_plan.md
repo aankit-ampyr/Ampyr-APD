@@ -128,8 +128,32 @@ st.info("**Methodology**: Gap = Optimal - Actual. Optimal uses multi-market simu
 
 ## Next Steps
 
-1. [ ] Fix cycle calculation methodology
-2. [ ] Add tooltips to all st.metric() calls
-3. [ ] Add methodology info boxes to each major section
-4. [ ] Add glossary of acronyms (SFFR, EFA, SSP, SBP, etc.)
-5. [ ] Review and test all help text
+1. [x] Fix cycle calculation methodology - Phase 5 now supports 3 methods (Discharge-only, Full Equivalent, Throughput)
+2. [x] Add tooltips to all st.metric() calls - Implemented with help parameter
+3. [x] Add methodology info boxes to each major section - Added st.info() explanations
+4. [x] Add glossary of acronyms (SFFR, EFA, SSP, SBP, etc.) - Added comprehensive glossary section
+5. [x] Review and test all help text - Completed
+
+## Completed Features (28 Nov 2025)
+
+### Benchmarks Page (New)
+
+| Section | Feature | Status |
+|---------|---------|--------|
+| 1. Performance Summary | Industry benchmarks table | Done |
+| 2. IAR vs Actual | Revenue comparison table (11 rows) | Done |
+| 2. IAR vs Actual | Variance calculations | Done |
+| 2. IAR vs Actual | Capture rate metrics (Sept 72%, Oct 166%) | Done |
+| 2. IAR vs Actual | Styled Total row (bold) | Done |
+
+### Tooltips Added
+
+- All st.metric() calls now include help parameter with explanations
+- Key metrics documented: Capture Rate, Revenue Gap, Cycles, Degradation
+
+### Glossary Added
+
+- SFFR, DCL, DCH, DML, DMH, DRL, DRH (Ancillary Services)
+- SSP, SBP, EPEX, IDA1, IDC (Markets)
+- EFA, pp, DoD, SoC (Technical Terms)
+- IAR (Internal Appraisal Report)
