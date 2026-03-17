@@ -52,12 +52,14 @@ COLOR_SBP = '#e74c3c'            # Red
 REVENUE_COLOR_MAP = {
     'SFFR': COLOR_SFFR,
     'SFFR Revenue': COLOR_SFFR,
+    'EPEX': COLOR_EPEX,
     'EPEX 30 DA': COLOR_EPEX,
     'EPEX Trading': COLOR_EPEX,
     'IDA1': COLOR_IDA1,
     'IDA1 Trading': COLOR_IDA1,
     'IDC': COLOR_IDC,
     'IDC Trading': COLOR_IDC,
+    'Imbalance': COLOR_IMBALANCE_COST,
     'Imbalance (Net)': COLOR_IMBALANCE_COST,
     'Imbalance Revenue': COLOR_IMBALANCE_REV,
     'Imbalance Charges': COLOR_IMBALANCE_COST,
@@ -838,7 +840,9 @@ def show_multimarket_optimization(month: str = "September 2025"):
             fig_volume = px.pie(
                 values=market_usage.values[:10],
                 names=market_usage.index[:10],
-                title=f"📊 Volume (Periods) - {chart_title}"
+                title=f"📊 Volume (Periods) - {chart_title}",
+                color=market_usage.index[:10],
+                color_discrete_map=REVENUE_COLOR_MAP
             )
             fig_volume.update_traces(textposition='inside', textinfo='percent+label')
             st.plotly_chart(fig_volume, use_container_width=True)
@@ -851,7 +855,9 @@ def show_multimarket_optimization(month: str = "September 2025"):
                 fig_revenue = px.pie(
                     values=rev_for_pie.values[:10],
                     names=rev_for_pie.index[:10],
-                    title=f"💰 Revenue (£) - {chart_title}"
+                    title=f"💰 Revenue (£) - {chart_title}",
+                    color=rev_for_pie.index[:10],
+                    color_discrete_map=REVENUE_COLOR_MAP
                 )
                 fig_revenue.update_traces(textposition='inside', textinfo='percent+label')
                 st.plotly_chart(fig_revenue, use_container_width=True)
@@ -2159,7 +2165,9 @@ def show_executive_comparison():
             values=sept_markets['Revenue'].abs(),
             names='Market',
             title="September - Market Mix",
-            hole=0.4
+            hole=0.4,
+            color='Market',
+            color_discrete_map=REVENUE_COLOR_MAP
         )
         fig_sept.update_traces(textposition='inside', textinfo='percent+label')
         st.plotly_chart(fig_sept, use_container_width=True)
@@ -2178,7 +2186,9 @@ def show_executive_comparison():
             values=oct_markets['Revenue'].abs(),
             names='Market',
             title="October - Market Mix",
-            hole=0.4
+            hole=0.4,
+            color='Market',
+            color_discrete_map=REVENUE_COLOR_MAP
         )
         fig_oct.update_traces(textposition='inside', textinfo='percent+label')
         st.plotly_chart(fig_oct, use_container_width=True)
