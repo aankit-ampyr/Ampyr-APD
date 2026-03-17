@@ -16,6 +16,8 @@ import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 import digital_twin_config as config
 from pages.data_quality import show_data_quality_page
+from pages.invoice_analysis import show_invoice_analysis
+from pages.monthly_checklist import show_monthly_checklist
 
 # =============================================================================
 # GLOBAL COLOR PALETTE — Colorblind-friendly, consistent across all charts
@@ -95,7 +97,28 @@ AVAILABLE_MONTHS = {
         "northwold_file": None,
         "master_file": "Master_BESS_Analysis_Oct_2025.csv",
         "optimization_file": "Optimized_Results_Oct_2025.csv",
-        "use_master": True,  # October uses merged Master file
+        "use_master": True,
+    },
+    "November 2025": {
+        "bess_file": None,
+        "northwold_file": None,
+        "master_file": "Master_BESS_Analysis_Nov_2025.csv",
+        "optimization_file": "Optimized_Results_Nov_2025.csv",
+        "use_master": True,
+    },
+    "December 2025": {
+        "bess_file": None,
+        "northwold_file": None,
+        "master_file": "Master_BESS_Analysis_Dec_2025.csv",
+        "optimization_file": "Optimized_Results_Dec_2025.csv",
+        "use_master": True,
+    },
+    "January 2026": {
+        "bess_file": None,
+        "northwold_file": None,
+        "master_file": "Master_BESS_Analysis_Jan_2026.csv",
+        "optimization_file": "Optimized_Results_Jan_2026.csv",
+        "use_master": True,
     },
 }
 
@@ -1980,32 +2003,37 @@ def show_report_page(month: str = "September 2025"):
     """)
 
 def show_executive_comparison():
-    """Display executive comparison dashboard - Sept vs Oct, Actual vs Optimal"""
+    """Display executive comparison dashboard — all available months, Actual vs Optimal"""
     st.title("📊 Executive Comparison Dashboard")
     st.markdown("### Multi-Month Performance Overview for Management")
     st.markdown("---")
 
-    # Load all 4 data files
-    try:
-        # September data
-        sept_master = pd.read_csv(os.path.join(DATA_DIR, "Master_BESS_Analysis_Sept_2025.csv"))
-        sept_opt = pd.read_csv(os.path.join(DATA_DIR, "Optimized_Results_Sept_2025.csv"))
+    # ---- Month configuration (short labels, days-in-month, file keys) ----
+    MONTH_CFG = [
+        ('Sep 25', 'September', 30, 'Master_BESS_Analysis_Sept_2025.csv', 'Optimized_Results_Sept_2025.csv'),
+        ('Oct 25', 'October', 31, 'Master_BESS_Analysis_Oct_2025.csv', 'Optimized_Results_Oct_2025.csv'),
+        ('Nov 25', 'November', 30, 'Master_BESS_Analysis_Nov_2025.csv', 'Optimized_Results_Nov_2025.csv'),
+        ('Dec 25', 'December', 31, 'Master_BESS_Analysis_Dec_2025.csv', 'Optimized_Results_Dec_2025.csv'),
+        ('Jan 26', 'January', 31, 'Master_BESS_Analysis_Jan_2026.csv', 'Optimized_Results_Jan_2026.csv'),
+    ]
 
-        # October data
-        oct_master = pd.read_csv(os.path.join(DATA_DIR, "Master_BESS_Analysis_Oct_2025.csv"))
-        oct_opt = pd.read_csv(os.path.join(DATA_DIR, "Optimized_Results_Oct_2025.csv"))
-    except Exception as e:
-        st.error(f"Error loading data files: {str(e)}")
-        st.info("Please ensure all data files exist for both September and October.")
-        return
+    # Capacity Market & DUoS actuals (same data as in Benchmarks)
+    CM_ACTUALS_EXEC = {
+        'Oct 25': 1704.17, 'Nov 25': 1884.42,
+        'Dec 25': 1994.84, 'Jan 26': 2113.87,
+    }
+    DUOS_ACTUALS_EXEC = {
+        'Sep 25': {'net_credit': 773.20, 'fixed': 3.58},
+        'Oct 25': {'net_credit': 5807.68, 'fixed': 3.70},
+        'Nov 25': {'net_credit': 5525.10, 'fixed': 3.58},
+    }
 
-    # Helper function to safely get numeric values
+    # ---- Load data for every available month ----
     def safe_sum(df, col):
         if col in df.columns:
             return pd.to_numeric(df[col], errors='coerce').fillna(0).sum()
         return 0
 
-    # Calculate actual revenues for each month
     def calc_actual_revenue(df):
         sffr = safe_sum(df, 'SFFR revenues')
         epex = safe_sum(df, 'EPEX 30 DA Revenue') + safe_sum(df, 'EPEX DA Revenues')
@@ -2015,236 +2043,173 @@ def show_executive_comparison():
         imb_charge = safe_sum(df, 'Imbalance Charge')
         return {
             'total': sffr + epex + ida1 + idc + imb_rev - imb_charge,
-            'sffr': sffr,
-            'epex': epex,
-            'ida1': ida1,
-            'idc': idc,
+            'sffr': sffr, 'epex': epex, 'ida1': ida1, 'idc': idc,
             'imbalance': imb_rev - imb_charge
         }
 
-    # Calculate metrics
-    sept_actual = calc_actual_revenue(sept_master)
-    oct_actual = calc_actual_revenue(oct_master)
-    sept_optimal = sept_opt['Optimised_Revenue_Multi'].sum()
-    oct_optimal = oct_opt['Optimised_Revenue_Multi'].sum()
+    months = []  # list of dicts with all computed metrics
+    for short, full, days, master_f, opt_f in MONTH_CFG:
+        try:
+            master = pd.read_csv(os.path.join(DATA_DIR, master_f))
+            opt = pd.read_csv(os.path.join(DATA_DIR, opt_f))
+            actual = calc_actual_revenue(master)
+            optimal = opt['Optimised_Revenue_Multi'].sum()
+            capture = (actual['total'] / optimal * 100) if optimal > 0 else 0
+            gap = optimal - actual['total']
 
-    # Capture rates
-    sept_capture = (sept_actual['total'] / sept_optimal * 100) if sept_optimal > 0 else 0
-    oct_capture = (oct_actual['total'] / oct_optimal * 100) if oct_optimal > 0 else 0
+            # Add CM + DUoS
+            cm = CM_ACTUALS_EXEC.get(short, 0)
+            duos_data = DUOS_ACTUALS_EXEC.get(short)
+            duos_credit = duos_data['net_credit'] if duos_data else 0
+            duos_fixed = duos_data['fixed'] if duos_data else 0
+            total_all = actual['total'] + cm + duos_credit - duos_fixed
 
-    # Gaps
-    sept_gap = sept_optimal - sept_actual['total']
-    oct_gap = oct_optimal - oct_actual['total']
+            months.append({
+                'short': short, 'full': full, 'days': days,
+                'actual': actual, 'optimal': optimal,
+                'capture': capture, 'gap': gap,
+                'cm': cm, 'duos_credit': duos_credit, 'duos_fixed': duos_fixed,
+                'total_all': total_all,
+            })
+        except FileNotFoundError:
+            pass  # skip months whose files don't exist yet
+
+    if len(months) < 2:
+        st.warning("Need at least 2 months of data for comparison.")
+        return
 
     # ==================== SECTION 1: KEY METRICS ====================
     st.header("1️⃣ Key Performance Metrics")
 
-    col1, col2, col3, col4 = st.columns(4)
+    cols = st.columns(len(months))
+    for col, m in zip(cols, months):
+        with col:
+            st.metric(
+                f"{m['short']} Actual",
+                f"£{m['actual']['total']:,.0f}",
+                delta=f"{m['capture']:.0f}% captured",
+                delta_color="off"
+            )
 
-    with col1:
-        st.metric(
-            "Sept Actual",
-            f"£{sept_actual['total']:,.0f}",
-            delta=f"{sept_capture:.1f}% captured",
-            delta_color="off",
-            help="Actual revenue from GridBeyond operations. Capture % = Actual/Optimal."
-        )
-
-    with col2:
-        st.metric(
-            "Sept Optimal",
-            f"£{sept_optimal:,.0f}",
-            delta=f"Gap: £{sept_gap:,.0f}",
-            delta_color="inverse",
-            help="Simulated maximum using multi-market optimization with perfect price foresight. Gap = Optimal - Actual."
-        )
-
-    with col3:
-        st.metric(
-            "Oct Actual",
-            f"£{oct_actual['total']:,.0f}",
-            delta=f"{oct_capture:.1f}% captured",
-            delta_color="off",
-            help="Actual revenue from GridBeyond operations. Capture % = Actual/Optimal."
-        )
-
-    with col4:
-        st.metric(
-            "Oct Optimal",
-            f"£{oct_optimal:,.0f}",
-            delta=f"Gap: £{oct_gap:,.0f}",
-            delta_color="inverse",
-            help="Simulated maximum using multi-market optimization with perfect price foresight. Gap = Optimal - Actual."
-        )
-
-    # Month-over-month improvement
-    mom_improvement = oct_actual['total'] - sept_actual['total']
-    mom_pct = (mom_improvement / sept_actual['total'] * 100) if sept_actual['total'] != 0 else 0
-
-    st.success(f"📈 **Month-over-Month Improvement**: GridBeyond increased actual revenue by **£{mom_improvement:,.0f}** ({mom_pct:+.0f}%) from September to October")
-
+    # Revenue trend line
+    first, last = months[0], months[-1]
+    total_change = last['actual']['total'] - first['actual']['total']
+    total_pct = (total_change / first['actual']['total'] * 100) if first['actual']['total'] != 0 else 0
+    st.success(f"📈 **Trend ({first['short']} → {last['short']})**: Revenue changed by **£{total_change:,.0f}** ({total_pct:+.0f}%)")
     st.markdown("---")
 
     # ==================== SECTION 2: REVENUE COMPARISON BAR CHART ====================
     st.header("2️⃣ Revenue Comparison")
 
-    comparison_data = pd.DataFrame({
-        'Scenario': ['Sept Actual', 'Sept Optimal', 'Oct Actual', 'Oct Optimal'],
-        'Revenue': [sept_actual['total'], sept_optimal, oct_actual['total'], oct_optimal],
-        'Type': ['Actual', 'Optimal', 'Actual', 'Optimal'],
-        'Month': ['September', 'September', 'October', 'October']
-    })
+    bar_rows = []
+    for m in months:
+        bar_rows.append({'Scenario': f"{m['short']} Actual", 'Revenue': m['actual']['total'],
+                         'Type': 'Actual', 'Month': m['full']})
+        bar_rows.append({'Scenario': f"{m['short']} Optimal", 'Revenue': m['optimal'],
+                         'Type': 'Optimal', 'Month': m['full']})
+    comparison_data = pd.DataFrame(bar_rows)
 
     fig_bar = px.bar(
-        comparison_data,
-        x='Scenario',
-        y='Revenue',
-        color='Type',
+        comparison_data, x='Month', y='Revenue', color='Type', barmode='group',
         color_discrete_map={'Actual': COLOR_ACTUAL, 'Optimal': COLOR_MULTI_MARKET},
         title="Revenue: Actual vs Optimal by Month",
         text=comparison_data['Revenue'].apply(lambda x: f'£{x:,.0f}')
     )
     fig_bar.update_traces(textposition='outside')
-    fig_bar.update_layout(yaxis_title="Revenue (£)", xaxis_title="", showlegend=True, height=400)
+    fig_bar.update_layout(yaxis_title="Revenue (£)", xaxis_title="", showlegend=True, height=450)
     st.plotly_chart(fig_bar, use_container_width=True)
-
     st.markdown("---")
 
     # ==================== SECTION 3: GAP ANALYSIS TABLE ====================
     st.header("3️⃣ Performance Gap Analysis")
+    st.caption("**Methodology:** Gap = Optimal - Actual. Optimal uses hindsight-based multi-market simulation.")
 
-    st.caption("**Methodology:** Gap = Optimal - Actual. Optimal uses hindsight-based multi-market simulation. Trend shows 'pp' (percentage points) for absolute % changes.")
-
-    # Calculate trends
-    gap_reduction = ((sept_gap - oct_gap) / sept_gap * 100) if sept_gap != 0 else 0
-    capture_improvement = oct_capture - sept_capture
-    imb_improvement = ((sept_actual['imbalance'] - oct_actual['imbalance']) / abs(sept_actual['imbalance']) * 100) if sept_actual['imbalance'] != 0 else 0
-
-    gap_data = pd.DataFrame({
-        'Metric': ['Revenue Gap (£)', 'Capture Rate (%)', 'Imbalance Cost (£)', 'Actual Revenue (£)'],
-        'September': [
-            f"£{sept_gap:,.0f}",
-            f"{sept_capture:.1f}%",
-            f"£{sept_actual['imbalance']:,.0f}",
-            f"£{sept_actual['total']:,.0f}"
-        ],
-        'October': [
-            f"£{oct_gap:,.0f}",
-            f"{oct_capture:.1f}%",
-            f"£{oct_actual['imbalance']:,.0f}",
-            f"£{oct_actual['total']:,.0f}"
-        ],
-        'Trend': [
-            f"✅ {gap_reduction:.0f}% reduction" if gap_reduction > 0 else f"❌ {abs(gap_reduction):.0f}% increase",
-            f"✅ +{capture_improvement:.1f}pp" if capture_improvement > 0 else f"❌ {capture_improvement:.1f}pp",
-            f"✅ {imb_improvement:.0f}% improvement" if imb_improvement > 0 else f"❌ {abs(imb_improvement):.0f}% worse",
-            f"✅ +{mom_pct:.0f}%" if mom_pct > 0 else f"❌ {mom_pct:.0f}%"
+    gap_table = {'Metric': ['GridBeyond Revenue (£)', 'Capacity Market (£)',
+                            'DUoS Net Credit (£)', 'Total Revenue (£)',
+                            'Optimal Revenue (£)', 'Revenue Gap (£)',
+                            'Capture Rate (%)', 'Imbalance (£)']}
+    for m in months:
+        gap_table[m['short']] = [
+            f"£{m['actual']['total']:,.0f}",
+            f"£{m['cm']:,.0f}" if m['cm'] else '-',
+            f"£{m['duos_credit'] - m['duos_fixed']:,.0f}" if m['duos_credit'] else '-',
+            f"£{m['total_all']:,.0f}",
+            f"£{m['optimal']:,.0f}",
+            f"£{m['gap']:,.0f}",
+            f"{m['capture']:.1f}%",
+            f"£{m['actual']['imbalance']:,.0f}"
         ]
-    })
-
-    st.dataframe(gap_data, use_container_width=True, hide_index=True)
-
+    st.dataframe(pd.DataFrame(gap_table), use_container_width=True, hide_index=True)
     st.markdown("---")
 
     # ==================== SECTION 4: MARKET MIX COMPARISON ====================
     st.header("4️⃣ Revenue by Market")
 
-    col1, col2 = st.columns(2)
+    # Pie charts — up to 3 per row
+    market_keys = ['sffr', 'epex', 'ida1', 'idc', 'imbalance']
+    market_labels = ['SFFR', 'EPEX', 'IDA1', 'IDC', 'Imbalance']
 
-    with col1:
-        # September market mix
-        sept_markets = pd.DataFrame({
-            'Market': ['SFFR', 'EPEX', 'IDA1', 'IDC', 'Imbalance'],
-            'Revenue': [sept_actual['sffr'], sept_actual['epex'], sept_actual['ida1'],
-                       sept_actual['idc'], sept_actual['imbalance']]
-        })
-        sept_markets = sept_markets[sept_markets['Revenue'].abs() > 0.01]
+    # Render pie charts in rows of 3
+    for row_start in range(0, len(months), 3):
+        row_months = months[row_start:row_start + 3]
+        pie_cols = st.columns(min(len(row_months), 3))
+        for col, m in zip(pie_cols, row_months):
+            with col:
+                mkt_df = pd.DataFrame({
+                    'Market': market_labels,
+                    'Revenue': [m['actual'][k] for k in market_keys]
+                })
+                mkt_df = mkt_df[mkt_df['Revenue'].abs() > 0.01]
+                fig = px.pie(mkt_df, values=mkt_df['Revenue'].abs(), names='Market',
+                             title=f"{m['short']} - Market Mix", hole=0.4,
+                             color='Market', color_discrete_map=REVENUE_COLOR_MAP)
+                fig.update_traces(textposition='inside', textinfo='percent+label')
+                st.plotly_chart(fig, use_container_width=True, key=f"exec_pie_{m['short']}")
 
-        fig_sept = px.pie(
-            sept_markets,
-            values=sept_markets['Revenue'].abs(),
-            names='Market',
-            title="September - Market Mix",
-            hole=0.4,
-            color='Market',
-            color_discrete_map=REVENUE_COLOR_MAP
-        )
-        fig_sept.update_traces(textposition='inside', textinfo='percent+label')
-        st.plotly_chart(fig_sept, use_container_width=True)
-
-    with col2:
-        # October market mix
-        oct_markets = pd.DataFrame({
-            'Market': ['SFFR', 'EPEX', 'IDA1', 'IDC', 'Imbalance'],
-            'Revenue': [oct_actual['sffr'], oct_actual['epex'], oct_actual['ida1'],
-                       oct_actual['idc'], oct_actual['imbalance']]
-        })
-        oct_markets = oct_markets[oct_markets['Revenue'].abs() > 0.01]
-
-        fig_oct = px.pie(
-            oct_markets,
-            values=oct_markets['Revenue'].abs(),
-            names='Market',
-            title="October - Market Mix",
-            hole=0.4,
-            color='Market',
-            color_discrete_map=REVENUE_COLOR_MAP
-        )
-        fig_oct.update_traces(textposition='inside', textinfo='percent+label')
-        st.plotly_chart(fig_oct, use_container_width=True)
-
-    # Market comparison table
-    market_comparison = pd.DataFrame({
-        'Market': ['SFFR', 'EPEX', 'IDA1', 'IDC', 'Imbalance', 'TOTAL'],
-        'Sept (£)': [f"£{sept_actual['sffr']:,.0f}", f"£{sept_actual['epex']:,.0f}",
-                     f"£{sept_actual['ida1']:,.0f}", f"£{sept_actual['idc']:,.0f}",
-                     f"£{sept_actual['imbalance']:,.0f}", f"£{sept_actual['total']:,.0f}"],
-        'Oct (£)': [f"£{oct_actual['sffr']:,.0f}", f"£{oct_actual['epex']:,.0f}",
-                    f"£{oct_actual['ida1']:,.0f}", f"£{oct_actual['idc']:,.0f}",
-                    f"£{oct_actual['imbalance']:,.0f}", f"£{oct_actual['total']:,.0f}"],
-        'Change': [
-            f"£{oct_actual['sffr'] - sept_actual['sffr']:+,.0f}",
-            f"£{oct_actual['epex'] - sept_actual['epex']:+,.0f}",
-            f"£{oct_actual['ida1'] - sept_actual['ida1']:+,.0f}",
-            f"£{oct_actual['idc'] - sept_actual['idc']:+,.0f}",
-            f"£{oct_actual['imbalance'] - sept_actual['imbalance']:+,.0f}",
-            f"£{oct_actual['total'] - sept_actual['total']:+,.0f}"
-        ]
-    })
-    st.dataframe(market_comparison, use_container_width=True, hide_index=True)
-
+    # Market comparison table (including CM + DUoS)
+    mkt_table = {'Market': market_labels + ['GridBeyond Subtotal', 'Capacity Market', 'DUoS Net', 'TOTAL (All Streams)']}
+    for m in months:
+        vals = [f"£{m['actual'][k]:,.0f}" for k in market_keys]
+        vals.append(f"£{m['actual']['total']:,.0f}")
+        vals.append(f"£{m['cm']:,.0f}" if m['cm'] else '-')
+        duos_net = m['duos_credit'] - m['duos_fixed']
+        vals.append(f"£{duos_net:,.0f}" if m['duos_credit'] else '-')
+        vals.append(f"£{m['total_all']:,.0f}")
+        mkt_table[m['short']] = vals
+    st.dataframe(pd.DataFrame(mkt_table), use_container_width=True, hide_index=True)
     st.markdown("---")
 
     # ==================== SECTION 5: EXECUTIVE SUMMARY ====================
     st.header("5️⃣ Executive Summary")
 
-    col1, col2 = st.columns(2)
+    best_m = max(months, key=lambda m: m['capture'])
+    worst_m = min(months, key=lambda m: m['capture'])
+    avg_capture = sum(m['capture'] for m in months) / len(months)
+    latest = months[-1]
 
+    col1, col2 = st.columns(2)
     with col1:
         st.error(f"""
-        **September Issues:**
-        - Capture Rate: Only {sept_capture:.1f}% of optimal
-        - Revenue Gap: £{sept_gap:,.0f} left on table
-        - Imbalance Penalties: £{abs(sept_actual['imbalance']):,.0f} in losses
-        - Root Cause: Excessive imbalance exposure
+        **Weakest Month — {worst_m['short']}:**
+        - Capture Rate: {worst_m['capture']:.1f}%
+        - Revenue Gap: £{worst_m['gap']:,.0f}
+        - Imbalance: £{worst_m['actual']['imbalance']:,.0f}
         """)
-
     with col2:
         st.success(f"""
-        **October Improvements:**
-        - Capture Rate: {oct_capture:.1f}% of optimal
-        - Revenue Gap: Reduced to £{oct_gap:,.0f}
-        - Imbalance Controlled: £{abs(oct_actual['imbalance']):,.0f}
-        - Result: Near-optimal performance achieved
+        **Strongest Month — {best_m['short']}:**
+        - Capture Rate: {best_m['capture']:.1f}%
+        - Revenue Gap: £{best_m['gap']:,.0f}
+        - Imbalance: £{best_m['actual']['imbalance']:,.0f}
         """)
 
     st.info(f"""
-    **💡 Key Recommendations:**
+    **Key Recommendations:**
 
-    1. **Continue October Strategy**: GridBeyond achieved {oct_capture:.1f}% capture rate - maintain this approach
-    2. **Investigate September**: Root cause analysis needed for the £{sept_gap:,.0f} gap
-    3. **Imbalance Management**: October's strategy reduced imbalance impact by {imb_improvement:.0f}%
-    4. **Annualized Impact**: If October performance continues, projected annual revenue: **£{oct_actual['total'] * 12:,.0f}**
+    1. **Average Capture Rate**: {avg_capture:.1f}% across {len(months)} months
+    2. **Best Performance**: {best_m['short']} achieved {best_m['capture']:.1f}% — replicate this strategy
+    3. **Investigate**: {worst_m['short']} had largest gap (£{worst_m['gap']:,.0f})
+    4. **Annualized Projection**: Based on latest month ({latest['short']}): **£{latest['total_all'] / latest['days'] * 365:,.0f}/year** (incl. CM + DUoS)
     """)
 
 
@@ -3186,16 +3151,23 @@ def show_pdf_export_page(month: str = "September 2025"):
     # Quick comparison export
     st.subheader("Multi-Month Comparison Export")
 
-    if st.button("📊 Export Sept vs Oct Comparison"):
+    if st.button("📊 Export Multi-Month Comparison"):
         with st.spinner("Generating comparison..."):
             try:
-                # Load both months
-                sept_master = pd.read_csv(os.path.join(DATA_DIR, "Master_BESS_Analysis_Sept_2025.csv"))
-                oct_master = pd.read_csv(os.path.join(DATA_DIR, "Master_BESS_Analysis_Oct_2025.csv"))
-                sept_opt = pd.read_csv(os.path.join(DATA_DIR, "Optimized_Results_Sept_2025.csv"))
-                oct_opt = pd.read_csv(os.path.join(DATA_DIR, "Optimized_Results_Oct_2025.csv"))
+                EXPORT_MONTHS = [
+                    ('Sep 25', 'Master_BESS_Analysis_Sept_2025.csv', 'Optimized_Results_Sept_2025.csv'),
+                    ('Oct 25', 'Master_BESS_Analysis_Oct_2025.csv', 'Optimized_Results_Oct_2025.csv'),
+                    ('Nov 25', 'Master_BESS_Analysis_Nov_2025.csv', 'Optimized_Results_Nov_2025.csv'),
+                    ('Dec 25', 'Master_BESS_Analysis_Dec_2025.csv', 'Optimized_Results_Dec_2025.csv'),
+                    ('Jan 26', 'Master_BESS_Analysis_Jan_2026.csv', 'Optimized_Results_Jan_2026.csv'),
+                ]
 
-                def calc_metrics(master_df, opt_df):
+                CM_EXPORT = {'Oct 25': 1704.17, 'Nov 25': 1884.42, 'Dec 25': 1994.84, 'Jan 26': 2113.87}
+                DUOS_EXPORT = {
+                    'Sep 25': {'net': 769.62}, 'Oct 25': {'net': 5803.98}, 'Nov 25': {'net': 5521.52},
+                }
+
+                def calc_metrics(master_df, opt_df, short):
                     def safe_sum(dataframe, col):
                         if col in dataframe.columns:
                             return pd.to_numeric(dataframe[col], errors='coerce').fillna(0).sum()
@@ -3204,36 +3176,47 @@ def show_pdf_export_page(month: str = "September 2025"):
                     sffr = safe_sum(master_df, 'SFFR revenues')
                     epex = safe_sum(master_df, 'EPEX 30 DA Revenue') + safe_sum(master_df, 'EPEX DA Revenues')
                     imb = safe_sum(master_df, 'Imbalance Revenue') - safe_sum(master_df, 'Imbalance Charge')
-                    total = sffr + epex + safe_sum(master_df, 'IDA1 Revenue') + safe_sum(master_df, 'IDC Revenue') + imb
+                    gb_total = sffr + epex + safe_sum(master_df, 'IDA1 Revenue') + safe_sum(master_df, 'IDC Revenue') + imb
                     optimal = opt_df['Optimised_Revenue_Multi'].sum() if 'Optimised_Revenue_Multi' in opt_df.columns else 0
+                    cm = CM_EXPORT.get(short, 0)
+                    duos_net = DUOS_EXPORT.get(short, {}).get('net', 0)
+                    total_all = gb_total + cm + duos_net
 
                     return {
-                        'SFFR': sffr,
-                        'EPEX': epex,
-                        'Imbalance': imb,
-                        'Total Actual': total,
+                        'SFFR': sffr, 'EPEX': epex, 'Imbalance': imb,
+                        'GridBeyond Total': gb_total,
+                        'Capacity Market': cm, 'DUoS Net': duos_net,
+                        'Total (All Streams)': total_all,
                         'Optimal': optimal,
-                        'Capture Rate': total / optimal * 100 if optimal > 0 else 0,
-                        'Gap': optimal - total
+                        'Capture Rate': gb_total / optimal * 100 if optimal > 0 else 0,
+                        'Gap': optimal - gb_total,
                     }
 
-                sept_metrics = calc_metrics(sept_master, sept_opt)
-                oct_metrics = calc_metrics(oct_master, oct_opt)
+                all_metrics = {}
+                for short, mf, of in EXPORT_MONTHS:
+                    try:
+                        m_df = pd.read_csv(os.path.join(DATA_DIR, mf))
+                        o_df = pd.read_csv(os.path.join(DATA_DIR, of))
+                        all_metrics[short] = calc_metrics(m_df, o_df, short)
+                    except FileNotFoundError:
+                        pass
 
-                comparison_df = pd.DataFrame({
-                    'Metric': list(sept_metrics.keys()),
-                    'September': [f"£{v:,.0f}" if 'Rate' not in k else f"{v:.1f}%" for k, v in sept_metrics.items()],
-                    'October': [f"£{v:,.0f}" if 'Rate' not in k else f"{v:.1f}%" for k, v in oct_metrics.items()],
-                })
+                if all_metrics:
+                    first_key = list(all_metrics.keys())[0]
+                    comparison_df = pd.DataFrame({
+                        'Metric': list(all_metrics[first_key].keys()),
+                        **{short: [f"£{v:,.0f}" if 'Rate' not in k else f"{v:.1f}%"
+                                   for k, v in metrics.items()]
+                           for short, metrics in all_metrics.items()}
+                    })
+                    st.dataframe(comparison_df, use_container_width=True, hide_index=True)
 
-                st.dataframe(comparison_df, use_container_width=True, hide_index=True)
-
-                csv = comparison_df.to_csv(index=False)
-                st.download_button(
-                    label="📥 Download Comparison CSV",
-                    data=csv,
-                    file_name="Sept_Oct_Comparison.csv",
-                    mime="text/csv"
+                    csv = comparison_df.to_csv(index=False)
+                    st.download_button(
+                        label="📥 Download Comparison CSV",
+                        data=csv,
+                        file_name="Multi_Month_Comparison.csv",
+                        mime="text/csv"
                 )
 
             except Exception as e:
@@ -3245,24 +3228,54 @@ def show_benchmark_comparison():
     st.title("📊 Benchmarks")
     st.markdown("Compare Northwold's performance against UK BESS industry benchmarks and IAR projections")
 
+    # ---- Month configuration ----
+    BENCH_MONTHS = [
+        ('Sep 25', 30, 'Master_BESS_Analysis_Sept_2025.csv', 'Optimized_Results_Sept_2025.csv'),
+        ('Oct 25', 31, 'Master_BESS_Analysis_Oct_2025.csv', 'Optimized_Results_Oct_2025.csv'),
+        ('Nov 25', 30, 'Master_BESS_Analysis_Nov_2025.csv', 'Optimized_Results_Nov_2025.csv'),
+        ('Dec 25', 31, 'Master_BESS_Analysis_Dec_2025.csv', 'Optimized_Results_Dec_2025.csv'),
+        ('Jan 26', 31, 'Master_BESS_Analysis_Jan_2026.csv', 'Optimized_Results_Jan_2026.csv'),
+    ]
+
+    # Modo Energy monthly benchmark (£/MW/year) — source: Modo Energy GB BESS Index
+    MODO_BENCHMARKS = {
+        'Sep 25': 70000, 'Oct 25': 77000, 'Nov 25': 59000,
+        'Dec 25': 47000, 'Jan 26': 88000,
+    }
+
+    # Capacity Market payments (£) — source: EMR Settlement T062 CSVs
+    # Contract: CAN-2025-NSFL01-001, 1.023 MW @ £20,000/MW/yr, monthly weighting
+    CM_ACTUALS = {
+        'Oct 25': 1704.17, 'Nov 25': 1884.42,
+        'Dec 25': 1994.84, 'Jan 26': 2113.87,
+    }
+
+    # DUoS actuals (£ net ex-VAT) — source: Hartree Partners Gen_Inv PDFs
+    # GDuos credits (Red+Amber+Green) are revenue; DNO Fixed is a cost
+    DUOS_ACTUALS = {
+        'Sep 25': {'red': -322.81, 'amber': -410.03, 'green': -43.94,
+                   'fixed': 3.58, 'net_credit': 773.20},
+        'Oct 25': {'red': -5500.11, 'amber': -268.35, 'green': -42.92,
+                   'fixed': 3.70, 'net_credit': 5807.68},
+        'Nov 25': {'red': -5379.73, 'amber': -106.41, 'green': -42.54,
+                   'fixed': 3.58, 'net_credit': 5525.10},
+    }
+
     # Load and calculate Northwold metrics first
     try:
-        sept_master = pd.read_csv(os.path.join(DATA_DIR, "Master_BESS_Analysis_Sept_2025.csv"))
-        oct_master = pd.read_csv(os.path.join(DATA_DIR, "Master_BESS_Analysis_Oct_2025.csv"))
+        def safe_sum_b(dataframe, col):
+            if col in dataframe.columns:
+                return pd.to_numeric(dataframe[col], errors='coerce').fillna(0).sum()
+            return 0
 
         def calculate_monthly_revenue(df):
             """Calculate total revenue for a month."""
-            def safe_sum(dataframe, col):
-                if col in dataframe.columns:
-                    return pd.to_numeric(dataframe[col], errors='coerce').fillna(0).sum()
-                return 0
-
-            sffr = safe_sum(df, 'SFFR revenues')
-            epex = safe_sum(df, 'EPEX 30 DA Revenue') + safe_sum(df, 'EPEX DA Revenues')
-            ida1 = safe_sum(df, 'IDA1 Revenue')
-            idc = safe_sum(df, 'IDC Revenue')
-            imb_rev = safe_sum(df, 'Imbalance Revenue')
-            imb_charge = safe_sum(df, 'Imbalance Charge')
+            sffr = safe_sum_b(df, 'SFFR revenues')
+            epex = safe_sum_b(df, 'EPEX 30 DA Revenue') + safe_sum_b(df, 'EPEX DA Revenues')
+            ida1 = safe_sum_b(df, 'IDA1 Revenue')
+            idc = safe_sum_b(df, 'IDC Revenue')
+            imb_rev = safe_sum_b(df, 'Imbalance Revenue')
+            imb_charge = safe_sum_b(df, 'Imbalance Charge')
 
             return sffr + epex + ida1 + idc + imb_rev - imb_charge
 
@@ -3276,128 +3289,127 @@ def show_benchmark_comparison():
             charge_mwh = abs(energy[energy < 0].sum())
             return (discharge_mwh + charge_mwh) / 2 / capacity_mwh
 
-        # Calculate metrics
+        def find_power_col(df):
+            """Find the best power column and its dt."""
+            for col in df.columns:
+                if 'Physical_Power_MW' in col or col == 'Power_MW':
+                    return col, 0.5
+            for col in df.columns:
+                if 'Battery MWh' in col:
+                    return col, 1.0
+            return None, 0.5
+
         capacity_mw = 4.2
 
-        sept_revenue = calculate_monthly_revenue(sept_master)
-        oct_revenue = calculate_monthly_revenue(oct_master)
+        # Load all months dynamically
+        bm = []  # benchmark month dicts
+        masters = {}
+        opts = {}
+        for short, days, master_f, opt_f in BENCH_MONTHS:
+            try:
+                m_df = pd.read_csv(os.path.join(DATA_DIR, master_f))
+                o_df = pd.read_csv(os.path.join(DATA_DIR, opt_f))
+                masters[short] = m_df
+                opts[short] = o_df
 
-        sept_annual_per_mw = (sept_revenue / 30) * 365 / capacity_mw
-        oct_annual_per_mw = (oct_revenue / 31) * 365 / capacity_mw
+                revenue = calculate_monthly_revenue(m_df)
+                annual_per_mw = (revenue / days) * 365 / capacity_mw
 
-        # Find power column for each month (column names differ between months)
-        # Prefer Power_MW columns (dt_hours=0.5), fallback to Battery MWh (dt_hours=1.0)
-        sept_power_col = None
-        sept_dt = 0.5
-        for col in sept_master.columns:
-            if 'Physical_Power_MW' in col or col == 'Power_MW':
-                sept_power_col = col
-                sept_dt = 0.5
-                break
-            elif 'Battery MWh' in col and sept_power_col is None:
-                sept_power_col = col
-                sept_dt = 1.0  # Already in MWh
+                pcol, pdt = find_power_col(m_df)
+                cycles = calculate_cycles_local(m_df, pcol, dt_hours=pdt) if pcol else None
 
-        oct_power_col = None
-        oct_dt = 0.5
-        for col in oct_master.columns:
-            if 'Physical_Power_MW' in col or col == 'Power_MW':
-                oct_power_col = col
-                oct_dt = 0.5
-                break
-            elif 'Battery MWh' in col and oct_power_col is None:
-                oct_power_col = col
-                oct_dt = 1.0  # Already in MWh
+                if 'Timestamp' in m_df.columns:
+                    m_df['Timestamp'] = pd.to_datetime(m_df['Timestamp'], errors='coerce')
+                    n_days = m_df['Timestamp'].dt.date.nunique()
+                else:
+                    n_days = days
 
-        sept_cycles = calculate_cycles_local(sept_master, sept_power_col, dt_hours=sept_dt) if sept_power_col else None
-        oct_cycles = calculate_cycles_local(oct_master, oct_power_col, dt_hours=oct_dt) if oct_power_col else None
+                daily_cycles = cycles / n_days if cycles else None
+                modo = MODO_BENCHMARKS.get(short)
 
-        # Calculate days properly
-        if 'Timestamp' in sept_master.columns:
-            sept_master['Timestamp'] = pd.to_datetime(sept_master['Timestamp'], errors='coerce')
-            sept_days = sept_master['Timestamp'].dt.date.nunique()
-        else:
-            sept_days = 30
-        if 'Timestamp' in oct_master.columns:
-            oct_master['Timestamp'] = pd.to_datetime(oct_master['Timestamp'], errors='coerce')
-            oct_days = oct_master['Timestamp'].dt.date.nunique()
-        else:
-            oct_days = 31
+                # Non-GridBeyond revenue streams
+                cm = CM_ACTUALS.get(short, 0)
+                duos_data = DUOS_ACTUALS.get(short)
+                duos_credit = duos_data['net_credit'] if duos_data else 0
+                duos_fixed = duos_data['fixed'] if duos_data else 0
 
-        sept_daily_cycles = sept_cycles / sept_days if sept_cycles else None
-        oct_daily_cycles = oct_cycles / oct_days if oct_cycles else None
-        avg_annual = (sept_annual_per_mw + oct_annual_per_mw) / 2
+                # Total including CM + DUoS
+                total_revenue = revenue + cm + duos_credit - duos_fixed
+                total_annual_per_mw = (total_revenue / days) * 365 / capacity_mw
 
-        data_loaded = True
+                bm.append({
+                    'short': short, 'days': days, 'revenue': revenue,
+                    'annual_per_mw': annual_per_mw, 'daily_cycles': daily_cycles,
+                    'modo': modo,
+                    'cm': cm, 'duos_credit': duos_credit, 'duos_fixed': duos_fixed,
+                    'total_revenue': total_revenue,
+                    'total_annual_per_mw': total_annual_per_mw,
+                })
+            except FileNotFoundError:
+                pass
+
+        avg_annual = sum(m['total_annual_per_mw'] for m in bm) / len(bm) if bm else 0
+        data_loaded = len(bm) > 0
+
     except Exception as e:
         st.error(f"Error loading data: {str(e)}")
         data_loaded = False
-        sept_annual_per_mw = oct_annual_per_mw = sept_daily_cycles = oct_daily_cycles = None
-        sept_revenue = oct_revenue = avg_annual = 0
+        bm = []
+        avg_annual = 0
 
-    # Combined benchmark table with Northwold data
+    # ==================== Section 1: Northwold vs Industry ====================
     st.header("1. Northwold vs Industry")
 
     if data_loaded:
-        # Build combined table
+        # Build combined table with all months
         combined_data = {
             'Metric': [
+                'GridBeyond Revenue (£)',
+                'Capacity Market (£)',
+                'DUoS Credit (£)',
+                'DUoS Fixed Charges (£)',
                 'Total Revenue (£)',
                 'Revenue (£/MW/year)',
+                'Modo Benchmark (£/MW/yr)',
                 'Daily Cycles',
-                'Degradation (%/365 cycles)',
-                'Availability (TWCAA %)',
                 'Round-Trip Efficiency (%)'
             ],
-            'Sept 2025': [
-                f"£{round(sept_revenue):,}",
-                f"£{round(sept_annual_per_mw):,}",
-                f"{sept_daily_cycles:.2f}" if sept_daily_cycles else "N/A",
-                "TBD",
-                "TBD",
-                "~85%"
-            ],
-            'Oct 2025': [
-                f"£{round(oct_revenue):,}",
-                f"£{round(oct_annual_per_mw):,}",
-                f"{oct_daily_cycles:.2f}" if oct_daily_cycles else "N/A",
-                "TBD",
-                "TBD",
-                "~85%"
-            ],
-            'Low': ['-', '£36,000', '1.0', '4.0%', '90%', '82%'],
-            'Mid': ['-', '£60,000', '1.5', '4.4%', '94.4%', '85%'],
-            'High': ['-', '£88,000', '3.0', '11.0%', '98%', '90%'],
-            'Source': ['-', 'Modo Energy', 'OEM Warranty', 'NREL', 'National Grid ESO', 'DNV GL']
         }
+        for m in bm:
+            combined_data[m['short']] = [
+                f"£{round(m['revenue']):,}",
+                f"£{round(m['cm']):,}" if m['cm'] else '-',
+                f"£{round(m['duos_credit']):,}" if m['duos_credit'] else '-',
+                f"-£{round(m['duos_fixed']):,}" if m['duos_fixed'] else '-',
+                f"£{round(m['total_revenue']):,}",
+                f"£{round(m['total_annual_per_mw']):,}",
+                f"£{m['modo']:,}" if m['modo'] else '-',
+                f"{m['daily_cycles']:.2f}" if m['daily_cycles'] else "N/A",
+                "~85%"
+            ]
+        combined_data['Industry Low'] = ['-', '-', '-', '-', '-', '£36,000', '-', '1.0', '82%']
+        combined_data['Industry Mid'] = ['-', '-', '-', '-', '-', '£60,000', '-', '1.5', '85%']
+        combined_data['Industry High'] = ['-', '-', '-', '-', '-', '£88,000', '-', '3.0', '90%']
 
         combined_df = pd.DataFrame(combined_data)
         st.dataframe(combined_df, use_container_width=True, hide_index=True)
 
-        # Rating indicators
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.markdown("**September Rating:**")
-            if sept_annual_per_mw < 36000:
-                st.error("⬇️ Below industry low")
-            elif sept_annual_per_mw < 60000:
-                st.warning("➡️ Below industry mid")
-            elif sept_annual_per_mw < 88000:
-                st.success("✅ Above industry mid")
-            else:
-                st.success("🌟 Above industry high!")
-        with col2:
-            st.markdown("**October Rating:**")
-            if oct_annual_per_mw < 36000:
-                st.error("⬇️ Below industry low")
-            elif oct_annual_per_mw < 60000:
-                st.warning("➡️ Below industry mid")
-            elif oct_annual_per_mw < 88000:
-                st.success("✅ Above industry mid")
-            else:
-                st.success("🌟 Above industry high!")
-        with col3:
-            st.markdown("**Combined Average:**")
+        # Rating indicators — one per month
+        rating_cols = st.columns(min(len(bm) + 1, 6))
+        for idx, m in enumerate(bm):
+            with rating_cols[idx]:
+                st.markdown(f"**{m['short']}:**")
+                apm = m['total_annual_per_mw']
+                if apm < 36000:
+                    st.error("Below industry low")
+                elif apm < 60000:
+                    st.warning("Below industry mid")
+                elif apm < 88000:
+                    st.success("Above industry mid")
+                else:
+                    st.success("Above industry high!")
+        with rating_cols[min(len(bm), 5)]:
+            st.markdown("**Average:**")
             st.metric("£/MW/year", f"£{round(avg_annual):,}")
 
         # Calculation explanations for Section 1
@@ -3528,70 +3540,155 @@ battery cells, and thermal management.
     st.header("2. Revenue IAR vs Actual")
     st.caption("Comparison of Internal Appraisal Report (IAR) projections against actual GridBeyond revenues")
 
-    iar_data = {
-        'Revenue Stream': [
-            'Wholesale Day Ahead',
-            'Wholesale Intraday',
-            'Balancing Mechanism',
-            'Frequency Response',
-            'Capacity Market',
-            'DUoS Battery',
-            'DUoS Fixed Charges',
-            'TNUoS',
-            'Imbalance Revenue',
-            'Imbalance Charge',
-            'TOTAL (excl. BM, CM, DUoS, TNUoS)'
-        ],
-        'Sept IAR (£)': [
-            '14,343', '4,246', '1,863', '1,383', '4,438', '9,188', '-6,462', '835', '-', '-', '19,973'
-        ],
-        'Sept Actual (£)': [
-            '1,880', '3,670', '-', '17,164', '-', '-', '-', '-', '-8,297', '40', '14,457'
-        ],
-        'Sept Var': [
-            '-87%', '-14%', '-', '+1,141%', '-', '-', '-', '-', '-', '-', '-28%'
-        ],
-        'Oct IAR (£)': [
-            '17,178', '4,918', '4,237', '1,038', '4,586', '10,088', '-6,678', '863', '-', '-', '23,134'
-        ],
-        'Oct Actual (£)': [
-            '-2,994', '13,283', '-', '28,382', '-', '-', '-', '-', '-816', '489', '38,344'
-        ],
-        'Oct Var': [
-            '-117%', '+170%', '-', '+2,634%', '-', '-', '-', '-', '-', '-', '+66%'
-        ]
-    }
-    iar_df = pd.DataFrame(iar_data)
+    # Revenue stream labels
+    streams = [
+        'Wholesale Day Ahead', 'Wholesale Intraday', 'Balancing Mechanism',
+        'Frequency Response', 'Capacity Market', 'DUoS Battery',
+        'DUoS Fixed Charges', 'TNUoS', 'Imbalance Revenue', 'Imbalance Charge',
+        'TOTAL (excl. BM, TNUoS)', 'TOTAL (all streams)'
+    ]
 
-    # Style the Total row (last row) to be bold
+    # ---- Load IAR projections from Excel ----
+    IAR_PROJ = {}
+    iar_file = os.path.join(os.path.dirname(__file__), 'extra', 'Northwold BESS Revenue_IAR.xlsx')
+    try:
+        import openpyxl
+        iar_wb = openpyxl.load_workbook(iar_file, data_only=True)
+        iar_ws = iar_wb['Sheet1']
+        iar_mw = 4.2  # MW assumed in IAR model
+
+        # Column mapping: Excel column index -> month short label
+        # Row 3 has datetime headers; E(5)=Mar25, K(11)=Sep25, L(12)=Oct25, etc.
+        iar_col_map = {11: 'Sep 25', 12: 'Oct 25', 13: 'Nov 25', 14: 'Dec 25', 15: 'Jan 26'}
+        # Row mapping: rows 4-11 = DA, ID, BM, FR, CM, DUoS, DUoS_Fixed, TNUoS
+        iar_stream_rows = [4, 5, 6, 7, 8, 9, 10, 11]
+
+        for col_idx, short in iar_col_map.items():
+            vals = []
+            for row in iar_stream_rows:
+                raw = iar_ws.cell(row=row, column=col_idx).value or 0
+                vals.append(round(raw * iar_mw))
+            # Imbalance Revenue, Imbalance Charge (not in IAR model)
+            vals.extend([0, 0])
+            # TOTAL (excl. BM, TNUoS) = DA + ID + FR + CM + DUoS + DUoS_Fixed
+            total_excl = vals[0] + vals[1] + vals[3] + vals[4] + vals[5] + vals[6]
+            # TOTAL (all streams)
+            total_all = sum(vals[:8])
+            vals.extend([total_excl, total_all])
+            IAR_PROJ[short] = [f"{v:,}" if v >= 0 else f"-{abs(v):,}" for v in vals]
+        iar_wb.close()
+    except Exception:
+        # Fallback hardcoded if Excel not available
+        IAR_PROJ = {
+            'Sep 25': ['14,343', '4,246', '1,863', '1,383', '4,438', '9,188', '-6,462', '835', '0', '0', '27,136', '29,834'],
+            'Oct 25': ['17,178', '4,918', '4,237', '1,038', '4,586', '10,088', '-6,678', '863', '0', '0', '31,130', '36,230'],
+        }
+
+    # Actual values from GridBeyond + invoice data
+    def _fmt(v):
+        if v is None:
+            return '-'
+        return f"{v:,.0f}" if v >= 0 else f"-{abs(v):,.0f}"
+
+    def _var(actual, iar_str):
+        """Calculate variance % between actual and IAR string value."""
+        if actual is None or iar_str in ('-', '0'):
+            return '-'
+        iar_val = float(iar_str.replace(',', ''))
+        if iar_val == 0:
+            return '-'
+        var = ((actual - iar_val) / abs(iar_val)) * 100
+        return f"{var:+.0f}%"
+
+    # Build actuals from GridBeyond data + invoice data
+    actual_data = {}
+    if data_loaded:
+        for m in bm:
+            short = m['short']
+            df = masters[short]
+            epex = safe_sum_b(df, 'EPEX 30 DA Revenue') + safe_sum_b(df, 'EPEX DA Revenues')
+            ida1 = safe_sum_b(df, 'IDA1 Revenue')
+            idc = safe_sum_b(df, 'IDC Revenue')
+            sffr = safe_sum_b(df, 'SFFR revenues')
+            imb_rev = safe_sum_b(df, 'Imbalance Revenue')
+            imb_charge = safe_sum_b(df, 'Imbalance Charge')
+            cm = m['cm']
+            duos_cr = m['duos_credit']
+            duos_fx = m['duos_fixed']
+
+            gb_total = sffr + epex + ida1 + idc + imb_rev - imb_charge
+            full_total = gb_total + cm + duos_cr - duos_fx
+
+            actual_data[short] = [
+                epex, ida1, None,  # BM not tracked in GridBeyond
+                sffr, cm if cm else None,
+                duos_cr if duos_cr else None,
+                -duos_fx if duos_fx else None,
+                None,  # TNUoS not available
+                imb_rev if imb_rev != 0 else None,
+                -imb_charge if imb_charge != 0 else None,
+                gb_total, full_total
+            ]
+
+    # Build table
+    iar_table = {'Revenue Stream': streams}
+    for m in bm:
+        short = m['short']
+        iar_proj = IAR_PROJ.get(short)
+        actuals = actual_data.get(short)
+
+        if iar_proj:
+            iar_table[f'{short} IAR (£)'] = iar_proj
+        if actuals:
+            iar_table[f'{short} Actual (£)'] = [_fmt(v) for v in actuals]
+        if iar_proj and actuals:
+            iar_table[f'{short} Var'] = [_var(actuals[i], iar_proj[i]) for i in range(len(streams))]
+
+    iar_df = pd.DataFrame(iar_table)
+
+    # Style total rows to be bold
     def highlight_total(row):
-        if row.name == len(iar_df) - 1:  # Last row (Total)
+        if row.name >= len(iar_df) - 2:  # Last 2 rows (totals)
             return ['font-weight: bold; background-color: #f0f2f6'] * len(row)
         return [''] * len(row)
 
     styled_iar_df = iar_df.style.apply(highlight_total, axis=1)
-    st.dataframe(styled_iar_df, use_container_width=True, hide_index=True, height=425)
+    st.dataframe(styled_iar_df, use_container_width=True, hide_index=True, height=460)
 
-    st.caption("*IAR projections based on 4.2 MW capacity with indexation factor 1.073. Total excludes BM, CM, DUoS, TNUoS for like-for-like comparison.*")
+    st.caption("*IAR projections based on 4.2 MW capacity with indexation factor 1.073. CM actuals from EMR Settlement (T062). DUoS actuals from Hartree Partners invoices. TNUoS invoices not yet available.*")
 
     # Summary metrics for IAR comparison
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("Sept vs IAR", "72%", "-28%", delta_color="inverse",
-                  help="Actual revenue as % of IAR projection")
-    with col2:
-        st.metric("Oct vs IAR", "166%", "+66%",
-                  help="Actual revenue as % of IAR projection")
-    with col3:
-        combined_capture = (14457 + 38344) / (19973 + 23134) * 100
-        st.metric("Combined", f"{combined_capture:.0f}%",
-                  help="Total actual vs total projected")
+    iar_months = [m for m in bm if m['short'] in IAR_PROJ and m['short'] in actual_data]
+    if iar_months:
+        n_cols = min(len(iar_months) + 1, 6)
+        metric_cols = st.columns(n_cols)
+        for idx, m in enumerate(iar_months):
+            short = m['short']
+            actuals = actual_data[short]
+            iar_proj = IAR_PROJ[short]
+            actual_total = actuals[-1]  # TOTAL (all streams)
+            iar_total = float(iar_proj[-1].replace(',', '').replace('-', ''))
+            pct = (actual_total / iar_total * 100) if iar_total else 0
+            delta = pct - 100
+            with metric_cols[idx % n_cols]:
+                st.metric(f"{short} vs IAR", f"{pct:.0f}%", f"{delta:+.0f}%",
+                          delta_color="normal" if delta >= 0 else "inverse",
+                          help="Total actual revenue (all streams) as % of IAR projection")
+
+        if len(iar_months) > 1:
+            total_actual = sum(actual_data[m['short']][-1] for m in iar_months)
+            total_iar = sum(float(IAR_PROJ[m['short']][-1].replace(',', '').replace('-', '')) for m in iar_months)
+            combined_pct = (total_actual / total_iar * 100) if total_iar else 0
+            with metric_cols[min(len(iar_months), n_cols - 1)]:
+                st.metric("Combined", f"{combined_pct:.0f}%",
+                          help="Total actual vs total projected across all months")
 
     st.info("""
     **Key Insights from IAR Comparison:**
-    - **Frequency Response** revenue massively exceeded projections (~20x) due to higher ancillary service market rates
-    - **Wholesale Day Ahead** significantly underperformed, with October showing negative values
-    - **Overall:** September underperformed (-28%), but October significantly outperformed (+66%), resulting in a combined 122% of IAR projections
+    - **Frequency Response** revenue massively exceeded projections due to higher ancillary service market rates
+    - **Wholesale Day Ahead** significantly underperformed vs IAR in earlier months
+    - **Capacity Market** actuals (£1.7-2.1k/month) are significantly below IAR projections (£4.4-4.6k/month) — different capacity obligation or auction assumptions
+    - **DUoS Battery** credits are actual export credits from UKPN; IAR projected much higher (~£9-10k/month vs actual £0.8-5.8k)
     """)
 
     # Calculation explanations for Section 2
@@ -3640,188 +3737,89 @@ Positive variance means outperformance; negative means underperformance.
     st.header("3. Multi-Market Optimization vs Actual")
     st.caption("Compare actual GridBeyond performance against optimized multi-market strategy with perfect foresight")
 
-    # Load optimized results
-    try:
-        sept_opt = pd.read_csv(os.path.join(DATA_DIR, "Optimized_Results_Sept_2025.csv"))
-        oct_opt = pd.read_csv(os.path.join(DATA_DIR, "Optimized_Results_Oct_2025.csv"))
-        opt_loaded = True
-    except Exception as e:
-        st.warning(f"Could not load optimization results: {str(e)}")
-        opt_loaded = False
-
-    if data_loaded and opt_loaded:
-        # Calculate actual revenue breakdown
+    if data_loaded and opts:
         def get_revenue_breakdown(df):
-            def safe_sum(dataframe, col):
-                if col in dataframe.columns:
-                    return pd.to_numeric(dataframe[col], errors='coerce').fillna(0).sum()
-                return 0
+            sffr = safe_sum_b(df, 'SFFR revenues')
+            epex = safe_sum_b(df, 'EPEX 30 DA Revenue') + safe_sum_b(df, 'EPEX DA Revenues')
+            ida1 = safe_sum_b(df, 'IDA1 Revenue')
+            idc = safe_sum_b(df, 'IDC Revenue')
+            imb_rev = safe_sum_b(df, 'Imbalance Revenue')
+            imb_charge = safe_sum_b(df, 'Imbalance Charge')
+            return {'SFFR': sffr, 'EPEX DA': epex, 'IDA1': ida1, 'IDC': idc,
+                    'Imbalance': imb_rev - imb_charge,
+                    'Total': sffr + epex + ida1 + idc + imb_rev - imb_charge}
 
-            sffr = safe_sum(df, 'SFFR revenues')
-            epex = safe_sum(df, 'EPEX 30 DA Revenue') + safe_sum(df, 'EPEX DA Revenues')
-            ida1 = safe_sum(df, 'IDA1 Revenue')
-            idc = safe_sum(df, 'IDC Revenue')
-            imb_rev = safe_sum(df, 'Imbalance Revenue')
-            imb_charge = safe_sum(df, 'Imbalance Charge')
-
-            return {
-                'SFFR': sffr,
-                'EPEX DA': epex,
-                'IDA1': ida1,
-                'IDC': idc,
-                'Imbalance': imb_rev - imb_charge,
-                'Total': sffr + epex + ida1 + idc + imb_rev - imb_charge
-            }
-
-        # Calculate optimized revenues with market breakdown
         def get_opt_revenue_breakdown(df):
-            """Calculate optimized revenue breakdown by market."""
             df = df.copy()
             df['Revenue'] = pd.to_numeric(df['Optimised_Revenue_Multi'], errors='coerce').fillna(0)
             df['Market'] = df['Market_Used_Multi'].fillna('Idle')
-
-            # Group revenues by market type
             sffr = df[df['Market'] == 'SFFR']['Revenue'].sum()
-
-            # EPEX includes both buy and sell operations
             epex = df[df['Market'].str.contains('EPEX', na=False)]['Revenue'].sum()
-
-            # ISEM (IDA1 equivalent in optimization)
             isem = df[df['Market'].str.contains('ISEM', na=False)]['Revenue'].sum()
-
-            # SSP/SBP (System prices - imbalance market)
             ssp = df[df['Market'].str.contains('SSP|SBP', na=False)]['Revenue'].sum()
-
-            # DA_HH (Day Ahead Half-Hourly)
             da_hh = df[df['Market'].str.contains('DA_HH', na=False)]['Revenue'].sum()
-
             total = df['Revenue'].sum()
+            return {'SFFR': sffr, 'EPEX DA': epex + da_hh, 'IDA1': isem, 'IDC': 0,
+                    'Imbalance': ssp, 'Total': total}
 
-            return {
-                'SFFR': sffr,
-                'EPEX DA': epex + da_hh,  # Combine EPEX and DA_HH as day-ahead
-                'IDA1': isem,  # ISEM is intraday
-                'IDC': 0,  # Not used in optimization
-                'Imbalance': ssp,  # SSP/SBP is system imbalance
-                'Total': total
-            }
+        # Summary metrics row
+        metric_cols = st.columns(len(bm))
+        all_actuals = {}
+        all_opts_bd = {}
+        all_gaps = {}
+        all_captures = {}
 
-        sept_actual = get_revenue_breakdown(sept_master)
-        oct_actual = get_revenue_breakdown(oct_master)
-        sept_optimized = get_opt_revenue_breakdown(sept_opt)
-        oct_optimized = get_opt_revenue_breakdown(oct_opt)
+        for idx, m in enumerate(bm):
+            short = m['short']
+            act = get_revenue_breakdown(masters[short])
+            opt_bd = get_opt_revenue_breakdown(opts[short])
+            gap = opt_bd['Total'] - act['Total']
+            capture = (act['Total'] / opt_bd['Total'] * 100) if opt_bd['Total'] > 0 else 0
+            all_actuals[short] = act
+            all_opts_bd[short] = opt_bd
+            all_gaps[short] = gap
+            all_captures[short] = capture
 
-        # Summary metrics
-        col1, col2, col3, col4 = st.columns(4)
+            with metric_cols[idx]:
+                st.metric(f"{short} Capture", f"{capture:.0f}%",
+                          delta=f"{capture - 100:+.0f}%" if capture != 100 else None)
 
-        sept_gap = sept_optimized['Total'] - sept_actual['Total']
-        oct_gap = oct_optimized['Total'] - oct_actual['Total']
-        sept_capture = (sept_actual['Total'] / sept_optimized['Total'] * 100) if sept_optimized['Total'] > 0 else 0
-        oct_capture = (oct_actual['Total'] / oct_optimized['Total'] * 100) if oct_optimized['Total'] > 0 else 0
-
-        with col1:
-            st.metric("Sept Revenue Gap", f"£{sept_gap:,.0f}",
-                      help="Multi-Market Optimal - Actual Revenue")
-        with col2:
-            st.metric("Sept Capture Rate", f"{sept_capture:.0f}%",
-                      delta=f"{sept_capture - 100:+.0f}%" if sept_capture != 100 else None,
-                      help="Actual as % of Multi-Market Optimal")
-        with col3:
-            st.metric("Oct Revenue Gap", f"£{oct_gap:,.0f}",
-                      help="Multi-Market Optimal - Actual Revenue")
-        with col4:
-            st.metric("Oct Capture Rate", f"{oct_capture:.0f}%",
-                      delta=f"{oct_capture - 100:+.0f}%" if oct_capture != 100 else None,
-                      help="Actual as % of Multi-Market Optimal")
-
-        # Comparison table - Side by side Actual vs Optimised per month
+        # Comparison table
         st.subheader("Monthly Revenue Comparison")
+        streams = ['SFFR', 'EPEX DA', 'IDA1', 'IDC', 'Imbalance', 'Total']
+        stream_labels = ['SFFR (Frequency Response)', 'EPEX DA (Day Ahead)',
+                         'IDA1/ISEM (Intraday)', 'IDC (Continuous)',
+                         'SSP/SBP (Imbalance)', 'TOTAL']
 
-        # Create side-by-side comparison table with 4 data columns
-        comparison_data = {
-            'Revenue Stream': [
-                'SFFR (Frequency Response)',
-                'EPEX DA (Day Ahead)',
-                'IDA1/ISEM (Intraday)',
-                'IDC (Continuous)',
-                'SSP/SBP (Imbalance)',
-                'TOTAL',
-                'Revenue Gap',
-                'Capture Rate'
-            ],
-            'Sept Actual': [
-                f"£{sept_actual['SFFR']:,.0f}",
-                f"£{sept_actual['EPEX DA']:,.0f}",
-                f"£{sept_actual['IDA1']:,.0f}",
-                f"£{sept_actual['IDC']:,.0f}",
-                f"£{sept_actual['Imbalance']:,.0f}",
-                f"£{sept_actual['Total']:,.0f}",
-                '-',
-                '-'
-            ],
-            'Sept Optimised': [
-                f"£{sept_optimized['SFFR']:,.0f}",
-                f"£{sept_optimized['EPEX DA']:,.0f}",
-                f"£{sept_optimized['IDA1']:,.0f}",
-                f"£{sept_optimized['IDC']:,.0f}",
-                f"£{sept_optimized['Imbalance']:,.0f}",
-                f"£{sept_optimized['Total']:,.0f}",
-                f"£{sept_gap:,.0f}",
-                f"{sept_capture:.0f}%"
-            ],
-            'Oct Actual': [
-                f"£{oct_actual['SFFR']:,.0f}",
-                f"£{oct_actual['EPEX DA']:,.0f}",
-                f"£{oct_actual['IDA1']:,.0f}",
-                f"£{oct_actual['IDC']:,.0f}",
-                f"£{oct_actual['Imbalance']:,.0f}",
-                f"£{oct_actual['Total']:,.0f}",
-                '-',
-                '-'
-            ],
-            'Oct Optimised': [
-                f"£{oct_optimized['SFFR']:,.0f}",
-                f"£{oct_optimized['EPEX DA']:,.0f}",
-                f"£{oct_optimized['IDA1']:,.0f}",
-                f"£{oct_optimized['IDC']:,.0f}",
-                f"£{oct_optimized['Imbalance']:,.0f}",
-                f"£{oct_optimized['Total']:,.0f}",
-                f"£{oct_gap:,.0f}",
-                f"{oct_capture:.0f}%"
-            ]
-        }
+        comp_data = {'Revenue Stream': stream_labels + ['Revenue Gap', 'Capture Rate']}
+        for m in bm:
+            short = m['short']
+            act = all_actuals[short]
+            opt_bd = all_opts_bd[short]
+            act_vals = [f"£{act[s]:,.0f}" for s in streams] + ['-', '-']
+            opt_vals = [f"£{opt_bd[s]:,.0f}" for s in streams] + [f"£{all_gaps[short]:,.0f}", f"{all_captures[short]:.0f}%"]
+            comp_data[f"{short} Actual"] = act_vals
+            comp_data[f"{short} Opt"] = opt_vals
 
-        comparison_df = pd.DataFrame(comparison_data)
+        comp_df = pd.DataFrame(comp_data)
 
-        # Style the table
-        def style_comparison_table(row):
-            if row.name == 5:  # TOTAL row
+        def style_comp(row):
+            n = len(comp_df)
+            if row.name == 5:
                 return ['font-weight: bold; background-color: #e6f3ff'] * len(row)
-            elif row.name in [6, 7]:  # Gap and Capture Rate rows
+            elif row.name in [6, 7]:
                 return ['font-weight: bold; background-color: #fff3e6'] * len(row)
             return [''] * len(row)
 
-        styled_df = comparison_df.style.apply(style_comparison_table, axis=1)
-        st.dataframe(styled_df, use_container_width=True, hide_index=True)
+        st.dataframe(comp_df.style.apply(style_comp, axis=1), use_container_width=True, hide_index=True)
 
-        # Insights
-        total_gap = sept_gap + oct_gap
-        avg_capture = (sept_capture + oct_capture) / 2
+        total_gap = sum(all_gaps.values())
+        avg_cap = sum(all_captures.values()) / len(all_captures)
 
-        if avg_capture >= 100:
-            st.success(f"""
-            **Performance Summary:** Actual revenue exceeded multi-market optimization by £{abs(total_gap):,.0f} over both months.
-            This suggests GridBeyond is effectively capturing market opportunities, potentially through strategies not modeled in the optimization.
-            """)
+        if avg_cap >= 100:
+            st.success(f"**Performance Summary:** Average capture rate {avg_cap:.0f}% across {len(bm)} months — outperforming multi-market optimization.")
         else:
-            st.warning(f"""
-            **Performance Summary:** Total revenue gap of £{total_gap:,.0f} identified over both months (average capture rate: {avg_capture:.0f}%).
-
-            **Key Drivers of Gap:**
-            - Imbalance penalties: £{abs(sept_actual['Imbalance']) + abs(oct_actual['Imbalance']):,.0f} net impact
-            - The optimization uses perfect price foresight which is not achievable in practice
-            - Actual operations face real-time constraints not modeled
-            """)
+            st.warning(f"**Performance Summary:** Total gap £{total_gap:,.0f} across {len(bm)} months (avg capture: {avg_cap:.0f}%). Optimization uses perfect foresight — gap is expected.")
 
         # Calculation explanations
         st.subheader("Metric Calculations")
@@ -3906,65 +3904,45 @@ A capture rate of 100% means actual matched optimal; >100% means outperformance.
 
     if data_loaded:
         try:
-            # Calculate TB spreads for both months
-            sept_tb = calculate_tb_spreads(sept_master)
-            oct_tb = calculate_tb_spreads(oct_master)
+            capacity_mwh = 8.4
+            combined_months = {}  # short -> combined DataFrame
 
-            # Calculate daily arbitrage revenue
-            sept_arb = calculate_daily_arbitrage(sept_master)
-            oct_arb = calculate_daily_arbitrage(oct_master)
+            for m in bm:
+                short = m['short']
+                tb = calculate_tb_spreads(masters[short])
+                arb = calculate_daily_arbitrage(masters[short])
+                comb = tb.merge(arb, on='Date', how='inner')
 
-            # Merge TB spreads with arbitrage
-            sept_combined = sept_tb.merge(sept_arb, on='Date', how='inner')
-            oct_combined = oct_tb.merge(oct_arb, on='Date', how='inner')
+                if len(comb) > 0:
+                    for n in [1, 2, 3]:
+                        comb[f'TB{n}_Max'] = comb[f'TB{n}'] * capacity_mwh
+                        comb[f'TB{n}_Capture'] = (comb['Arbitrage_Revenue'] / comb[f'TB{n}_Max']) * 100
+                    comb = comb.replace([float('inf'), float('-inf')], float('nan'))
+                    combined_months[short] = comb
 
-            if len(sept_combined) > 0 and len(oct_combined) > 0:
-                # Calculate capture rates (as % of TB spread * capacity)
-                capacity_mwh = 8.4
-
-                # TB spread is in £/MWh, multiply by capacity for theoretical max revenue
-                sept_combined['TB1_Max'] = sept_combined['TB1'] * capacity_mwh
-                sept_combined['TB2_Max'] = sept_combined['TB2'] * capacity_mwh
-                sept_combined['TB3_Max'] = sept_combined['TB3'] * capacity_mwh
-
-                oct_combined['TB1_Max'] = oct_combined['TB1'] * capacity_mwh
-                oct_combined['TB2_Max'] = oct_combined['TB2'] * capacity_mwh
-                oct_combined['TB3_Max'] = oct_combined['TB3'] * capacity_mwh
-
-                # Calculate capture rates
-                sept_combined['TB1_Capture'] = (sept_combined['Arbitrage_Revenue'] / sept_combined['TB1_Max']) * 100
-                sept_combined['TB2_Capture'] = (sept_combined['Arbitrage_Revenue'] / sept_combined['TB2_Max']) * 100
-                sept_combined['TB3_Capture'] = (sept_combined['Arbitrage_Revenue'] / sept_combined['TB3_Max']) * 100
-
-                oct_combined['TB1_Capture'] = (oct_combined['Arbitrage_Revenue'] / oct_combined['TB1_Max']) * 100
-                oct_combined['TB2_Capture'] = (oct_combined['Arbitrage_Revenue'] / oct_combined['TB2_Max']) * 100
-                oct_combined['TB3_Capture'] = (oct_combined['Arbitrage_Revenue'] / oct_combined['TB3_Max']) * 100
-
-                # Replace inf values with NaN
-                sept_combined = sept_combined.replace([float('inf'), float('-inf')], float('nan'))
-                oct_combined = oct_combined.replace([float('inf'), float('-inf')], float('nan'))
-
+            if combined_months:
                 # Summary metrics
-                col1, col2, col3, col4 = st.columns(4)
+                all_tb2 = [c['TB2'].mean() for c in combined_months.values()]
+                all_arb = [c['Arbitrage_Revenue'].mean() for c in combined_months.values()]
+                all_cap = [c['TB2_Capture'].mean() for c in combined_months.values()]
 
-                avg_tb2 = (sept_combined['TB2'].mean() + oct_combined['TB2'].mean()) / 2
-                avg_arb = (sept_combined['Arbitrage_Revenue'].mean() + oct_combined['Arbitrage_Revenue'].mean()) / 2
-                avg_capture_tb2 = (sept_combined['TB2_Capture'].mean() + oct_combined['TB2_Capture'].mean()) / 2
+                avg_tb2 = np.mean(all_tb2)
+                avg_arb = np.mean(all_arb)
+                avg_capture_tb2 = np.nanmean(all_cap)
+
+                col1, col2, col3, col4 = st.columns(4)
 
                 with col1:
                     st.metric("Avg Daily TB2", f"£{avg_tb2:.0f}/MWh",
                               help="Average daily TB2 spread (sum of 2 highest - 2 lowest hourly prices)")
-
                 with col2:
                     st.metric("Avg Daily Arbitrage", f"£{avg_arb:.0f}",
                               help="Average daily wholesale trading revenue")
-
                 with col3:
                     delta_val = avg_capture_tb2 - 142 if not pd.isna(avg_capture_tb2) else 0
                     st.metric("TB2 Capture Rate", f"{avg_capture_tb2:.0f}%" if not pd.isna(avg_capture_tb2) else "N/A",
                               delta=f"{delta_val:+.0f}% vs benchmark",
                               help="Actual arbitrage as % of TB2 theoretical max. Industry benchmark: 142% for 2-hr batteries")
-
                 with col4:
                     st.metric("Industry Benchmark", "142%",
                               help="2-hour batteries typically earn ~142% of TB2 spread (Source: Modo Energy)")
@@ -3975,21 +3953,17 @@ A capture rate of 100% means actual matched optimal; >100% means outperformance.
                 summary_data = {
                     'Metric': ['Avg TB1 (£/MWh)', 'Avg TB2 (£/MWh)', 'Avg TB3 (£/MWh)',
                                'Avg Daily Arbitrage (£)', 'TB2 Capture Rate (%)'],
-                    'September': [
-                        f"£{sept_combined['TB1'].mean():.1f}",
-                        f"£{sept_combined['TB2'].mean():.1f}",
-                        f"£{sept_combined['TB3'].mean():.1f}",
-                        f"£{sept_combined['Arbitrage_Revenue'].mean():.0f}",
-                        f"{sept_combined['TB2_Capture'].mean():.0f}%" if not pd.isna(sept_combined['TB2_Capture'].mean()) else "N/A"
-                    ],
-                    'October': [
-                        f"£{oct_combined['TB1'].mean():.1f}",
-                        f"£{oct_combined['TB2'].mean():.1f}",
-                        f"£{oct_combined['TB3'].mean():.1f}",
-                        f"£{oct_combined['Arbitrage_Revenue'].mean():.0f}",
-                        f"{oct_combined['TB2_Capture'].mean():.0f}%" if not pd.isna(oct_combined['TB2_Capture'].mean()) else "N/A"
-                    ]
                 }
+                for short, comb in combined_months.items():
+                    cap_mean = comb['TB2_Capture'].mean()
+                    summary_data[short] = [
+                        f"£{comb['TB1'].mean():.1f}",
+                        f"£{comb['TB2'].mean():.1f}",
+                        f"£{comb['TB3'].mean():.1f}",
+                        f"£{comb['Arbitrage_Revenue'].mean():.0f}",
+                        f"{cap_mean:.0f}%" if not pd.isna(cap_mean) else "N/A"
+                    ]
+
                 summary_df = pd.DataFrame(summary_data)
                 st.dataframe(summary_df, use_container_width=True, hide_index=True)
 
@@ -4116,16 +4090,13 @@ achieved through:
                 # Time series chart
                 st.subheader("Daily TB2 Spread vs Actual Arbitrage")
 
-                # Combine both months
                 all_combined = pd.concat([
-                    sept_combined.assign(Month='September'),
-                    oct_combined.assign(Month='October')
+                    comb.assign(Month=short) for short, comb in combined_months.items()
                 ])
                 all_combined['Date'] = pd.to_datetime(all_combined['Date'])
 
                 fig_tb = go.Figure()
 
-                # TB2 theoretical max area
                 fig_tb.add_trace(go.Scatter(
                     x=all_combined['Date'],
                     y=all_combined['TB2_Max'],
@@ -4136,17 +4107,15 @@ achieved through:
                     fillcolor='rgba(173, 216, 230, 0.3)'
                 ))
 
-                # Actual arbitrage revenue
                 fig_tb.add_trace(go.Scatter(
                     x=all_combined['Date'],
                     y=all_combined['Arbitrage_Revenue'],
                     name='Actual Arbitrage (£)',
                     mode='lines+markers',
-                    line=dict(color='green', width=2),
+                    line=dict(color=COLOR_ACTUAL, width=2),
                     marker=dict(size=4)
                 ))
 
-                # Industry benchmark (142% of TB2)
                 fig_tb.add_trace(go.Scatter(
                     x=all_combined['Date'],
                     y=all_combined['TB2_Max'] * 1.42,
@@ -4170,24 +4139,16 @@ achieved through:
 
                 with col1:
                     st.markdown("**Performance Rating:**")
-                    sept_avg = sept_combined['TB2_Capture'].mean()
-                    oct_avg = oct_combined['TB2_Capture'].mean()
-
-                    if not pd.isna(sept_avg):
-                        if sept_avg >= 142:
-                            st.success(f"September: {sept_avg:.0f}% - At or above benchmark")
-                        elif sept_avg >= 100:
-                            st.warning(f"September: {sept_avg:.0f}% - Below benchmark but positive")
+                    for short, comb in combined_months.items():
+                        avg_cap = comb['TB2_Capture'].mean()
+                        if pd.isna(avg_cap):
+                            continue
+                        if avg_cap >= 142:
+                            st.success(f"{short}: {avg_cap:.0f}% - At or above benchmark")
+                        elif avg_cap >= 100:
+                            st.warning(f"{short}: {avg_cap:.0f}% - Below benchmark but positive")
                         else:
-                            st.info(f"September: {sept_avg:.0f}% - Below 100%")
-
-                    if not pd.isna(oct_avg):
-                        if oct_avg >= 142:
-                            st.success(f"October: {oct_avg:.0f}% - At or above benchmark")
-                        elif oct_avg >= 100:
-                            st.warning(f"October: {oct_avg:.0f}% - Below benchmark but positive")
-                        else:
-                            st.info(f"October: {oct_avg:.0f}% - Below 100%")
+                            st.info(f"{short}: {avg_cap:.0f}% - Below 100%")
 
                 with col2:
                     st.markdown("**TB Spread Interpretation:**")
@@ -4201,19 +4162,14 @@ achieved through:
 
                 # Expandable daily details
                 with st.expander("View Daily TB Spread Details"):
-                    tab1, tab2 = st.tabs(["September", "October"])
-
-                    with tab1:
-                        sept_display = sept_combined[['Date', 'TB1', 'TB2', 'TB3', 'Arbitrage_Revenue', 'TB2_Capture']].copy()
-                        sept_display.columns = ['Date', 'TB1 (£/MWh)', 'TB2 (£/MWh)', 'TB3 (£/MWh)', 'Arbitrage (£)', 'Capture (%)']
-                        sept_display['Date'] = pd.to_datetime(sept_display['Date']).dt.strftime('%Y-%m-%d')
-                        st.dataframe(sept_display, use_container_width=True, hide_index=True)
-
-                    with tab2:
-                        oct_display = oct_combined[['Date', 'TB1', 'TB2', 'TB3', 'Arbitrage_Revenue', 'TB2_Capture']].copy()
-                        oct_display.columns = ['Date', 'TB1 (£/MWh)', 'TB2 (£/MWh)', 'TB3 (£/MWh)', 'Arbitrage (£)', 'Capture (%)']
-                        oct_display['Date'] = pd.to_datetime(oct_display['Date']).dt.strftime('%Y-%m-%d')
-                        st.dataframe(oct_display, use_container_width=True, hide_index=True)
+                    tab_labels = list(combined_months.keys())
+                    tabs = st.tabs(tab_labels)
+                    for tab, short in zip(tabs, tab_labels):
+                        with tab:
+                            display = combined_months[short][['Date', 'TB1', 'TB2', 'TB3', 'Arbitrage_Revenue', 'TB2_Capture']].copy()
+                            display.columns = ['Date', 'TB1 (£/MWh)', 'TB2 (£/MWh)', 'TB3 (£/MWh)', 'Arbitrage (£)', 'Capture (%)']
+                            display['Date'] = pd.to_datetime(display['Date']).dt.strftime('%Y-%m-%d')
+                            st.dataframe(display, use_container_width=True, hide_index=True)
 
                 st.caption("""
                 **TB Spread Benchmark Source:** [Modo Energy - Benchmarking European battery revenue with TB spreads](https://modoenergy.com/research/top-bottom-spread-revenue-benchmark-battery-energy-storage-sytems-gb-europe-spain-germany-solar-2025)
@@ -4252,7 +4208,7 @@ achieved through:
 
         fig = go.Figure()
 
-        # Add benchmark ranges as horizontal bars
+        # Industry range bar
         fig.add_trace(go.Bar(
             name='Industry Range',
             x=['Revenue £/MW/year'],
@@ -4263,31 +4219,29 @@ achieved through:
             showlegend=True
         ))
 
-        # Add industry mid line
         fig.add_hline(y=60000, line_dash="dash", line_color="orange",
                       annotation_text="Industry Mid (£60k)", annotation_position="right")
 
-        # Add Northwold performance markers
-        fig.add_trace(go.Scatter(
-            name='September 2025',
-            x=['Revenue £/MW/year'],
-            y=[sept_annual_per_mw],
-            mode='markers',
-            marker=dict(size=20, color='blue', symbol='diamond'),
-        ))
-
-        fig.add_trace(go.Scatter(
-            name='October 2025',
-            x=['Revenue £/MW/year'],
-            y=[oct_annual_per_mw],
-            mode='markers',
-            marker=dict(size=20, color='green', symbol='diamond'),
-        ))
+        # One scatter point per month
+        symbols = ['diamond', 'circle', 'square', 'triangle-up', 'star']
+        colors = [COLOR_EPEX, COLOR_ACTUAL, COLOR_SFFR, COLOR_MULTI_MARKET, '#E69F00']
+        max_apm = 0
+        for idx, m in enumerate(bm):
+            apm = m['total_annual_per_mw']
+            max_apm = max(max_apm, apm)
+            fig.add_trace(go.Scatter(
+                name=m['short'],
+                x=['Revenue £/MW/year'],
+                y=[apm],
+                mode='markers',
+                marker=dict(size=18, color=colors[idx % len(colors)],
+                            symbol=symbols[idx % len(symbols)]),
+            ))
 
         fig.update_layout(
             title="Northwold vs Industry",
             yaxis_title="£/MW/year",
-            yaxis=dict(range=[0, max(120000, oct_annual_per_mw * 1.1)]),
+            yaxis=dict(range=[0, max(120000, max_apm * 1.1)]),
             height=400,
             showlegend=True
         )
@@ -4302,20 +4256,20 @@ achieved through:
 
         with col1:
             st.markdown("**Strengths:**")
-            if oct_annual_per_mw >= 88000:
-                st.markdown("- 🌟 October exceeded industry high benchmark")
+            above_high = [m['short'] for m in bm if m['total_annual_per_mw'] >= 88000]
+            if above_high:
+                st.markdown(f"- {', '.join(above_high)} exceeded industry high benchmark")
             if avg_annual >= 60000:
-                st.markdown("- ✅ Combined average above industry mid")
-            if sept_daily_cycles and sept_daily_cycles <= 1.5:
-                st.markdown("- 🔋 September cycling within warranty limits")
-            if oct_daily_cycles and oct_daily_cycles <= 1.5:
-                st.markdown("- 🔋 October cycling within warranty limits")
+                st.markdown(f"- Combined average (£{avg_annual:,.0f}/MW/yr) above industry mid")
+            within_warranty = [m['short'] for m in bm if m['daily_cycles'] and m['daily_cycles'] <= 1.5]
+            if within_warranty:
+                st.markdown(f"- {', '.join(within_warranty)} cycling within warranty limits (<=1.5/day)")
 
         with col2:
             st.markdown("**Areas for Improvement:**")
-            if sept_annual_per_mw < 60000:
-                gap = 60000 - sept_annual_per_mw
-                st.markdown(f"- September £{gap:,.0f}/MW below industry mid")
+            below_mid = [(m['short'], 60000 - m['total_annual_per_mw']) for m in bm if m['total_annual_per_mw'] < 60000]
+            for short, gap in below_mid:
+                st.markdown(f"- {short}: £{gap:,.0f}/MW below industry mid")
             if avg_annual < 88000:
                 gap = 88000 - avg_annual
                 st.markdown(f"- Combined average £{gap:,.0f}/MW below industry high")
@@ -4337,12 +4291,29 @@ def main():
     st.sidebar.title("🔋 Asset Performance Dashboard")
 
     # General section (month-independent pages)
+    # Use session_state to persist the active general page across reruns
+    if 'active_general_page' not in st.session_state:
+        st.session_state.active_general_page = None
+
     st.sidebar.markdown("### General")
-    show_asset_page = st.sidebar.button("🏭 Asset Details", use_container_width=True)
-    show_import_page = st.sidebar.button("📥 Data Import", use_container_width=True)
-    show_exec_comparison = st.sidebar.button("📊 Executive Comparison", use_container_width=True)
-    show_benchmark_page = st.sidebar.button("📈 Benchmarks", use_container_width=True)
-    show_export_page = st.sidebar.button("📄 Export Reports", use_container_width=True)
+
+    def _set_general_page(page_name):
+        st.session_state.active_general_page = page_name
+
+    show_asset_page = st.sidebar.button("🏭 Asset Details", use_container_width=True,
+                                         on_click=_set_general_page, args=('asset_details',))
+    show_import_page = st.sidebar.button("📥 Data Import", use_container_width=True,
+                                          on_click=_set_general_page, args=('data_import',))
+    show_exec_comparison = st.sidebar.button("📊 Executive Comparison", use_container_width=True,
+                                              on_click=_set_general_page, args=('exec_comparison',))
+    show_benchmark_page = st.sidebar.button("📈 Benchmarks", use_container_width=True,
+                                             on_click=_set_general_page, args=('benchmarks',))
+    show_export_page = st.sidebar.button("📄 Export Reports", use_container_width=True,
+                                          on_click=_set_general_page, args=('export_reports',))
+    show_invoice_page = st.sidebar.button("🧾 Invoice Analysis", use_container_width=True,
+                                           on_click=_set_general_page, args=('invoice_analysis',))
+    show_checklist_page = st.sidebar.button("📋 Monthly Checklist", use_container_width=True,
+                                             on_click=_set_general_page, args=('monthly_checklist',))
 
     st.sidebar.markdown("---")
 
@@ -4355,11 +4326,15 @@ def main():
     )
 
     # Navigation menu for month-dependent pages
+    def _clear_general_page():
+        st.session_state.active_general_page = None
+
     page = st.sidebar.radio(
         "Pages",
         ["📊 Operations Summary", "🚀 Multi-Market Optimization", "📈 Market Prices", "⚠️ Imbalance Analysis", "⚡ Ancillary Services", "🔋 BESS Health", "📑 Performance Report"],
         index=0,  # Default to operations summary
-        label_visibility="collapsed"
+        label_visibility="collapsed",
+        on_change=_clear_general_page,
     )
 
     st.sidebar.markdown("---")
@@ -4395,21 +4370,28 @@ def main():
 - **Gap** - Optimal - Actual revenue (£)
         """)
 
-    # Display General pages if clicked (these take priority)
-    if show_asset_page:
+    # Display General pages if active (persisted via session_state)
+    active = st.session_state.active_general_page
+    if active == 'asset_details':
         show_asset_details()
         return
-    if show_import_page:
+    if active == 'data_import':
         show_data_quality_page()
         return
-    if show_exec_comparison:
+    if active == 'exec_comparison':
         show_executive_comparison()
         return
-    if show_benchmark_page:
+    if active == 'benchmarks':
         show_benchmark_comparison()
         return
-    if show_export_page:
+    if active == 'export_reports':
         show_pdf_export_page(selected_month)
+        return
+    if active == 'invoice_analysis':
+        show_invoice_analysis()
+        return
+    if active == 'monthly_checklist':
+        show_monthly_checklist()
         return
 
     # Display selected monthly page

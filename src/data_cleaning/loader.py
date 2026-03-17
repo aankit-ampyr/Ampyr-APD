@@ -5,6 +5,7 @@ Handles loading raw Excel files from GridBeyond and BESS SCADA systems.
 """
 
 import pandas as pd
+import numpy as np
 from pathlib import Path
 from typing import Tuple, Optional, List
 import re
@@ -32,12 +33,19 @@ def find_files(folder_path: str) -> dict:
     for file in folder.glob("*.xlsx"):
         filename = file.name.lower()
 
-        # GridBeyond files match pattern: Northwold_{Month}_{Year}.xlsx
-        if 'northwold' in filename and not filename.startswith('~$'):
+        if filename.startswith('~$'):
+            continue
+
+        # GridBeyond files: Northwold_{Month}_{Year}.xlsx or Northwold YYYYMM Backing Data.xlsx
+        if 'northwold' in filename and 'backing data' in filename:
+            files['gridbeyond'] = str(file)
+        elif 'northwold' in filename and files['gridbeyond'] is None:
             files['gridbeyond'] = str(file)
 
-        # SCADA files match pattern: export-*.xlsx
-        elif filename.startswith('export-') and not filename.startswith('~$'):
+        # SCADA files: export-*.xlsx (legacy) or mon-yy-*.xlsx (new format)
+        elif filename.startswith('export-'):
+            files['scada'] = str(file)
+        elif re.match(r'^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)-\d{2}-', filename):
             files['scada'] = str(file)
 
     return files
@@ -89,19 +97,95 @@ def load_scada(filepath: str, convert_power_to_mw: bool = True) -> pd.DataFrame:
     """
     Load SCADA Excel file, parse dates, and optionally convert power units.
 
+    Supports two formats:
+    - Legacy (export-*.xlsx): 5 cols — date, Availability, SOC, Power (kW), Frequency
+    - New (msrc10m sheet): 12 cols — Timestamp, Cycles, RTE, SOH, Energy, Power (kW),
+      Availability, etc. with [Northwold] suffix
+
     Args:
         filepath: Path to SCADA Excel file
         convert_power_to_mw: If True, convert Power from kW to MW
 
     Returns:
-        DataFrame with parsed timestamp as index
+        DataFrame with parsed timestamp as index, standardised column names
     """
     if not Path(filepath).exists():
         raise FileNotFoundError(f"SCADA file not found: {filepath}")
 
-    # Read Excel file
-    df = pd.read_excel(filepath)
+    # Try reading the new format (msrc10m sheet) first
+    try:
+        df = pd.read_excel(filepath, sheet_name='msrc10m')
+        is_new_format = True
+    except (ValueError, KeyError):
+        df = pd.read_excel(filepath)
+        is_new_format = False
 
+    if is_new_format:
+        return _load_scada_new_format(df, convert_power_to_mw)
+    else:
+        return _load_scada_legacy_format(df, convert_power_to_mw)
+
+
+def _load_scada_new_format(df: pd.DataFrame, convert_power_to_mw: bool) -> pd.DataFrame:
+    """
+    Load new-format SCADA data (msrc10m sheet with 12 columns).
+
+    Maps new column names to standard pipeline names and preserves
+    additional metrics (cycles, RTE, SOH, availability) as extra columns.
+    """
+    # Strip [Northwold] site suffix from all columns
+    df.columns = [
+        col.replace(' [Northwold]', '').strip() if '[Northwold]' in str(col) else col
+        for col in df.columns
+    ]
+
+    # Find timestamp column
+    timestamp_col = None
+    for col in df.columns:
+        if 'timestamp' in col.lower():
+            timestamp_col = col
+            break
+
+    if timestamp_col is None:
+        raise ValueError("No Timestamp column found in new-format SCADA file")
+
+    df[timestamp_col] = pd.to_datetime(df[timestamp_col])
+    df = df.rename(columns={timestamp_col: 'Timestamp'})
+    df = df.set_index('Timestamp')
+    df = df.sort_index()
+
+    # Map new column names to standard pipeline names
+    column_map = {
+        'Batteries Power Output Inverters AC (kW)': 'Power',
+        'BESS Site batteries availability (%)': 'Availability',
+        'BESS State Of Health (%)': 'SOH',
+        'BESS Cumulative Round Trip Efficiency (POC) (%)': 'RTE',
+        'Batteries Total Cycles (-)': 'Daily_Cycles',
+        'Batteries Total Cycles (to date) (-)': 'Cumulative_Cycles',
+        'BESS Exported Energy Site (daily) (kWh)': 'Daily_Export_kWh',
+        'BESS Imported Energy Site (daily) (kWh)': 'Daily_Import_kWh',
+        'BESS export cycles (-)': 'Export_Cycles',
+        'BESS import cycles (-)': 'Import_Cycles',
+        'BESS Site inverters availability (%)': 'Inverter_Availability',
+    }
+
+    df = df.rename(columns={k: v for k, v in column_map.items() if k in df.columns})
+
+    # Convert Power from kW to MW
+    if convert_power_to_mw and 'Power' in df.columns:
+        df['Power'] = df['Power'] / 1000.0
+        df = df.rename(columns={'Power': 'Power_MW'})
+
+    # New format has no SOC column — create empty one so pipeline can
+    # calculate it from power integration or merge it from GridBeyond
+    if 'SOC' not in df.columns:
+        df['SOC'] = np.nan
+
+    return df
+
+
+def _load_scada_legacy_format(df: pd.DataFrame, convert_power_to_mw: bool) -> pd.DataFrame:
+    """Load legacy SCADA data (export-*.xlsx with 5 columns)."""
     # Find date column (usually 'date')
     date_col = None
     for col in df.columns:

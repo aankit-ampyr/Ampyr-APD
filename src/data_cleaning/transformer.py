@@ -40,6 +40,18 @@ def resample_scada(df: pd.DataFrame, target_freq: str = '30min') -> pd.DataFrame
     if 'Frequency' in df.columns:
         agg_rules['Frequency'] = 'mean'
 
+    # New-format SCADA columns: use 'last' for point-in-time / daily-cumulative values
+    last_cols = {'SOH', 'RTE', 'Daily_Cycles', 'Cumulative_Cycles',
+                 'Daily_Export_kWh', 'Daily_Import_kWh', 'Export_Cycles', 'Import_Cycles'}
+    for col in last_cols:
+        if col in df.columns:
+            agg_rules[col] = 'last'
+
+    # Availability columns: use 'mean' (average over period)
+    for col in ['Availability', 'Inverter_Availability']:
+        if col in df.columns:
+            agg_rules[col] = 'mean'
+
     # Handle any other numeric columns with mean
     for col in df.columns:
         if col not in agg_rules and pd.api.types.is_numeric_dtype(df[col]):
