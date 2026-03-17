@@ -17,6 +17,56 @@ sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 import digital_twin_config as config
 from pages.data_quality import show_data_quality_page
 
+# =============================================================================
+# GLOBAL COLOR PALETTE — Colorblind-friendly, consistent across all charts
+# =============================================================================
+
+# Revenue streams
+COLOR_SFFR = '#2C4B78'           # Deep Navy
+COLOR_EPEX = '#F18805'           # Warm Orange
+COLOR_IDA1 = '#7BC8F6'           # Sky Blue
+COLOR_IDC = '#9467BD'            # Purple
+COLOR_IMBALANCE_REV = '#2CA02C'  # Forest Green
+COLOR_IMBALANCE_COST = '#D62728' # Crimson
+
+# Strategies (Actual/Optimized comparisons)
+COLOR_ACTUAL = '#3498db'         # Blue — "what happened"
+COLOR_EPEX_ONLY = '#F18805'      # Orange — matches EPEX revenue color
+COLOR_SFFR_ONLY = '#2C4B78'      # Navy — matches SFFR revenue color
+COLOR_MULTI_MARKET = '#2CA02C'   # Green — "best outcome"
+
+# Ancillary services
+COLOR_DCL = '#8C564B'            # Brown
+COLOR_DCH = '#E377C2'            # Pink
+COLOR_DML = '#17BECF'            # Teal
+COLOR_DMH = '#BCBD22'            # Olive
+COLOR_DRL = '#AEC7E8'            # Light Steel Blue
+COLOR_DRH = '#FFBB78'            # Peach
+
+# Market prices (already consistent — kept as-is)
+COLOR_EPEX_DA = '#3498db'        # Blue
+COLOR_SSP = '#2ecc71'            # Green
+COLOR_SBP = '#e74c3c'            # Red
+
+# Revenue breakdown color map (reusable for pie/donut charts)
+REVENUE_COLOR_MAP = {
+    'SFFR': COLOR_SFFR,
+    'SFFR Revenue': COLOR_SFFR,
+    'EPEX 30 DA': COLOR_EPEX,
+    'EPEX Trading': COLOR_EPEX,
+    'IDA1': COLOR_IDA1,
+    'IDA1 Trading': COLOR_IDA1,
+    'IDC': COLOR_IDC,
+    'IDC Trading': COLOR_IDC,
+    'Imbalance (Net)': COLOR_IMBALANCE_COST,
+    'Imbalance Revenue': COLOR_IMBALANCE_REV,
+    'Imbalance Charges': COLOR_IMBALANCE_COST,
+}
+
+# Strategy colors list (for bar charts with 4 strategies in order:
+# Actual GridBeyond, EPEX-Only, SFFR-Only, Multi-Market)
+STRATEGY_COLORS = [COLOR_ACTUAL, COLOR_EPEX_ONLY, COLOR_SFFR_ONLY, COLOR_MULTI_MARKET]
+
 # Configure data directory
 DATA_DIR = os.path.join(os.path.dirname(__file__), 'data')
 if not os.path.exists(DATA_DIR):
@@ -531,7 +581,9 @@ def show_operations_summary(bess_df, northwold_df, bess_analysis, northwold_anal
             fig = px.pie(
                 values=list(revenue_data.values()),
                 names=list(revenue_data.keys()),
-                title="Revenue Sources Distribution"
+                title="Revenue Sources Distribution",
+                color=list(revenue_data.keys()),
+                color_discrete_map=REVENUE_COLOR_MAP
             )
             st.plotly_chart(fig, use_container_width=True)
 
@@ -865,14 +917,14 @@ def show_multimarket_optimization(month: str = "September 2025"):
         y=multi_df['Optimised_Revenue_Daily'].cumsum(),
         mode='lines',
         name='EPEX-Only (Cumulative)',
-        line=dict(width=2, color='blue')
+        line=dict(width=2, color=COLOR_EPEX_ONLY)
     ))
     fig.add_trace(go.Scatter(
         x=multi_df['Timestamp'],
         y=multi_df['Optimised_Revenue_Multi'].cumsum(),
         mode='lines',
         name='Multi-Market (Cumulative)',
-        line=dict(width=2, color='green')
+        line=dict(width=2, color=COLOR_MULTI_MARKET)
     ))
     fig.update_layout(
         title="Cumulative Revenue Comparison",
@@ -1181,7 +1233,7 @@ Warranty limit: 1.5 cycles/day (547 cycles/year)
                 y=health_df['Daily Cycles'],
                 text=health_df['Daily Cycles'].round(3),
                 textposition='auto',
-                marker_color=['lightblue', 'blue', 'darkblue', 'green']
+                marker_color=STRATEGY_COLORS
             )
         ])
         # Add warranty limit line
@@ -1207,7 +1259,7 @@ Warranty limit: 1.5 cycles/day (547 cycles/year)
                 y=health_df['Est. Degradation (%)'],
                 text=health_df['Est. Degradation (%)'].round(4),
                 textposition='auto',
-                marker_color=['lightcoral', 'coral', 'darkorange', 'green']
+                marker_color=STRATEGY_COLORS
             )
         ])
         fig_degrade.update_layout(
@@ -1232,7 +1284,7 @@ Warranty limit: 1.5 cycles/day (547 cycles/year)
         y=discharges,
         text=[f"{d:.1f} MWh" for d in discharges],
         textposition='auto',
-        marker_color=['#636EFA', '#EF553B', '#00CC96', '#AB63FA']
+        marker_color=STRATEGY_COLORS
     ))
 
     fig_discharge.update_layout(
@@ -1281,7 +1333,7 @@ Warranty limit: 1.5 cycles/day (547 cycles/year)
                 y=annual_df['Years to 80% SOH'],
                 text=[f"{y:.1f} years" if y < 100 else "100+ years" for y in annual_df['Years to 80% SOH']],
                 textposition='auto',
-                marker_color=['#FFA15A', '#19D3F3', '#FF6692', '#B6E880']
+                marker_color=STRATEGY_COLORS
             )
         ])
         fig_years.update_layout(
@@ -1375,7 +1427,7 @@ Warranty limit: 1.5 cycles/day (547 cycles/year)
         x=daily_cycles_df['Date'],
         y=daily_cycles_df['Actual_Cycles'],
         name='Actual (GridBeyond)',
-        marker_color='#3498db',
+        marker_color=COLOR_ACTUAL,
         opacity=0.8
     ))
 
@@ -1383,7 +1435,7 @@ Warranty limit: 1.5 cycles/day (547 cycles/year)
         x=daily_cycles_df['Date'],
         y=daily_cycles_df['Multi_Cycles'],
         name='Multi-Market Optimized',
-        marker_color='#2ecc71',
+        marker_color=COLOR_MULTI_MARKET,
         opacity=0.8
     ))
 
@@ -1639,7 +1691,7 @@ def show_report_page(month: str = "September 2025"):
             y=[actual_annual_per_mw, multi_annual_per_mw],
             text=[f'£{actual_annual_per_mw:,.0f}', f'£{multi_annual_per_mw:,.0f}'],
             textposition='auto',
-            marker_color=['#D95D39', '#F0A202']
+            marker_color=[COLOR_ACTUAL, COLOR_MULTI_MARKET]
         )
     ])
 
@@ -1672,12 +1724,8 @@ def show_report_page(month: str = "September 2025"):
             names=list(revenue_components.keys()),
             title="Actual Revenue Breakdown",
             hole=0.4,
-            color_discrete_map={
-                'SFFR Revenue': '#2C4B78',
-                'EPEX Trading': '#F18805',
-                'IDA1 Trading': '#90EE90',
-                'Imbalance (Net)': '#D95D39'
-            }
+            color=list(revenue_components.keys()),
+            color_discrete_map=REVENUE_COLOR_MAP
         )
 
         st.plotly_chart(fig_donut, use_container_width=True)
@@ -1746,13 +1794,13 @@ def show_report_page(month: str = "September 2025"):
         name='SFFR',
         x=strategies,
         y=sffr_revenues,
-        marker_color='#2C4B78'
+        marker_color=COLOR_SFFR
     ))
     fig_mix.add_trace(go.Bar(
         name='Market Trading',
         x=strategies,
         y=market_revenues,
-        marker_color='#F0A202'
+        marker_color=COLOR_EPEX
     ))
 
     fig_mix.update_layout(
@@ -1851,7 +1899,7 @@ def show_report_page(month: str = "September 2025"):
             y=daily_actual['Total'],
             mode='lines+markers',
             name='Actual Revenue',
-            line=dict(color='#D95D39', width=2),
+            line=dict(color=COLOR_ACTUAL, width=2),
             marker=dict(size=6)
         ))
 
@@ -1860,7 +1908,7 @@ def show_report_page(month: str = "September 2025"):
         y=daily_multi.values,
         mode='lines+markers',
         name='Multi-Market Potential',
-        line=dict(color='#F0A202', width=2, dash='dash'),
+        line=dict(color=COLOR_MULTI_MARKET, width=2, dash='dash'),
         marker=dict(size=6)
     ))
 
@@ -2046,7 +2094,7 @@ def show_executive_comparison():
         x='Scenario',
         y='Revenue',
         color='Type',
-        color_discrete_map={'Actual': '#3498db', 'Optimal': '#2ecc71'},
+        color_discrete_map={'Actual': COLOR_ACTUAL, 'Optimal': COLOR_MULTI_MARKET},
         title="Revenue: Actual vs Optimal by Month",
         text=comparison_data['Revenue'].apply(lambda x: f'£{x:,.0f}')
     )
@@ -2279,7 +2327,7 @@ def show_market_price_analysis(month: str = "September 2025"):
         x=daily_spreads['Date'],
         y=daily_spreads['EPEX_Spread'],
         name='EPEX Daily Spread',
-        marker_color='#3498db'
+        marker_color=COLOR_EPEX_DA
     ))
     fig.update_layout(
         title="Daily EPEX Price Spread (Max - Min)",
@@ -2322,7 +2370,7 @@ def show_market_price_analysis(month: str = "September 2025"):
         y=hourly_avg['Day Ahead Price (EPEX)'],
         mode='lines+markers',
         name='EPEX DA',
-        line=dict(color='#3498db', width=3),
+        line=dict(color=COLOR_EPEX_DA, width=3),
         fill='tozeroy',
         fillcolor='rgba(52, 152, 219, 0.3)'
     ))
@@ -2331,14 +2379,14 @@ def show_market_price_analysis(month: str = "September 2025"):
         y=hourly_avg['SSP'],
         mode='lines+markers',
         name='SSP',
-        line=dict(color='#2ecc71', width=2)
+        line=dict(color=COLOR_SSP, width=2)
     ))
     fig.add_trace(go.Scatter(
         x=hourly_avg['Hour'],
         y=hourly_avg['SBP'],
         mode='lines+markers',
         name='SBP',
-        line=dict(color='#e74c3c', width=2)
+        line=dict(color=COLOR_SBP, width=2)
     ))
     fig.update_layout(
         title="Average Price by Hour of Day",
@@ -2383,7 +2431,7 @@ def show_market_price_analysis(month: str = "September 2025"):
         x=daily_volatility['Date'],
         y=daily_volatility['EPEX_Std'],
         name='Price Volatility (Std Dev)',
-        marker_color=np.where(daily_volatility['EPEX_Std'] >= high_vol_threshold, '#e74c3c', '#3498db')
+        marker_color=np.where(daily_volatility['EPEX_Std'] >= high_vol_threshold, COLOR_SBP, COLOR_EPEX_DA)
     ))
     fig.add_hline(y=high_vol_threshold, line_dash="dash", line_color="red",
                   annotation_text=f"High volatility threshold: £{high_vol_threshold:.2f}")
@@ -2551,13 +2599,13 @@ def show_imbalance_deep_dive(month: str = "September 2025"):
         x=daily_imbalance['Date'],
         y=daily_imbalance['Imbalance Revenue'],
         name='Revenue',
-        marker_color='#2ecc71'
+        marker_color=COLOR_IMBALANCE_REV
     ))
     fig.add_trace(go.Bar(
         x=daily_imbalance['Date'],
         y=-daily_imbalance['Imbalance Charge'],
         name='Charges',
-        marker_color='#e74c3c'
+        marker_color=COLOR_IMBALANCE_COST
     ))
     fig.update_layout(
         title="Daily Imbalance Revenue vs Charges",
@@ -2595,7 +2643,7 @@ def show_imbalance_deep_dive(month: str = "September 2025"):
         x=hourly_imbalance['Hour'],
         y=hourly_imbalance['Imbalance Charge'],
         name='Total Charges by Hour',
-        marker_color='#e74c3c'
+        marker_color=COLOR_IMBALANCE_COST
     ))
     fig.update_layout(
         title="Imbalance Charges by Hour of Day",
@@ -2669,7 +2717,7 @@ def show_imbalance_deep_dive(month: str = "September 2025"):
             labels=['Morning (6-12)', 'Afternoon (12-18)', 'Evening (18-22)', 'Night (22-6)'],
             values=[morning_charges, afternoon_charges, evening_charges, night_charges],
             hole=0.4,
-            marker_colors=['#f39c12', '#e74c3c', '#9b59b6', '#3498db']
+            marker_colors=[COLOR_EPEX, COLOR_IMBALANCE_COST, COLOR_IDC, COLOR_ACTUAL]
         )])
         fig.update_layout(title="Imbalance Charges by Time of Day", height=350)
         st.plotly_chart(fig, use_container_width=True)
@@ -2837,7 +2885,7 @@ def show_ancillary_services_analysis(month: str = "September 2025"):
         fig.add_trace(go.Bar(
             x=hourly_sffr['Hour'],
             y=hourly_sffr['SFFR revenues'],
-            marker_color='#2ecc71'
+            marker_color=COLOR_SFFR
         ))
         fig.update_layout(
             title="SFFR Revenue by Hour of Day",

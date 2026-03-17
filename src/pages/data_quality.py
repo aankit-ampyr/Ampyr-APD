@@ -306,7 +306,7 @@ def show_quality_report_section():
         go.Bar(
             x=['Common', 'GridBeyond Only', 'SCADA Only'],
             y=[report.common_timestamps, report.only_gridbeyond, report.only_scada],
-            marker_color=['green', 'blue', 'orange']
+            marker_color=['#2CA02C', '#3498db', '#F18805']
         )
     ])
     fig.update_layout(
