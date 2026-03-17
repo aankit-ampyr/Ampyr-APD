@@ -3419,40 +3419,40 @@ def show_benchmark_comparison():
             st.markdown("""
 **Formula:**
 ```
-Total Revenue = SFFR + EPEX DA + IDA1 + IDC + Imbalance Revenue - Imbalance Charge
+GridBeyond Revenue = SFFR + EPEX DA + IDA1 + IDC + Imbalance Revenue - Imbalance Charge
+Total Revenue = GridBeyond Revenue + Capacity Market + DUoS Net Credit - DUoS Fixed Charges
 ```
 
 **Explanation:**
-Sum of all wholesale market revenues minus imbalance penalties. Includes frequency response (SFFR),
-day-ahead trading (EPEX), intraday markets (IDA1, IDC), and net imbalance settlements.
+GridBeyond revenue is the sum of all wholesale/ancillary revenues traded by the aggregator.
+Total Revenue adds non-GridBeyond streams: Capacity Market payments (EMR Settlement T062)
+and Distribution Use of System credits (Hartree Partners passthrough invoices).
 
-**Example (September 2025):**
-- SFFR revenues: £17,164
-- EPEX DA: £1,880
-- IDA1: £3,670
-- IDC: £0
-- Imbalance Revenue: £0
-- Imbalance Charge: -£8,257
-- **Total: £14,457**
+**Example (October 2025):**
+- GridBeyond Revenue: £38,344 (SFFR + EPEX + IDA1 + IDC + Imbalance)
+- Capacity Market: £1,704 (EMR Settlement CAN-2025-NSFL01-001)
+- DUoS Net Credit: £5,808 (Red + Amber + Green GDuos credits)
+- DUoS Fixed Charges: -£4 (DNO fixed charges)
+- **Total: £45,852**
             """)
 
         with st.expander("📐 Revenue (£/MW/year) - How is it calculated?"):
             st.markdown("""
 **Formula:**
 ```
-£/MW/year = (Monthly Revenue ÷ Days in Month) × 365 ÷ Capacity_MW
+£/MW/year = (Total Monthly Revenue ÷ Days in Month) × 365 ÷ Capacity_MW
 ```
 
 **Explanation:**
-Annualizes monthly revenue and normalizes by installed capacity (4.2 MW) to enable
-comparison with industry benchmarks regardless of asset size.
+Annualizes total monthly revenue (GridBeyond + CM + DUoS) and normalizes by installed
+capacity (4.2 MW) to enable comparison with Modo Energy industry benchmarks regardless of asset size.
 
-**Example (September 2025):**
-- Monthly Revenue: £14,457
-- Days in September: 30
-- Daily average: £14,457 ÷ 30 = £482/day
-- Annualized: £482 × 365 = £175,878/year
-- Per MW: £175,878 ÷ 4.2 MW = **£41,876/MW/year**
+**Example (October 2025):**
+- Total Monthly Revenue: £45,852 (GridBeyond £38,344 + CM £1,704 + DUoS £5,804)
+- Days in October: 31
+- Daily average: £45,852 ÷ 31 = £1,479/day
+- Annualized: £1,479 × 365 = £539,790/year
+- Per MW: £539,790 ÷ 4.2 MW = **£128,521/MW/year**
             """)
 
         with st.expander("📐 Daily Cycles - How is it calculated?"):
@@ -3698,37 +3698,42 @@ battery cells, and thermal management.
         st.markdown("""
 **Formula:**
 ```
-Variance % = ((Actual - IAR) ÷ IAR) × 100
+Variance % = ((Actual - IAR) ÷ |IAR|) × 100
 ```
 
 **Explanation:**
-Compares actual GridBeyond revenues against Internal Appraisal Report (IAR) projections.
-Positive variance means outperformance; negative means underperformance.
+Compares actual revenues (GridBeyond + CM + DUoS) against Internal Appraisal Report (IAR) projections
+loaded from `extra/Northwold BESS Revenue_IAR.xlsx`. IAR values are per MW/month, multiplied by 4.2 MW
+for Real totals. Positive variance means outperformance; negative means underperformance.
 
-**Example (October Frequency Response):**
-- IAR Projection: £1,038
-- Actual Revenue: £28,382
+**Example (October 2025 — Frequency Response):**
+- IAR Projection: £1,038 (per IAR model, 4.2 MW × per-MW projection)
+- Actual SFFR Revenue: £28,382
 - Variance: ((28,382 - 1,038) ÷ 1,038) × 100 = **+2,634%**
 
-*The massive outperformance in Frequency Response offset underperformance in Wholesale.*
+**Key Patterns Observed:**
+- **Frequency Response** massively outperforms IAR (SFFR prices much higher than projected)
+- **Capacity Market** actuals (£1.7–2.1k/month) below IAR projections (£4.4–4.6k/month)
+- **DUoS Battery** credits vary significantly by month (seasonal Red band weighting)
         """)
 
     with st.expander("📐 Revenue Streams - What do they mean?"):
         st.markdown("""
-| Stream | Description |
-|--------|-------------|
-| **Wholesale Day Ahead** | EPEX power exchange - trading for next-day delivery |
-| **Wholesale Intraday** | IDA1/IDC - same-day trading to balance positions |
-| **Balancing Mechanism** | National Grid dispatch instructions for system balancing |
-| **Frequency Response** | SFFR/DC/DM/DR - grid frequency stabilization services |
-| **Capacity Market** | Annual payments for availability during stress events |
-| **DUoS Battery** | Distribution Use of System - embedded generation benefits |
-| **DUoS Fixed Charges** | Fixed network charges (cost, shown negative) |
-| **TNUoS** | Transmission Network Use of System charges |
-| **Imbalance Revenue** | Payments when grid position helps system balance |
-| **Imbalance Charge** | Penalties when grid position hurts system balance |
+| Stream | Source | Description |
+|--------|--------|-------------|
+| **Wholesale Day Ahead** | GridBeyond | EPEX power exchange — trading for next-day delivery |
+| **Wholesale Intraday** | GridBeyond | IDA1/IDC — same-day trading to balance positions |
+| **Balancing Mechanism** | GridBeyond | National Grid dispatch instructions for system balancing |
+| **Frequency Response** | GridBeyond | SFFR/DC/DM/DR — grid frequency stabilization services |
+| **Capacity Market** | EMR Settlement (ESC) | Monthly payments under contract CAN-2025-NSFL01-001 (1.023 MW) |
+| **DUoS Battery** | Hartree Partners | Distribution Use of System — Red/Amber/Green GDuos credits for export |
+| **DUoS Fixed Charges** | Hartree Partners | DNO fixed network charges (cost, shown negative) |
+| **TNUoS** | N/A | Transmission Network Use of System — no invoices received to date |
+| **Imbalance Revenue** | GridBeyond | Payments when grid position helps system balance (SSP) |
+| **Imbalance Charge** | GridBeyond | Penalties when grid position hurts system balance (SBP) |
 
-*Streams marked "-" are not tracked in GridBeyond monthly reports or not applicable.*
+*IAR projections are from the internal financial model (`extra/Northwold BESS Revenue_IAR.xlsx`),
+calculated per MW/month and multiplied by 4.2 MW for comparison. No indexation is applied.*
         """)
 
     st.markdown("---")
@@ -3828,27 +3833,31 @@ Positive variance means outperformance; negative means underperformance.
             st.markdown("""
 **Formula:**
 ```
-Optimized Revenue = Sum of (Discharge_MW × Sell_Price - Charge_MW × Buy_Price) × 0.5hr
+For each day:
+  SFFR_Daily = Sum(7.0 MW × SFFR_Clearing_Price × 0.5hr) for 48 periods
+  Multi_Market = LP solver maximizing: Sum(Discharge × Sell_Price - Charge × Buy_Price) × 0.5hr
+  Daily Revenue = max(SFFR_Daily, Multi_Market)
 ```
 
 **Explanation:**
-A linear optimization model that dispatches the battery across 5 markets (EPEX, ISEM, SSP, SBP, DA HH)
-using **perfect price foresight**. For each 30-minute period, it decides whether to:
-- Charge from the lowest-priced market
-- Discharge to the highest-priced market
-- Remain idle if spread is insufficient
+A linear optimization model (scipy linprog, HiGHS solver) that first compares SFFR availability revenue
+against optimal multi-market dispatch for the whole day. If SFFR wins, the battery is locked in frequency
+response. If multi-market wins, it dispatches across 5 markets using **perfect price foresight**:
+- Buy from the lowest-priced market (min of EPEX, ISEM, SSP, SBP, DA HH)
+- Sell to the highest-priced market (max of the same 5)
+- Hold or idle when spreads don't cover round-trip losses
 
 **Constraints Applied:**
-- SOC range: 5% - 95% (0.42 - 7.98 MWh)
-- Max daily throughput: 12.6 MWh (1.5 cycles)
-- Round-trip efficiency: 87%
+- Charge: 0–4.2 MW | Discharge: 0–7.5 MW (asymmetric)
+- SOC range: 5%–95% (0.42–7.98 MWh)
+- Max daily discharge throughput: 12.6 MWh (1.5 cycles × 8.4 MWh)
+- One-way efficiency: 93.3% (round-trip 87%)
+- SOC carries forward between days
 
-**Example (September 1st, 18:00):**
-- Best sell price: £95/MWh (SSP)
-- Best buy price: £42/MWh (EPEX)
-- Spread: £53/MWh
-- Action: Discharge 4.2 MW for 0.5hr = 2.1 MWh
-- Revenue: 2.1 × £95 = £199.50
+**Example (January 5, 2026 — best day):**
+- SFFR option: ~£477 (low SFFR clearing prices)
+- Multi-Market option: £5,222 (SSP spiked to 750 GBP/MWh at 19:00)
+- Decision: Multi-Market wins — battery charged at 68 GBP/MWh (SSP) overnight, held fully charged until the spike, then discharged aggressively into SSP
             """)
 
         with st.expander("📐 Revenue Gap - How is it calculated?"):
@@ -3860,12 +3869,20 @@ Revenue Gap = Optimized Multi-Market Revenue - Actual GridBeyond Revenue
 
 **Explanation:**
 Measures the theoretical revenue improvement possible if the battery had been operated
-with perfect market foresight across all available markets.
+with perfect market foresight across all available markets. The gap typically concentrates
+in a few spike days per month (e.g., SSP spikes that are unpredictable in real-time).
 
-**Example (September 2025):**
-- Multi-Market Optimal: £39,196
-- Actual Revenue: £14,457
-- Revenue Gap: £39,196 - £14,457 = **£24,739**
+**Example (January 2026):**
+- Multi-Market Optimal: £33,376
+- Actual GridBeyond Revenue: £28,190
+- Revenue Gap: £33,376 - £28,190 = **£5,186**
+- Capture Rate: 84.5%
+
+**Gap Decomposition (Jan 26):**
+- ~67% from SSP spike events not captured (esp. Jan 5, 8)
+- ~15% from sub-optimal market selection
+- ~10% from SFFR availability assumption (7.0 MW vs 6.81 MW actual)
+- ~7% from imbalance penalties
 
 **Important Caveats:**
 - Optimization uses **perfect foresight** (knows future prices)
@@ -3877,22 +3894,27 @@ with perfect market foresight across all available markets.
             st.markdown("""
 **Formula:**
 ```
-Capture Rate = (Actual Revenue ÷ Optimized Revenue) × 100
+Capture Rate = (Actual GridBeyond Revenue ÷ Optimized Multi-Market Revenue) × 100
 ```
 
 **Explanation:**
-Shows what percentage of the theoretical optimal revenue was actually captured.
-A capture rate of 100% means actual matched optimal; >100% means outperformance.
+Shows what percentage of the theoretical optimal revenue was actually captured by GridBeyond.
+A capture rate of 100% means actual matched optimal; >100% means outperformance (possible when
+actual strategies earn revenue from sources not in the optimization model).
 
-**Example (October 2025):**
-- Actual Revenue: £38,344
-- Multi-Market Optimal: £45,000 (example)
-- Capture Rate: (38,344 ÷ 45,000) × 100 = **85%**
+**Example (January 2026):**
+- Actual GridBeyond Revenue: £28,190
+- Multi-Market Optimal: £33,376
+- Capture Rate: (28,190 ÷ 33,376) × 100 = **84.5%**
+
+**Note:** On SFFR-only days, capture rates are typically 95%+ (gap is only from availability
+assumption: optimizer uses 7.0 MW, actual averages 6.81 MW). Large gaps concentrate in 2–3
+spike days per month when SSP prices spike unpredictably.
 
 **Interpretation:**
-- **>100%**: Outperforming optimization (possibly from strategies not modeled)
-- **80-100%**: Good performance, close to theoretical optimal
-- **60-80%**: Room for improvement in market participation
+- **>100%**: Outperforming optimization (revenue from strategies not modeled)
+- **80–100%**: Good performance, close to theoretical optimal
+- **60–80%**: Room for improvement in market participation
 - **<60%**: Significant opportunity gap to investigate
             """)
 
@@ -4185,19 +4207,47 @@ achieved through:
     # Source links
     with st.expander("📎 Data Sources"):
         st.markdown("""
-        **Revenue Benchmarks (Modo Energy GB BESS Index):**
-        - [2024 Year in Review](https://modoenergy.com/research/gb-battery-energy-storage-markets-2024-year-in-review-great-britain-wholesale-balancing-mechanism-frequency-response-reserve) - Annual summary *(Published: Jan 2025)*
-        - [December 2024 Benchmark](https://modoenergy.com/research/battery-energy-storage-revenues-december-benchmark-gb-2024-quick-reserve) - £84k/MW/year (2-year high) *(Published: Jan 2025)*
-        - [January 2025 Roundup](https://modoenergy.com/research/gb-research-roundup-january-2025-battery-energy-storage-great-britain-revenues-markets-wholesale-capacity-market-balancing-mechanism) - £88k/MW/year *(Published: Feb 2025)*
-        - [June 2025 Benchmark](https://modoenergy.com/research/battery-energy-storage-revenues-gb-benchmark-june-2025-negative-prices) - £76k/MW/year *(Published: Jul 2025)*
+        **Aggregator Revenue (GridBeyond):**
+        - Monthly backing data spreadsheets with half-hourly dispatch, SFFR revenues, EPEX DA, IDA1, IDC, imbalance settlements
+        - Source files: `Northwold YYYYMM Backing Data.xlsx` (raw) → processed into `Master_BESS_Analysis_*.csv`
+        - Markets: SFFR (Frequency Response), EPEX Day Ahead, IDA1/ISEM (Intraday), IDC (Continuous), SSP/SBP (Imbalance)
 
-        **Other Sources:**
-        - **NREL**: [Battery Degradation Study](https://www.nrel.gov/docs/fy22osti/80688.pdf) *(Published: 2022)*
-        - **National Grid ESO**: [Transmission Performance Reports](https://www.nationalgrideso.com/research-and-publications/transmission-performance-reports) *(Updated quarterly)*
-        - **DNV GL**: Energy Storage Performance Standards *(Industry standard reference)*
-        - **OEM Warranty**: Manufacturer warranty documentation - 1.5 cycles/day typical *(Per Northwold agreement)*
+        **Capacity Market (EMR Settlement):**
+        - Source: Electricity Settlements Company (ESC) — T062 settlement CSV files
+        - Contract: CAN-2025-NSFL01-001 (Northwold Solar Farm Ltd)
+        - Capacity obligation: 1.023 MW @ ~£20,000/MW/year, paid monthly with seasonal weighting
+        - Files: `NORTHWO_*_T062.csv` in `raw/New/`
 
-        **Note:** Modo Energy's GB BESS Index tracks monthly revenues across all GB batteries. Range £36k-£88k/MW/year based on 2024-2025 data.
+        **DUoS — Distribution Use of System (Hartree Partners):**
+        - Source: Hartree Partners Supply (UK) — generator invoices (passthrough credits from UKPN)
+        - Components: Red/Amber/Green GDuos credits (revenue to generator for export) + DNO Fixed Charges (cost)
+        - Files: `NWOSFL_Hartree*_Gen_Inv_*.pdf` in `raw/New/OneDrive_3*/` and `OneDrive_4*/`
+
+        **IAR — Investment Appraisal Report:**
+        - Source: Internal financial model — projected revenue per MW per month by stream
+        - File: `extra/Northwold BESS Revenue_IAR.xlsx` (Sheet1, rows 4-11, multiplied by 4.2 MW for Real totals)
+        - Streams: DA, ID, BM, FR, CM, DUoS Battery, DUoS Fixed, TNUoS
+
+        **Multi-Market Optimisation:**
+        - Hindsight-based linear programming (scipy.optimize.linprog, HiGHS solver)
+        - Uses 5 market prices per period: EPEX, GB-ISEM, SSP, SBP, DA HH
+        - Constraints: 4.2 MW charge / 7.5 MW discharge, 8.4 MWh capacity, 87% RTE, 1.5 cycles/day warranty
+        - Output: `Optimized_Results_*.csv`
+
+        **Industry Benchmarks (Modo Energy GB BESS Index):**
+        - [2024 Year in Review](https://modoenergy.com/research/gb-battery-energy-storage-markets-2024-year-in-review-great-britain-wholesale-balancing-mechanism-frequency-response-reserve) — Annual summary *(Jan 2025)*
+        - [December 2024 Benchmark](https://modoenergy.com/research/battery-energy-storage-revenues-december-benchmark-gb-2024-quick-reserve) — £84k/MW/year *(Jan 2025)*
+        - [January 2025 Roundup](https://modoenergy.com/research/gb-research-roundup-january-2025-battery-energy-storage-great-britain-revenues-markets-wholesale-capacity-market-balancing-mechanism) — £88k/MW/year *(Feb 2025)*
+        - [June 2025 Benchmark](https://modoenergy.com/research/battery-energy-storage-revenues-gb-benchmark-june-2025-negative-prices) — £76k/MW/year *(Jul 2025)*
+        - [TB Spread Benchmark](https://modoenergy.com/research/top-bottom-spread-revenue-benchmark-battery-energy-storage-sytems-gb-europe-spain-germany-solar-2025) — 142% TB2 capture for 2-hr batteries
+
+        **Technical References:**
+        - **NREL**: [Battery Degradation Study](https://www.nrel.gov/docs/fy22osti/80688.pdf) *(2022)*
+        - **National Grid ESO**: [Transmission Performance Reports](https://www.nationalgrideso.com/research-and-publications/transmission-performance-reports) *(quarterly)*
+        - **DNV GL**: Energy Storage Performance Standards *(industry standard)*
+        - **OEM Warranty**: 1.5 cycles/day limit *(per Northwold Storage Asset Optimisation Agreement)*
+
+        **Note:** Modo Energy's GB BESS Index tracks monthly revenues across all GB batteries. Range £36k–£88k/MW/year (2024–2025). Total Revenue in this dashboard includes GridBeyond + CM + DUoS for like-for-like comparison.
         """)
 
     st.markdown("---")
