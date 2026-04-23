@@ -180,6 +180,13 @@ def run_phase_3_multimarket(input_file):
     df['Timestamp'] = pd.to_datetime(df['Timestamp'])
     df['Date'] = df['Timestamp'].dt.date
 
+    # DST transition days (e.g. 29-Mar spring-forward) leave NaN price cells that
+    # crash linprog. Forward/back-fill the columns the LP reads directly.
+    for _price_col in ['Day Ahead Price (EPEX)', 'GB-ISEM Intraday 1 Price',
+                       'DA HH Price', 'SSP', 'SBP']:
+        if _price_col in df.columns:
+            df[_price_col] = df[_price_col].ffill().bfill()
+
     # Placeholders for results
     results = []
     curr_soc_daily = 0.5 * config.CAPACITY_MWH  # Start month at 50%

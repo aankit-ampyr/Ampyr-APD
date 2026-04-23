@@ -120,6 +120,20 @@ AVAILABLE_MONTHS = {
         "optimization_file": "Optimized_Results_Jan_2026.csv",
         "use_master": True,
     },
+    "February 2026": {
+        "bess_file": None,
+        "northwold_file": None,
+        "master_file": "Master_BESS_Analysis_Feb_2026.csv",
+        "optimization_file": "Optimized_Results_Feb_2026.csv",
+        "use_master": True,
+    },
+    "March 2026": {
+        "bess_file": None,
+        "northwold_file": None,
+        "master_file": "Master_BESS_Analysis_Mar_2026.csv",
+        "optimization_file": "Optimized_Results_Mar_2026.csv",
+        "use_master": True,
+    },
 }
 
 @st.cache_data

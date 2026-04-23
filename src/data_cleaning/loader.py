@@ -133,11 +133,12 @@ def _load_scada_new_format(df: pd.DataFrame, convert_power_to_mw: bool) -> pd.Da
     Maps new column names to standard pipeline names and preserves
     additional metrics (cycles, RTE, SOH, availability) as extra columns.
     """
-    # Strip [Northwold] site suffix from all columns
-    df.columns = [
-        col.replace(' [Northwold]', '').strip() if '[Northwold]' in str(col) else col
-        for col in df.columns
-    ]
+    # Strip [Northwold] site marker — source emits both
+    # 'Foo [Northwold]' (Feb-era) and '[Northwold] Northwold Foo' (Mar-era).
+    def _strip_northwold(col):
+        s = re.sub(r'\s*\[Northwold\]\s*', ' ', str(col)).strip()
+        return re.sub(r'^Northwold\s+', '', s)
+    df.columns = [_strip_northwold(c) for c in df.columns]
 
     # Find timestamp column
     timestamp_col = None
