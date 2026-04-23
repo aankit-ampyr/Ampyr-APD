@@ -132,6 +132,8 @@ def _load_month_master(month: str):
         'November 2025': 'Master_BESS_Analysis_Nov_2025.csv',
         'December 2025': 'Master_BESS_Analysis_Dec_2025.csv',
         'January 2026': 'Master_BESS_Analysis_Jan_2026.csv',
+        'February 2026': 'Master_BESS_Analysis_Feb_2026.csv',
+        'March 2026': 'Master_BESS_Analysis_Mar_2026.csv',
     }
     filename = month_map.get(month)
     if not filename:

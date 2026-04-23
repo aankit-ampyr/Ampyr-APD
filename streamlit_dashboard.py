@@ -2029,12 +2029,15 @@ def show_executive_comparison():
         ('Nov 25', 'November', 30, 'Master_BESS_Analysis_Nov_2025.csv', 'Optimized_Results_Nov_2025.csv'),
         ('Dec 25', 'December', 31, 'Master_BESS_Analysis_Dec_2025.csv', 'Optimized_Results_Dec_2025.csv'),
         ('Jan 26', 'January', 31, 'Master_BESS_Analysis_Jan_2026.csv', 'Optimized_Results_Jan_2026.csv'),
+        ('Feb 26', 'February', 28, 'Master_BESS_Analysis_Feb_2026.csv', 'Optimized_Results_Feb_2026.csv'),
+        ('Mar 26', 'March', 31, 'Master_BESS_Analysis_Mar_2026.csv', 'Optimized_Results_Mar_2026.csv'),
     ]
 
     # Capacity Market & DUoS actuals (same data as in Benchmarks)
     CM_ACTUALS_EXEC = {
         'Oct 25': 1704.17, 'Nov 25': 1884.42,
         'Dec 25': 1994.84, 'Jan 26': 2113.87,
+        'Feb 26': 1829.35,
     }
     DUOS_ACTUALS_EXEC = {
         'Sep 25': {'net_credit': 773.20, 'fixed': 3.58},
@@ -3174,9 +3177,11 @@ def show_pdf_export_page(month: str = "September 2025"):
                     ('Nov 25', 'Master_BESS_Analysis_Nov_2025.csv', 'Optimized_Results_Nov_2025.csv'),
                     ('Dec 25', 'Master_BESS_Analysis_Dec_2025.csv', 'Optimized_Results_Dec_2025.csv'),
                     ('Jan 26', 'Master_BESS_Analysis_Jan_2026.csv', 'Optimized_Results_Jan_2026.csv'),
+                    ('Feb 26', 'Master_BESS_Analysis_Feb_2026.csv', 'Optimized_Results_Feb_2026.csv'),
+                    ('Mar 26', 'Master_BESS_Analysis_Mar_2026.csv', 'Optimized_Results_Mar_2026.csv'),
                 ]
 
-                CM_EXPORT = {'Oct 25': 1704.17, 'Nov 25': 1884.42, 'Dec 25': 1994.84, 'Jan 26': 2113.87}
+                CM_EXPORT = {'Oct 25': 1704.17, 'Nov 25': 1884.42, 'Dec 25': 1994.84, 'Jan 26': 2113.87, 'Feb 26': 1829.35}
                 DUOS_EXPORT = {
                     'Sep 25': {'net': 769.62}, 'Oct 25': {'net': 5803.98}, 'Nov 25': {'net': 5521.52},
                 }
@@ -3249,6 +3254,8 @@ def show_benchmark_comparison():
         ('Nov 25', 30, 'Master_BESS_Analysis_Nov_2025.csv', 'Optimized_Results_Nov_2025.csv'),
         ('Dec 25', 31, 'Master_BESS_Analysis_Dec_2025.csv', 'Optimized_Results_Dec_2025.csv'),
         ('Jan 26', 31, 'Master_BESS_Analysis_Jan_2026.csv', 'Optimized_Results_Jan_2026.csv'),
+        ('Feb 26', 28, 'Master_BESS_Analysis_Feb_2026.csv', 'Optimized_Results_Feb_2026.csv'),
+        ('Mar 26', 31, 'Master_BESS_Analysis_Mar_2026.csv', 'Optimized_Results_Mar_2026.csv'),
     ]
 
     # Modo Energy monthly benchmark (£/MW/year) — source: Modo Energy GB BESS Index
@@ -3262,6 +3269,7 @@ def show_benchmark_comparison():
     CM_ACTUALS = {
         'Oct 25': 1704.17, 'Nov 25': 1884.42,
         'Dec 25': 1994.84, 'Jan 26': 2113.87,
+        'Feb 26': 1829.35,
     }
 
     # DUoS actuals (£ net ex-VAT) — source: Hartree Partners Gen_Inv PDFs

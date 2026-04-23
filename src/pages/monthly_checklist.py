@@ -55,6 +55,8 @@ MONTH_CONFIG = [
     ('Nov 25', 'November 2025', 30, 'Master_BESS_Analysis_Nov_2025.csv', 'Optimized_Results_Nov_2025.csv'),
     ('Dec 25', 'December 2025', 31, 'Master_BESS_Analysis_Dec_2025.csv', 'Optimized_Results_Dec_2025.csv'),
     ('Jan 26', 'January 2026', 31, 'Master_BESS_Analysis_Jan_2026.csv', 'Optimized_Results_Jan_2026.csv'),
+    ('Feb 26', 'February 2026', 28, 'Master_BESS_Analysis_Feb_2026.csv', 'Optimized_Results_Feb_2026.csv'),
+    ('Mar 26', 'March 2026', 31, 'Master_BESS_Analysis_Mar_2026.csv', 'Optimized_Results_Mar_2026.csv'),
 ]
 
 # Modo Energy monthly benchmark (£/MW/year)
@@ -67,6 +69,7 @@ MODO_BENCHMARKS = {
 CM_ACTUALS = {
     'Oct 25': 1704.17, 'Nov 25': 1884.42,
     'Dec 25': 1994.84, 'Jan 26': 2113.87,
+    'Feb 26': 1829.35,
 }
 
 # DUoS actuals from Hartree Partners invoices
@@ -122,7 +125,7 @@ def _load_iar_projections():
         ws = wb['Sheet1']
         iar_mw = 4.2
 
-        col_map = {11: 'Sep 25', 12: 'Oct 25', 13: 'Nov 25', 14: 'Dec 25', 15: 'Jan 26'}
+        col_map = {11: 'Sep 25', 12: 'Oct 25', 13: 'Nov 25', 14: 'Dec 25', 15: 'Jan 26', 16: 'Feb 26', 17: 'Mar 26'}
         stream_rows = [4, 5, 6, 7, 8, 9, 10, 11]
 
         result = {}
