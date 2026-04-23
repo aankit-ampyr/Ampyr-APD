@@ -3434,8 +3434,10 @@ def show_benchmark_comparison():
         combined_df = pd.DataFrame(combined_data)
         st.dataframe(combined_df, use_container_width=True, hide_index=True)
 
-        # Rating indicators — one per month
-        rating_cols = st.columns(min(len(bm) + 1, 6))
+        # Rating indicators — one per month plus an Average tile at the end.
+        # Columns scale with month count (previously capped at 6 which broke
+        # once the month list exceeded 5 entries).
+        rating_cols = st.columns(len(bm) + 1)
         for idx, m in enumerate(bm):
             with rating_cols[idx]:
                 st.markdown(f"**{m['short']}:**")
@@ -3448,7 +3450,7 @@ def show_benchmark_comparison():
                     st.success("Above industry mid")
                 else:
                     st.success("Above industry high!")
-        with rating_cols[min(len(bm), 5)]:
+        with rating_cols[len(bm)]:
             st.markdown("**Average:**")
             st.metric("£/MW/year", f"£{round(avg_annual):,}")
 
