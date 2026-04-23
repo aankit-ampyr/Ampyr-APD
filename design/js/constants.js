@@ -45,7 +45,8 @@ export const DEFAULT_MONTH = 'Jan26';
 // MODO ENERGY BENCHMARKS — £/MW/year (GB BESS Index)
 // ============================================================
 export const MODO_BENCHMARKS = {
-  Sep25: 70000, Oct25: 77000, Nov25: 59000, Dec25: 47000, Jan26: 88000,
+  Sep25: 70000, Oct25: 77000, Nov25: 59000, Dec25: 47000,
+  Jan26: 52000, Feb26: 41000, Mar26: 65000,
 };
 
 // Industry range

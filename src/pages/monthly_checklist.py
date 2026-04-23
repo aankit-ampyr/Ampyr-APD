@@ -62,7 +62,8 @@ MONTH_CONFIG = [
 # Modo Energy monthly benchmark (£/MW/year)
 MODO_BENCHMARKS = {
     'Sep 25': 70000, 'Oct 25': 77000, 'Nov 25': 59000,
-    'Dec 25': 47000, 'Jan 26': 88000,
+    'Dec 25': 47000, 'Jan 26': 52000, 'Feb 26': 41000,
+    'Mar 26': 65000,
 }
 
 # CM actuals from EMR Settlement

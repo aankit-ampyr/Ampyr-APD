@@ -3258,10 +3258,14 @@ def show_benchmark_comparison():
         ('Mar 26', 31, 'Master_BESS_Analysis_Mar_2026.csv', 'Optimized_Results_Mar_2026.csv'),
     ]
 
-    # Modo Energy monthly benchmark (£/MW/year) — source: Modo Energy GB BESS Index
+    # Modo Energy monthly benchmark (£/MW/year) — source: Modo Energy ME BESS GB Index.
+    # Sep 25–Feb 26: headline value from each month's benchmark article on modoenergy.com.
+    # Mar 26: API-derived (monthly-index-live endpoint, market=total, duration=*) since the
+    #   March benchmark article is not yet published. Expect to reconcile once it lands.
     MODO_BENCHMARKS = {
         'Sep 25': 70000, 'Oct 25': 77000, 'Nov 25': 59000,
-        'Dec 25': 47000, 'Jan 26': 88000,
+        'Dec 25': 47000, 'Jan 26': 52000, 'Feb 26': 41000,
+        'Mar 26': 65000,
     }
 
     # Capacity Market payments (£) — source: EMR Settlement T062 CSVs

@@ -25,13 +25,15 @@ For developers building the production application — covers every variable, it
 
 ### Current Values
 
-| Month | Value (£/MW/yr) | Source Article |
-|-------|-----------------|----------------|
-| Sep 25 | 70,000 | Modo Energy monthly benchmark (Sep 2025 report) |
-| Oct 25 | 77,000 | Modo Energy monthly benchmark (Oct 2025 report) |
-| Nov 25 | 59,000 | Modo Energy monthly benchmark (Nov 2025 report) |
-| Dec 25 | 47,000 | Modo Energy monthly benchmark (Dec 2025 report) |
-| Jan 26 | 88,000 | Modo Energy monthly benchmark (Jan 2026 report) |
+| Month | Value (£/MW/yr) | Source |
+|-------|-----------------|--------|
+| Sep 25 | 70,000 | [Sep 2025 article headline](https://modoenergy.com/research/en/battery-energy-storage-revenues-gb-september-2025-balancing-mechanism-frequency-response) |
+| Oct 25 | 77,000 | [Oct 2025 article headline](https://modoenergy.com/research/en/battery-energy-storage-revenues-gb-october-2025-record-balancing-mechanism-dispatch-rates) |
+| Nov 25 | 59,000 | [Nov 2025 article headline](https://modoenergy.com/research/en/me-bess-gb-battery-energy-storage-revenues-november-2025-balancing-mechanism-gas-wind) |
+| Dec 25 | 47,000 | [Dec 2025 article headline](https://modoenergy.com/research/en/me-bess-gb-battery-energy-storage-revenues-december-2025-low-demand-christmas) |
+| Jan 26 | 52,000 | [Jan 2026 article headline](https://modoenergy.com/research/en/me-bess-gb-revenues-january-2026-balancing-mechanism-wholesale-prices-gas-carbon) — prior value of 88,000 was incorrectly sourced from Modo's Jan **2025** roundup and has been corrected |
+| Feb 26 | 41,000 | [Feb 2026 article headline](https://modoenergy.com/research/en/me-bess-gb-revenues-february-2026-wholesale-battery-energy-storage-balancing-mechanism) |
+| Mar 26 | 65,000 | Modo API (`/pub/v1/gb/modo/benchmarking/monthly-index-live`, `market=total`, `duration=*`) — article not yet published, annualised from `revenue_permw` × 365/31 |
 
 ### Industry Range (used in benchmark chart)
 
