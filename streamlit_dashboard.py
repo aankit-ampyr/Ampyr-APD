@@ -4550,6 +4550,116 @@ BENCHMARK_SOURCES = [
 ]
 
 
+# Methodology detail keyed by source id. Kept separate so BENCHMARK_SOURCES
+# stays compact; rendered in Section 5 of the Benchmark Sources page.
+BENCHMARK_METHODOLOGY = {
+    'modo_gb_articles': {
+        'class': 'Empirical',
+        'foresight': 'N/A — observed',
+        'algorithm': 'Fleet aggregate of tracked GB BESS assets',
+        'basis': 'Realised revenue (mixed gross/net per asset)',
+        'availability': 'Actual fleet availability',
+        'caveats': (
+            "No stated duration/RTE/cycling assumption — reflects real fleet "
+            "mix. Includes a long tail of poorly-run assets, so beating the "
+            "headline figure is not an ambitious target."
+        ),
+    },
+    'modo_me_bess_gb': {
+        'class': 'Empirical (FCA-regulated, IOSCO-certified)',
+        'foresight': 'N/A — observed',
+        'algorithm': 'Asset-level revenues with capture-rate adjustment and optimiser attribution',
+        'basis': 'Methodology behind paywall',
+        'availability': 'Actual',
+        'caveats': (
+            "Regulated benchmark intended for embedding in contracts and "
+            "financing. Full methodology only published to Terminal subscribers "
+            "and in the IOSCO compliance statement."
+        ),
+    },
+    'kyos_bess_report': {
+        'class': 'Theoretical',
+        'foresight': '"Realistic market approach" — likely rolling, not perfect foresight',
+        'algorithm': 'ReFlex optimisation model (proprietary, undisclosed on public page)',
+        'basis': 'Undisclosed — likely gross',
+        'availability': 'Unknown',
+        'caveats': (
+            "Marketed as transparent with asset-backed trading strategies, but "
+            "algorithm specifics not published on the landing page. Detail "
+            "likely in the emailed PDF."
+        ),
+    },
+    'clean_horizon': {
+        'class': 'Theoretical (COSMOS simulation)',
+        'foresight': 'Hybrid — perfect DA price + D-1 ancillary known; statistical estimation elsewhere',
+        'algorithm': 'COSMOS proprietary energy-storage simulation',
+        'basis': 'Gross — grid fees, taxes and SoC management costs explicitly excluded',
+        'availability': '100% assumed',
+        'caveats': (
+            "Gross-of-fees headline will overstate what hits a real P&L; "
+            "Northwold grid fees alone are ~20% of revenue. 1.5 cyc/day cap, "
+            "85% RTE. Methodology is the most similar to Regelleistung."
+        ),
+    },
+    'enspired': {
+        'class': 'Hybrid (theoretical with real-asset validation in Phase 4)',
+        'foresight': 'Undisclosed',
+        'algorithm': 'Phase 1: simple weighting of single-market revenues (ignores conflicts between market designs)',
+        'basis': 'Undisclosed',
+        'availability': 'Unknown',
+        'caveats': (
+            "Still under development (phased release). Early versions neglect "
+            "conflicts between market participation — treat as indicative, not "
+            "definitive."
+        ),
+    },
+    'aurora_gb': {
+        'class': 'Unknown (gated)',
+        'foresight': 'TBD',
+        'algorithm': 'TBD',
+        'basis': 'TBD',
+        'availability': 'TBD',
+        'caveats': (
+            "Methodology gated behind Aurora's sales process. Request a demo "
+            "to confirm whether the index is empirical fleet-based or a "
+            "modelled optimum."
+        ),
+    },
+    'montel': {
+        'class': 'Mixed — UK Leaderboard is empirical asset-level ranking; pan-EU index undisclosed',
+        'foresight': 'Product-dependent',
+        'algorithm': 'Undisclosed publicly; Leaderboard appears to aggregate asset-level revenues from operators',
+        'basis': 'Undisclosed',
+        'availability': 'Product-dependent',
+        'caveats': (
+            "Multiple products under one brand — the UK Leaderboard and the "
+            "pan-EU BESS Index likely have different methodologies. Detail "
+            "only surfaced during demo / contract."
+        ),
+    },
+    'enervis': {
+        'class': 'Unknown (form-gated)',
+        'foresight': 'TBD',
+        'algorithm': 'TBD',
+        'basis': 'TBD',
+        'availability': 'TBD',
+        'caveats': "Methodology detailed in the emailed report — submit the request form to confirm.",
+    },
+    'regelleistung_de_2h': {
+        'class': 'Theoretical',
+        'foresight': 'Perfect foresight',
+        'algorithm': 'Linear Programming — daily one-day-ahead dispatch',
+        'basis': 'Gross (90% RTE losses only; no SoC management cost, no aFRR activation revenue)',
+        'availability': '100% assumed',
+        'caveats': (
+            "Upper bound — perfect foresight + LP optimum means real operators "
+            "should expect a structural gap. Daily optimisation picks the "
+            "highest-revenue market of the day. Official TSO publication."
+        ),
+    },
+}
+
+
 def show_benchmark_sources():
     """Catalogue page — all third-party BESS benchmarks under evaluation."""
     st.title("🗂️ Benchmark Sources")
@@ -4675,6 +4785,17 @@ def show_benchmark_sources():
                 st.markdown("**What the data looks like**")
                 st.markdown('\n'.join(f"- {item}" for item in s['data_provided']))
 
+            method = BENCHMARK_METHODOLOGY.get(s['id'])
+            if method:
+                st.markdown("**How the number is arrived at**")
+                st.markdown(f"- **Class:** {method['class']}")
+                st.markdown(f"- **Foresight:** {method['foresight']}")
+                st.markdown(f"- **Algorithm:** {method['algorithm']}")
+                st.markdown(f"- **Revenue basis:** {method['basis']}")
+                st.markdown(f"- **Availability assumption:** {method['availability']}")
+                if method.get('caveats'):
+                    st.info(method['caveats'])
+
             if s.get('notes'):
                 st.markdown("**Notes**")
                 st.markdown(s['notes'])
@@ -4706,6 +4827,88 @@ def show_benchmark_sources():
         items = s.get('data_provided') or []
         c4.markdown('\n'.join(f"- {item}" for item in items) if items else '—')
         st.markdown("<hr style='margin: 0.25rem 0; border-color: #eee'/>", unsafe_allow_html=True)
+
+    st.markdown("---")
+
+    # ---- Methodology analysis ----
+    st.header("5. Methodology — How Each Benchmark Is Arrived At")
+    st.markdown("""
+Benchmark sources fall into two structurally different classes — and the
+numbers they publish are **not directly comparable** to each other or to a
+real asset's P&L without adjustment.
+
+- **Theoretical optimisers** run a model with fixed BESS assumptions (duration,
+  RTE, cycling) against historical market prices. They set an **upper bound** —
+  "what a perfectly-operated battery could have earned."
+- **Empirical fleet aggregates** report observed revenues from real operating
+  batteries. They show the **realised average** — includes operational
+  friction, aggregator skill, and availability.
+
+Comparing Northwold to a theoretical benchmark tells you how much headroom the
+optimiser claims exists. Comparing to a fleet aggregate tells you how you rank
+against peers. The two questions are different.
+    """)
+
+    # Group sources by methodology class for the grouped view
+    class_groups = {
+        'Theoretical optimisers': ['clean_horizon', 'regelleistung_de_2h', 'kyos_bess_report'],
+        'Empirical fleet aggregates': ['modo_gb_articles', 'modo_me_bess_gb', 'montel'],
+        'Hybrid / pre-launch': ['enspired'],
+        'Gated / TBD': ['aurora_gb', 'enervis'],
+    }
+    source_by_id = {s['id']: s for s in BENCHMARK_SOURCES}
+
+    st.subheader("5.1 Methodology class")
+    for group_name, ids in class_groups.items():
+        names = [f"{source_by_id[i]['vendor']} ({source_by_id[i]['product'].split('—')[0].strip()})"
+                 for i in ids if i in source_by_id]
+        st.markdown(f"**{group_name}:** {'; '.join(names)}")
+
+    st.markdown("---")
+
+    st.subheader("5.2 Methodology matrix")
+    method_rows = []
+    for s in BENCHMARK_SOURCES:
+        m = BENCHMARK_METHODOLOGY.get(s['id'], {})
+        method_rows.append({
+            'Source': f"{s['vendor']} — {s['product'].split('—')[0].strip()}",
+            'Class': m.get('class', '—'),
+            'Foresight': m.get('foresight', '—'),
+            'Algorithm': m.get('algorithm', '—'),
+            'Revenue basis': m.get('basis', '—'),
+            'Availability': m.get('availability', '—'),
+        })
+    method_df = pd.DataFrame(method_rows)
+    st.dataframe(method_df, use_container_width=True, hide_index=True)
+
+    st.markdown("---")
+
+    st.subheader("5.3 Implications for like-for-like comparison")
+    st.markdown("""
+Four traps to avoid when comparing Northwold's numbers to any of these
+benchmarks:
+
+1. **Perfect-foresight theoretical benchmarks are soft upper bounds.**
+   Regelleistung and Clean Horizon assume the optimiser knew every price in
+   advance. Real traders don't. A 20–30% gap to these is expected, not a
+   performance failure.
+
+2. **Gross-revenue benchmarks overstate what hits the P&L.** Clean Horizon
+   explicitly excludes grid fees, taxes, and SoC management. Northwold grid
+   fees alone are ~£6k/month (~20% of revenue). Comparing Northwold net to a
+   gross benchmark will look worse than it is.
+
+3. **Cycling-assumption asymmetry.** Regelleistung assumes 2 cyc/day;
+   Clean Horizon 1.5; Northwold is actually running at ~0.95 cyc/day. Any
+   headline "capture rate" is confounded — Northwold isn't just trading
+   worse, it's trading less.
+
+4. **Empirical fleet aggregates are peer comparisons, not targets.** Modo's
+   headline £/MW/yr reflects whatever the tracked GB fleet earned — which
+   includes a long tail of poorly-run assets. Beating it isn't ambitious; the
+   FCA-regulated ME-BESS-GB likely strips to optimiser-attributed revenue to
+   control for aggregator quality.
+    """)
 
 
 def main():
