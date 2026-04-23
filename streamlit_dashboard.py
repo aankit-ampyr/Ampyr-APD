@@ -3268,6 +3268,20 @@ def show_benchmark_comparison():
         'Mar 26': 65000,
     }
 
+    # Source article URLs per month — shown in the "Source articles" expander
+    # at the bottom of this page so users can verify each headline figure.
+    # Mar 26 points at the Modo API developer reference because no article is
+    # published yet.
+    MODO_SOURCE_LINKS = {
+        'Sep 25': 'https://modoenergy.com/research/en/battery-energy-storage-revenues-gb-september-2025-balancing-mechanism-frequency-response',
+        'Oct 25': 'https://modoenergy.com/research/en/battery-energy-storage-revenues-gb-october-2025-record-balancing-mechanism-dispatch-rates',
+        'Nov 25': 'https://modoenergy.com/research/en/me-bess-gb-battery-energy-storage-revenues-november-2025-balancing-mechanism-gas-wind',
+        'Dec 25': 'https://modoenergy.com/research/en/me-bess-gb-battery-energy-storage-revenues-december-2025-low-demand-christmas',
+        'Jan 26': 'https://modoenergy.com/research/en/me-bess-gb-revenues-january-2026-balancing-mechanism-wholesale-prices-gas-carbon',
+        'Feb 26': 'https://modoenergy.com/research/en/me-bess-gb-revenues-february-2026-wholesale-battery-energy-storage-balancing-mechanism',
+        'Mar 26': 'https://developers.modoenergy.com/reference/monthly-me-bess-gb',
+    }
+
     # Capacity Market payments (£) — source: EMR Settlement T062 CSVs
     # Contract: CAN-2025-NSFL01-001, 1.023 MW @ £20,000/MW/yr, monthly weighting
     CM_ACTUALS = {
@@ -4351,9 +4365,22 @@ achieved through:
                 st.markdown(f"- Combined average £{gap:,.0f}/MW below industry high")
 
         st.markdown("---")
+        with st.expander("📰 Modo Energy source articles (click month to open)"):
+            st.caption(
+                "Each month's benchmark is the headline GBP/MW/year figure from "
+                "Modo Energy's monthly ME BESS GB article. March 2026 is "
+                "API-derived pending the article's publication."
+            )
+            for short in ['Sep 25', 'Oct 25', 'Nov 25', 'Dec 25', 'Jan 26', 'Feb 26', 'Mar 26']:
+                val = MODO_BENCHMARKS.get(short)
+                url = MODO_SOURCE_LINKS.get(short)
+                if val and url:
+                    suffix = " *(API — article pending)*" if short == 'Mar 26' else ""
+                    st.markdown(f"- **{short}** — £{val:,}/MW/yr — [{url.split('/')[-1][:80]}]({url}){suffix}")
+
         st.caption("""
         **Sources:**
-        - Revenue benchmarks: Modo Energy UK BESS Market Analysis (2024-2025)
+        - Revenue benchmarks: Modo Energy ME BESS GB Index (monthly articles — see expander above)
         - Degradation & cycling: Industry warranty standards and research
         - Availability (TWCAA): National Grid ESO performance data
         - Round-trip efficiency: Lithium-ion industry specifications
@@ -4944,9 +4971,11 @@ def main():
     st.sidebar.title("🔋 Asset Performance Dashboard")
 
     # General section (month-independent pages)
-    # Use session_state to persist the active general page across reruns
+    # Use session_state to persist the active general page across reruns.
+    # Default to Executive Comparison on first load so the app opens on the
+    # portfolio overview rather than a month-specific page.
     if 'active_general_page' not in st.session_state:
-        st.session_state.active_general_page = None
+        st.session_state.active_general_page = 'exec_comparison'
 
     st.sidebar.markdown("### General")
 
