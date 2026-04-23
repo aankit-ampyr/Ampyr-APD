@@ -4334,6 +4334,380 @@ achieved through:
         """)
 
 
+# ============================================================================
+# Benchmark Sources Catalogue
+# ============================================================================
+# Reference page listing all third-party BESS revenue benchmarks under
+# evaluation for APD. Source metadata (methodology, geography, access model,
+# status) is captured here as the single source of truth before deciding how
+# to integrate them into the data pipeline and benchmark comparison engine.
+
+BENCHMARK_SOURCES = [
+    {
+        'id': 'modo_gb_articles',
+        'vendor': 'Modo Energy',
+        'product': 'GB BESS Index — monthly research articles',
+        'countries': ['UK'],
+        'granularity': 'Monthly headline',
+        'duration': 'Fleet average',
+        'rte': 'Fleet average',
+        'cycles_per_day': 'Fleet average',
+        'streams': ['DA', 'ID', 'BM', 'FR (DC/DM/DR)', 'CM'],
+        'access': 'Free articles (JS-rendered, manual extraction); full data via paid Modo Terminal',
+        'status': 'Active',
+        'status_note': 'Currently wired into Benchmarks page (hardcoded monthly £/MW/yr dict)',
+        'url': 'https://modoenergy.com/research',
+        'notes': 'Headline £/MW/year is the aggregate across all tracked GB batteries, annualised. No single duration/RTE assumption — reflects real fleet mix.',
+        'data_provided': [
+            "Monthly headline £/MW/year fleet average",
+            "Narrative revenue stack breakdown (DA / ID / BM / FR / CM shares)",
+            "TB2 spread capture %",
+            "Fleet-average cycling stats",
+            "Delivered as HTML articles (JS-rendered) — manual extraction each month",
+            "Full time series requires paid Modo Terminal",
+        ],
+    },
+    {
+        'id': 'modo_me_bess_gb',
+        'vendor': 'Modo Energy',
+        'product': 'ME-BESS-GB public index (FCA-regulated)',
+        'countries': ['UK'],
+        'granularity': 'Daily / asset-level',
+        'duration': 'TBD',
+        'rte': 'TBD',
+        'cycles_per_day': 'TBD',
+        'streams': ['Asset-level revenue + capture rates + optimiser attribution'],
+        'access': 'Paid (Modo Terminal + API); FCA-regulated, IOSCO-certified — embeddable in financing docs',
+        'status': 'Evaluation',
+        'status_note': 'Regulated benchmark — strongest credibility for contracts and financing',
+        'url': 'https://modoenergy.com/public-indices/me-bess-gb',
+        'notes': 'Distinct from the monthly research articles: this is a structured, regulated benchmark with API access. Higher cost but contract-grade.',
+        'data_provided': [
+            "Daily asset-level revenue time series",
+            "Adjusted capture rates",
+            "Optimiser attribution",
+            "Revenue stream breakdown",
+            "Embeddable index values for contracts / financing docs",
+            "Structured JSON via API; downloadable from Terminal",
+        ],
+    },
+    {
+        'id': 'kyos_bess_report',
+        'vendor': 'Kyos',
+        'product': 'BESS Benchmark Report (ReFlex)',
+        'countries': ['DE', 'NL'],
+        'granularity': 'Monthly',
+        'duration': 'Not specified',
+        'rte': 'Not specified',
+        'cycles_per_day': 'Not specified',
+        'streams': ['DA', 'ID', 'aFRR'],
+        'access': 'Free (email-gated monthly report)',
+        'status': 'High priority',
+        'status_note': 'Free + covers DE and NL — strong candidate for first non-UK benchmark',
+        'url': 'https://www.kyos.com/bess-benchmark-report/',
+        'notes': 'ReFlex optimisation model with full trading transparency and asset-backed trading strategies. No capacity market or balancing revenue.',
+        'data_provided': [
+            "Monthly €/MW revenue figures for DE and NL",
+            "Split by wholesale (DA + ID) and aFRR",
+            "Commentary on market conditions and optimisation performance",
+            "Delivered as a free PDF report by email",
+        ],
+    },
+    {
+        'id': 'clean_horizon',
+        'vendor': 'Clean Horizon',
+        'product': 'Storage Index',
+        'countries': ['BE', 'DK1', 'DK2', 'EE', 'FI', 'FR', 'DE', 'IT', 'LV', 'LT', 'PL', 'PT', 'RO', 'ES', 'SE'],
+        'granularity': 'Monthly (free) / Daily (Premium)',
+        'duration': 'Derived from usable AC energy',
+        'rte': '85%',
+        'cycles_per_day': '1.5',
+        'streams': ['DA', 'ID', 'FCR', 'aFRR', 'mFRR', 'Imbalance', 'Ancillary', 'Capacity (FR, until Jan 2026)'],
+        'access': 'Free monthly Storage Index; paid Premium for daily + custom project analysis',
+        'status': 'High priority',
+        'status_note': 'Broadest European coverage (14 countries) — anchor benchmark for pan-EU expansion',
+        'url': 'https://www.cleanhorizon.com/battery-index/',
+        'notes': 'Methodology closest to Modo Energy. Gross revenue annualised. 100% availability assumed.',
+        'data_provided': [
+            "Free: monthly annualised gross €/MW/year per country (14 markets)",
+            "Premium: daily values",
+            "Premium: per-stream breakdown (DA, ID, FCR, aFRR, mFRR, imbalance, ancillary, capacity)",
+            "Premium: custom project-level analysis",
+            "Free viz on website; paid data via portal / API",
+        ],
+    },
+    {
+        'id': 'enspired',
+        'vendor': 'enspired trading',
+        'product': 'Battery Index',
+        'countries': ['DE'],
+        'granularity': 'TBD',
+        'duration': '1h and 2h',
+        'rte': 'Not specified',
+        'cycles_per_day': '1 or 2 (matching duration)',
+        'streams': ['Spot (DA, IDA, IDC)', 'FCR', 'aFRR'],
+        'access': 'Free (planned Excel download)',
+        'status': 'Pre-launch',
+        'status_note': 'Under development as of Sep 2024 — monitor for release',
+        'url': 'https://www.enspired-trading.com/blog/battery-index-to-benchmark-bess-revenue-potential',
+        'notes': 'Cross-market revenue potential benchmark. Parameters to be flexibilised in future versions.',
+        'data_provided': [
+            "Planned: €/MW revenue figures for 1h and 2h batteries in DE",
+            "Split by spot (DA + IDA + IDC), FCR, and aFRR",
+            "Target format: publicly accessible Excel download",
+            "Not yet released",
+        ],
+    },
+    {
+        'id': 'aurora_gb',
+        'vendor': 'Aurora Energy Research',
+        'product': 'GB Battery Index',
+        'countries': ['UK'],
+        'granularity': 'TBD',
+        'duration': 'TBD',
+        'rte': 'TBD',
+        'cycles_per_day': 'TBD',
+        'streams': ['TBD'],
+        'access': 'Paid (subscription likely)',
+        'status': 'Evaluation',
+        'status_note': 'UK second opinion alongside Modo — useful for triangulation',
+        'url': 'https://auroraer.com/resources/aurora-insights/articles/introducing-auroras-gb-battery-index',
+        'notes': 'Details gated — need to request access/demo to confirm methodology and pricing.',
+        'data_provided': [
+            "TBD — likely historical GB revenue index with forward-looking outlook",
+            "Aurora EOS platform style (subscription-based)",
+            "Request demo to confirm granularity, stream breakdown, and delivery format",
+        ],
+    },
+    {
+        'id': 'montel',
+        'vendor': 'Montel',
+        'product': 'BESS Index + UK BESS Leaderboard',
+        'countries': ['NL', 'BE', 'DE', 'UK', 'Pan-EU'],
+        'granularity': 'TBD',
+        'duration': 'Multiple',
+        'rte': 'TBD',
+        'cycles_per_day': 'TBD',
+        'streams': ['Spot', 'Intraday', 'Balancing', 'Ancillary'],
+        'access': 'Paid subscription',
+        'status': 'Evaluation',
+        'status_note': 'Strongest single-vendor pan-EU commercial offering; covers all AMPYR target geographies',
+        'url': 'https://montel.energy/products/bess',
+        'notes': 'Standardised cross-country comparison with expert validation and forward-looking scenarios. Pricing undisclosed.',
+        'data_provided': [
+            "Operational BESS Index (NL / BE / DE)",
+            "Pan-European BESS Index",
+            "UK BESS Leaderboard (asset-level ranking)",
+            "Project-level revenue evaluation",
+            "Forward-looking scenario analysis",
+            "Delivered via Montel platform with API access for data integration",
+        ],
+    },
+    {
+        'id': 'enervis',
+        'vendor': 'enervis energy',
+        'product': 'BESS Index',
+        'countries': ['DE'],
+        'granularity': 'TBD',
+        'duration': 'TBD',
+        'rte': 'TBD',
+        'cycles_per_day': 'TBD',
+        'streams': ['TBD'],
+        'access': 'Free on request (form-gated)',
+        'status': 'Evaluation',
+        'status_note': 'DE second opinion — methodology needs confirmation after requesting the index',
+        'url': 'https://enervis.de/anfrage-bess-index/',
+        'notes': 'Landing page is a request form; details in the emailed report.',
+        'data_provided': [
+            "TBD — DE BESS revenue index",
+            "Methodology detailed in the emailed report",
+            "Submit request form to confirm granularity, stream coverage, and data format",
+        ],
+    },
+    {
+        'id': 'regelleistung_de_2h',
+        'vendor': 'Regelleistung Online',
+        'product': 'German Energy Storage Revenue Index 2h',
+        'countries': ['DE'],
+        'granularity': '30d and 365d moving averages, annualised',
+        'duration': '2h',
+        'rte': '90% AC/AC',
+        'cycles_per_day': 'Max 2 (100% DoD)',
+        'streams': ['ID1 EPEX 15-min', 'FCR capacity', 'aFRR capacity'],
+        'access': 'Free web visualisation; data on request',
+        'status': 'High priority',
+        'status_note': 'Cleanest published DE methodology, free access — baseline DE benchmark',
+        'url': 'https://www.regelleistung-online.de/german-energy-storage-revenue-index/bess-revenue-index-2h/',
+        'notes': 'Excludes mFRR and aFRR activation revenues. End-of-day SoC target 50%. Official TSO-published index.',
+        'data_provided': [
+            "30-day and 365-day moving averages of €/MW/year annualised revenue",
+            "Applies to a 2h BESS in DE",
+            "Split by ID1 arbitrage, FCR capacity, aFRR capacity",
+            "Free interactive chart on the regelleistung-online portal",
+            "Raw data available on request",
+        ],
+    },
+]
+
+
+def show_benchmark_sources():
+    """Catalogue page — all third-party BESS benchmarks under evaluation."""
+    st.title("🗂️ Benchmark Sources")
+    st.markdown(
+        "Reference catalogue of third-party BESS revenue benchmarks under evaluation for APD. "
+        "Use this page to compare methodology, geography coverage, and access model before "
+        "deciding which sources to integrate into the dashboard."
+    )
+
+    # ---- Summary metrics ----
+    all_countries = sorted({c for s in BENCHMARK_SOURCES for c in s['countries']})
+    active_count = sum(1 for s in BENCHMARK_SOURCES if s['status'] == 'Active')
+    high_prio_count = sum(1 for s in BENCHMARK_SOURCES if s['status'] == 'High priority')
+    eval_count = sum(1 for s in BENCHMARK_SOURCES if s['status'] == 'Evaluation')
+    prelaunch_count = sum(1 for s in BENCHMARK_SOURCES if s['status'] == 'Pre-launch')
+    free_count = sum(1 for s in BENCHMARK_SOURCES if 'Free' in s['access'])
+
+    c1, c2, c3, c4, c5 = st.columns(5)
+    c1.metric("Total sources", len(BENCHMARK_SOURCES))
+    c2.metric("Countries covered", len(all_countries))
+    c3.metric("Free access", free_count)
+    c4.metric("Active (wired in)", active_count)
+    c5.metric("High priority", high_prio_count)
+
+    st.caption(
+        f"Status breakdown: {active_count} active · {high_prio_count} high priority · "
+        f"{eval_count} evaluation · {prelaunch_count} pre-launch"
+    )
+
+    st.markdown("---")
+
+    # ---- Overview table ----
+    st.header("1. Overview")
+    overview_rows = []
+    for s in BENCHMARK_SOURCES:
+        overview_rows.append({
+            'Source': f"{s['vendor']} — {s['product']}",
+            'Countries': ', '.join(s['countries']),
+            'Granularity': s['granularity'],
+            'Duration': s['duration'],
+            'RTE': s['rte'],
+            'Cycles/day': s['cycles_per_day'],
+            'Access': 'Free' if 'Free' in s['access'] and 'Paid' not in s['access'].split(';')[0]
+                     else ('Free + Paid' if 'Free' in s['access'] else 'Paid'),
+            'Status': s['status'],
+        })
+    overview_df = pd.DataFrame(overview_rows)
+
+    def _status_color(val):
+        colors = {
+            'Active': 'background-color: #d4edda; color: #155724',
+            'High priority': 'background-color: #fff3cd; color: #856404',
+            'Evaluation': 'background-color: #e2e3e5; color: #383d41',
+            'Pre-launch': 'background-color: #cce5ff; color: #004085',
+        }
+        return colors.get(val, '')
+
+    styled_overview = overview_df.style.map(_status_color, subset=['Status'])
+    st.dataframe(styled_overview, use_container_width=True, hide_index=True)
+
+    st.markdown("---")
+
+    # ---- Coverage matrix: Country × Source ----
+    st.header("2. Geographic Coverage Matrix")
+    st.caption("Which sources cover which markets. ✓ = full coverage as published.")
+
+    # Flatten 'Pan-EU' into a separate column
+    display_countries = [c for c in all_countries if c != 'Pan-EU']
+    if 'Pan-EU' in all_countries:
+        display_countries.append('Pan-EU')
+
+    matrix_rows = []
+    for s in BENCHMARK_SOURCES:
+        row = {'Source': f"{s['vendor']} — {s['product'].split('—')[0].strip()}"}
+        for country in display_countries:
+            row[country] = '✓' if country in s['countries'] else ''
+        matrix_rows.append(row)
+    matrix_df = pd.DataFrame(matrix_rows)
+    st.dataframe(matrix_df, use_container_width=True, hide_index=True)
+
+    # Country coverage summary
+    st.subheader("Sources per country")
+    country_counts = {}
+    for country in display_countries:
+        country_counts[country] = sum(1 for s in BENCHMARK_SOURCES if country in s['countries'])
+    country_summary = pd.DataFrame(
+        [{'Country': k, 'Number of sources': v} for k, v in sorted(country_counts.items(), key=lambda x: -x[1])]
+    )
+    st.dataframe(country_summary, use_container_width=True, hide_index=True)
+
+    st.markdown("---")
+
+    # ---- Detailed source cards ----
+    st.header("3. Source Details")
+    st.caption("Click to expand each source for methodology, access model, and notes.")
+
+    status_icons = {
+        'Active': '🟢',
+        'High priority': '🟡',
+        'Evaluation': '⚪',
+        'Pre-launch': '🔵',
+    }
+
+    for s in BENCHMARK_SOURCES:
+        icon = status_icons.get(s['status'], '⚪')
+        header = f"{icon} **{s['vendor']}** — {s['product']}  ·  {', '.join(s['countries'])}"
+        with st.expander(header):
+            col_a, col_b = st.columns(2)
+            with col_a:
+                st.markdown(f"**Status:** {s['status']}")
+                st.markdown(f"**Countries:** {', '.join(s['countries'])}")
+                st.markdown(f"**Granularity:** {s['granularity']}")
+                st.markdown(f"**Duration:** {s['duration']}")
+                st.markdown(f"**RTE:** {s['rte']}")
+                st.markdown(f"**Cycles/day:** {s['cycles_per_day']}")
+            with col_b:
+                st.markdown(f"**Revenue streams:** {', '.join(s['streams'])}")
+                st.markdown(f"**Access:** {s['access']}")
+                st.markdown(f"**URL:** [{s['url']}]({s['url']})")
+                st.markdown(f"**Why it matters:** {s['status_note']}")
+
+            if s.get('data_provided'):
+                st.markdown("**What the data looks like**")
+                st.markdown('\n'.join(f"- {item}" for item in s['data_provided']))
+
+            if s.get('notes'):
+                st.markdown("**Notes**")
+                st.markdown(s['notes'])
+
+    st.markdown("---")
+
+    # ---- What each source provides (side-by-side comparison) ----
+    st.header("4. What Each Source Provides")
+    st.caption(
+        "Comparison of the actual outputs each benchmark publishes — the shape of "
+        "the data you receive, not just the revenue streams covered."
+    )
+
+    # Header row
+    h1, h2, h3, h4 = st.columns([3, 2, 2, 6])
+    h1.markdown("**Source**")
+    h2.markdown("**Geography**")
+    h3.markdown("**Granularity**")
+    h4.markdown("**Data provided**")
+    st.markdown("<hr style='margin: 0.25rem 0'/>", unsafe_allow_html=True)
+
+    # One row per source — last column wraps as flowing text
+    for s in BENCHMARK_SOURCES:
+        c1, c2, c3, c4 = st.columns([3, 2, 2, 6])
+        c1.markdown(f"**{s['vendor']}**<br/><span style='color:#666;font-size:0.9em'>{s['product']}</span>",
+                    unsafe_allow_html=True)
+        c2.markdown(', '.join(s['countries']))
+        c3.markdown(s['granularity'])
+        items = s.get('data_provided') or []
+        c4.markdown('\n'.join(f"- {item}" for item in items) if items else '—')
+        st.markdown("<hr style='margin: 0.25rem 0; border-color: #eee'/>", unsafe_allow_html=True)
+
+
 def main():
     """Main application with sidebar navigation"""
 
@@ -4358,6 +4732,8 @@ def main():
                                               on_click=_set_general_page, args=('exec_comparison',))
     show_benchmark_page = st.sidebar.button("📈 Benchmarks", use_container_width=True,
                                              on_click=_set_general_page, args=('benchmarks',))
+    show_benchmark_sources_page = st.sidebar.button("🗂️ Benchmark Sources", use_container_width=True,
+                                                     on_click=_set_general_page, args=('benchmark_sources',))
     show_export_page = st.sidebar.button("📄 Export Reports", use_container_width=True,
                                           on_click=_set_general_page, args=('export_reports',))
     show_invoice_page = st.sidebar.button("🧾 Invoice Analysis", use_container_width=True,
@@ -4433,6 +4809,9 @@ def main():
         return
     if active == 'benchmarks':
         show_benchmark_comparison()
+        return
+    if active == 'benchmark_sources':
+        show_benchmark_sources()
         return
     if active == 'export_reports':
         show_pdf_export_page(selected_month)
