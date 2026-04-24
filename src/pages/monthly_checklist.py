@@ -21,6 +21,7 @@ import openpyxl
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
+from config import GB_REVENUE_NET_SHARE, GB_NET_FOOTNOTE_SHORT, apply_gb_net
 from data_cleaning.invoice_loader import (
     load_emr_capacity_market,
     load_summary_statement,
@@ -169,13 +170,13 @@ def _load_summary():
 
 
 def _calculate_revenue(df):
-    """Calculate total GridBeyond revenue for a month."""
-    sffr = _safe_sum(df, 'SFFR revenues')
-    epex = _safe_sum(df, 'EPEX 30 DA Revenue') + _safe_sum(df, 'EPEX DA Revenues')
-    ida1 = _safe_sum(df, 'IDA1 Revenue')
-    idc = _safe_sum(df, 'IDC Revenue')
-    imb_rev = _safe_sum(df, 'Imbalance Revenue')
-    imb_charge = _safe_sum(df, 'Imbalance Charge')
+    """Total GridBeyond revenue for a month, NET of the 5% GridBeyond fee."""
+    sffr = apply_gb_net(_safe_sum(df, 'SFFR revenues'))
+    epex = apply_gb_net(_safe_sum(df, 'EPEX 30 DA Revenue') + _safe_sum(df, 'EPEX DA Revenues'))
+    ida1 = apply_gb_net(_safe_sum(df, 'IDA1 Revenue'))
+    idc = apply_gb_net(_safe_sum(df, 'IDC Revenue'))
+    imb_rev = apply_gb_net(_safe_sum(df, 'Imbalance Revenue'))
+    imb_charge = apply_gb_net(_safe_sum(df, 'Imbalance Charge'))
     return {
         'sffr': sffr, 'epex': epex, 'ida1': ida1, 'idc': idc,
         'imb_rev': imb_rev, 'imb_charge': imb_charge,
@@ -329,6 +330,8 @@ def _show_header_metrics(short, full_name, revenue, total_revenue, annual_per_mw
     soh = scada.get('soh')
     cols[5].metric("SOH", f"{soh:.2f}%" if soh else "N/A")
 
+    st.caption(GB_NET_FOOTNOTE_SHORT)
+
 
 # ─────────────────────────────────────────────────────────────
 # SCADA Section
@@ -469,6 +472,7 @@ def _show_benchmark_section(short, full_name, total_annual_per_mw, modo, revenue
         ))
         fig.update_layout(title='Revenue Mix', height=250, margin=dict(t=40, b=10))
         st.plotly_chart(fig, use_container_width=True)
+        st.caption(GB_NET_FOOTNOTE_SHORT)
 
 
 # ─────────────────────────────────────────────────────────────
@@ -560,6 +564,7 @@ def _show_iar_section(short, full_name, revenue, cm, duos_credit, duos_fixed, ia
         legend=dict(orientation='h', yanchor='bottom', y=1.02),
     )
     st.plotly_chart(fig, use_container_width=True)
+    st.caption(GB_NET_FOOTNOTE_SHORT)
 
     # Detailed table
     with st.expander("IAR Detailed Comparison"):

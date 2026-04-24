@@ -11,6 +11,11 @@ import pandas as pd
 import numpy as np
 from typing import Dict, Optional, List
 
+try:
+    from config.revenue_config import GB_REVENUE_NET_SHARE
+except ImportError:  # pragma: no cover — path/import variations across entry points
+    GB_REVENUE_NET_SHARE = 0.95
+
 
 # ─────────────────────────────────────────────────────────────
 # 1. Energy Volume Reconciliation
@@ -166,7 +171,7 @@ def reconcile_solar_pv(
 def reconcile_revenue(
     master_df: Optional[pd.DataFrame],
     summary_statement: Optional[Dict],
-    aggregator_share: float = 0.95,
+    aggregator_share: float = GB_REVENUE_NET_SHARE,
 ) -> pd.DataFrame:
     """
     Compare revenue per stream: Master CSV (gross) vs Summary Statement (net 95%).
@@ -250,7 +255,7 @@ def reconcile_revenue(
 def compute_aggregator_fee_breakdown(
     master_df: Optional[pd.DataFrame],
     summary_statement: Optional[Dict],
-    aggregator_share: float = 0.95,
+    aggregator_share: float = GB_REVENUE_NET_SHARE,
 ) -> Dict:
     """
     Compute the aggregator fee waterfall:

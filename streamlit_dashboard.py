@@ -15,6 +15,12 @@ import sys
 # Add src directory to path for imports
 sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 import digital_twin_config as config
+from config import (
+    GB_REVENUE_NET_SHARE,
+    GB_NET_FOOTNOTE,
+    GB_NET_FOOTNOTE_SHORT,
+    apply_gb_net,
+)
 from pages.data_quality import show_data_quality_page
 from pages.invoice_analysis import show_invoice_analysis
 from pages.monthly_checklist import show_monthly_checklist
@@ -273,16 +279,17 @@ def analyze_northwold_data(northwold_df):
     analysis['intraday_price_min'] = northwold_df['GB-ISEM Intraday 1 Price'].min()
     analysis['intraday_price_max'] = northwold_df['GB-ISEM Intraday 1 Price'].max()
 
-    # Revenue Analysis
-    analysis['imbalance_revenue'] = northwold_df['Imbalance Revenue'].sum()
-    analysis['imbalance_charge'] = northwold_df['Imbalance Charge'].sum()
+    # Revenue Analysis — all GB-traded streams netted by the 5% GridBeyond fee,
+    # so figures tie to the GridBeyond invoice and are apples-to-apples with IAR.
+    analysis['imbalance_revenue'] = apply_gb_net(northwold_df['Imbalance Revenue'].sum())
+    analysis['imbalance_charge'] = apply_gb_net(northwold_df['Imbalance Charge'].sum())
     analysis['net_imbalance'] = analysis['imbalance_revenue'] - analysis['imbalance_charge']
 
-    # Revenue streams
-    analysis['sffr_revenue'] = northwold_df['SFFR revenues'].sum()
-    analysis['epex30_revenue'] = northwold_df['EPEX 30 DA Revenue'].sum()
-    analysis['ida1_revenue'] = northwold_df['IDA1 Revenue'].sum()
-    analysis['idc_revenue'] = northwold_df['IDC Revenue'].sum()
+    # Revenue streams (net of GB fee)
+    analysis['sffr_revenue'] = apply_gb_net(northwold_df['SFFR revenues'].sum())
+    analysis['epex30_revenue'] = apply_gb_net(northwold_df['EPEX 30 DA Revenue'].sum())
+    analysis['ida1_revenue'] = apply_gb_net(northwold_df['IDA1 Revenue'].sum())
+    analysis['idc_revenue'] = apply_gb_net(northwold_df['IDC Revenue'].sum())
 
     analysis['total_net_revenue'] = (
         analysis['sffr_revenue'] +
@@ -548,7 +555,9 @@ def show_operations_summary(bess_df, northwold_df, bess_analysis, northwold_anal
                      help="Charges from imbalance mechanism")
         with col6:
             st.metric("**TOTAL NET REVENUE**", f"£{northwold_analysis['total_net_revenue']:,.2f}",
-                     help="Total net revenue for the month")
+                     help="Total net revenue for the month, after 5% GridBeyond fee")
+
+        st.caption(GB_NET_FOOTNOTE_SHORT)
 
         # Market Prices
         st.subheader("📈 Market Prices Analysis")
@@ -625,6 +634,7 @@ def show_operations_summary(bess_df, northwold_df, bess_analysis, northwold_anal
                 color_discrete_map=REVENUE_COLOR_MAP
             )
             st.plotly_chart(fig, use_container_width=True)
+            st.caption(GB_NET_FOOTNOTE_SHORT)
 
         with col2:
             # SOC distribution
@@ -713,25 +723,29 @@ def show_multimarket_optimization(month: str = "September 2025"):
 
     col1, col2, col3, col4 = st.columns(4)
 
-    total_epex_daily = multi_df['Optimised_Revenue_Daily'].sum()
-    total_epex_efa = multi_df['Optimised_Revenue_EFA'].sum()
-    total_multi = multi_df['Optimised_Revenue_Multi'].sum()
-    improvement = ((total_multi / total_epex_daily - 1) * 100)
+    # Optimised revenue is netted by the 5% GB fee on the assumption that, in real-world
+    # deployment, these trades would also clear through GridBeyond (or an equivalent aggregator).
+    total_epex_daily = apply_gb_net(multi_df['Optimised_Revenue_Daily'].sum())
+    total_epex_efa = apply_gb_net(multi_df['Optimised_Revenue_EFA'].sum())
+    total_multi = apply_gb_net(multi_df['Optimised_Revenue_Multi'].sum())
+    improvement = ((total_multi / total_epex_daily - 1) * 100) if total_epex_daily else 0
 
     with col1:
         st.metric("EPEX-Only (Daily)", f"£{total_epex_daily:,.2f}",
-                 help="Original strategy using only EPEX prices with daily switching")
+                 help="Original strategy using only EPEX prices with daily switching (net of 5% GB fee)")
     with col2:
         st.metric("EPEX-Only (EFA)", f"£{total_epex_efa:,.2f}",
-                 delta=f"{((total_epex_efa/total_epex_daily - 1) * 100):.1f}%",
-                 help="EPEX prices with 2-hour block switching")
+                 delta=f"{((total_epex_efa/total_epex_daily - 1) * 100):.1f}%" if total_epex_daily else None,
+                 help="EPEX prices with 2-hour block switching (net of 5% GB fee)")
     with col3:
         st.metric("Multi-Market", f"£{total_multi:,.2f}",
                  delta=f"+{improvement:.1f}%",
-                 help="Optimized across all available markets")
+                 help="Optimized across all available markets (net of 5% GB fee)")
     with col4:
         st.metric("Additional Revenue", f"£{(total_multi - total_epex_daily):,.2f}",
-                 help="Extra revenue from multi-market strategy")
+                 help="Extra revenue from multi-market strategy (net of 5% GB fee)")
+
+    st.caption(GB_NET_FOOTNOTE_SHORT)
 
     # Market usage analysis
     st.subheader("📊 Market Utilization")
@@ -867,6 +881,15 @@ def show_multimarket_optimization(month: str = "September 2025"):
         except Exception as e:
             st.warning(f"Could not load actual data: {str(e)}")
 
+    # Net all market_revenue values by the 5% GB fee before displaying, so Optimised
+    # strategies and Actual are both shown post-fee and are directly comparable to
+    # the GridBeyond invoice.
+    if not market_revenue.empty:
+        try:
+            market_revenue = market_revenue.astype(float) * GB_REVENUE_NET_SHARE
+        except (ValueError, TypeError):
+            pass
+
     # Display the visualization if we have data
     if not market_usage.empty:
         # Two pie charts: Volume and Revenue
@@ -921,6 +944,7 @@ def show_multimarket_optimization(month: str = "September 2025"):
 
         market_stats = pd.DataFrame(table_data)
         st.dataframe(market_stats, use_container_width=True, hide_index=True)
+        st.caption(GB_NET_FOOTNOTE_SHORT)
 
     # Price spread analysis
     st.subheader("📈 Market Price Spreads")
@@ -953,18 +977,18 @@ def show_multimarket_optimization(month: str = "September 2025"):
     # Time series comparison
     st.subheader("📊 Strategy Comparison Over Time")
 
-    # Revenue over time
+    # Revenue over time — optimiser output netted by 5% GB fee for apples-to-apples comparison.
     fig = go.Figure()
     fig.add_trace(go.Scatter(
         x=multi_df['Timestamp'],
-        y=multi_df['Optimised_Revenue_Daily'].cumsum(),
+        y=(multi_df['Optimised_Revenue_Daily'] * GB_REVENUE_NET_SHARE).cumsum(),
         mode='lines',
         name='EPEX-Only (Cumulative)',
         line=dict(width=2, color=COLOR_EPEX_ONLY)
     ))
     fig.add_trace(go.Scatter(
         x=multi_df['Timestamp'],
-        y=multi_df['Optimised_Revenue_Multi'].cumsum(),
+        y=(multi_df['Optimised_Revenue_Multi'] * GB_REVENUE_NET_SHARE).cumsum(),
         mode='lines',
         name='Multi-Market (Cumulative)',
         line=dict(width=2, color=COLOR_MULTI_MARKET)
@@ -977,6 +1001,7 @@ def show_multimarket_optimization(month: str = "September 2025"):
         height=400
     )
     st.plotly_chart(fig, use_container_width=True)
+    st.caption(GB_NET_FOOTNOTE_SHORT)
 
     # Best markets by time
     st.subheader("🏆 Best Markets by Period")
@@ -1666,25 +1691,25 @@ def show_report_page(month: str = "September 2025"):
         st.info(f"Please ensure {master_file} and {optimization_file} exist. Run optimization first if needed.")
         return
 
-    # Calculate key metrics using actual column names in Northwold CSV
-    # SFFR revenue - single column in this dataset
+    # Calculate key metrics using actual column names in Northwold CSV.
+    # All GB-traded streams are netted by the 5% GridBeyond fee so the figures tie to
+    # the GridBeyond invoice. The algorithmic "Multi-Market potential" is also netted
+    # on the assumption that in real-world deployment it would clear through GridBeyond.
     if 'SFFR revenues' in northwold_df.columns:
-        sffr_revenue = northwold_df['SFFR revenues'].sum()
+        sffr_revenue = apply_gb_net(northwold_df['SFFR revenues'].sum())
     else:
-        # Fallback: check for any SFFR revenue column
         sffr_cols = [col for col in northwold_df.columns if 'SFFR' in col and 'revenue' in col.lower()]
-        sffr_revenue = northwold_df[sffr_cols[0]].sum() if sffr_cols else 0
+        sffr_revenue = apply_gb_net(northwold_df[sffr_cols[0]].sum()) if sffr_cols else 0
 
-    # Other revenue columns
-    epex_revenue = northwold_df['EPEX 30 DA Revenue'].sum() if 'EPEX 30 DA Revenue' in northwold_df.columns else 0
-    ida1_revenue = northwold_df['IDA1 Revenue'].sum() if 'IDA1 Revenue' in northwold_df.columns else 0
-    imbalance_revenue = northwold_df['Imbalance Revenue'].sum() if 'Imbalance Revenue' in northwold_df.columns else 0
-    imbalance_charge = northwold_df['Imbalance Charge'].sum() if 'Imbalance Charge' in northwold_df.columns else 0
+    epex_revenue = apply_gb_net(northwold_df['EPEX 30 DA Revenue'].sum()) if 'EPEX 30 DA Revenue' in northwold_df.columns else 0
+    ida1_revenue = apply_gb_net(northwold_df['IDA1 Revenue'].sum()) if 'IDA1 Revenue' in northwold_df.columns else 0
+    imbalance_revenue = apply_gb_net(northwold_df['Imbalance Revenue'].sum()) if 'Imbalance Revenue' in northwold_df.columns else 0
+    imbalance_charge = apply_gb_net(northwold_df['Imbalance Charge'].sum()) if 'Imbalance Charge' in northwold_df.columns else 0
     net_imbalance = imbalance_revenue - imbalance_charge
     actual_total = sffr_revenue + epex_revenue + ida1_revenue + net_imbalance
 
-    # Multi-market revenue
-    multi_total = multi_df['Optimised_Revenue_Multi'].sum()
+    # Multi-market revenue (optimiser output also netted by 5% GB fee)
+    multi_total = apply_gb_net(multi_df['Optimised_Revenue_Multi'].sum())
 
     # Performance gap
     improvement_pct = ((multi_total / actual_total - 1) * 100)
@@ -1746,6 +1771,7 @@ def show_report_page(month: str = "September 2025"):
     )
 
     st.plotly_chart(fig_annual, use_container_width=True)
+    st.caption(GB_NET_FOOTNOTE_SHORT)
 
     # ==================== SECTION 2: ACTUAL PERFORMANCE ====================
     st.header("2️⃣ Actual Performance Analysis")
@@ -1772,6 +1798,7 @@ def show_report_page(month: str = "September 2025"):
         )
 
         st.plotly_chart(fig_donut, use_container_width=True)
+        st.caption(GB_NET_FOOTNOTE_SHORT)
 
     with col2:
         st.error(f"""
@@ -1816,19 +1843,20 @@ def show_report_page(month: str = "September 2025"):
     # Strategy comparison
     st.subheader("📈 Revenue Mix Comparison")
 
-    # Calculate revenues for different strategies
+    # Calculate revenues for different strategies.
+    # Optimiser outputs netted by 5% GB fee so Actual vs Optimised is apples-to-apples.
     strategies = ['Actual', 'EPEX-Daily', 'EPEX-EFA', 'Multi-Market']
     sffr_revenues = [
         sffr_revenue,
-        multi_df[multi_df['Strategy_Selected_Daily'] == 'SFFR']['Optimised_Revenue_Daily'].sum(),
-        multi_df[multi_df['Strategy_Selected_EFA'] == 'SFFR']['Optimised_Revenue_EFA'].sum(),
+        apply_gb_net(multi_df[multi_df['Strategy_Selected_Daily'] == 'SFFR']['Optimised_Revenue_Daily'].sum()),
+        apply_gb_net(multi_df[multi_df['Strategy_Selected_EFA'] == 'SFFR']['Optimised_Revenue_EFA'].sum()),
         0  # Multi-market doesn't use SFFR when optimizing
     ]
 
     market_revenues = [
         epex_revenue + ida1_revenue,
-        multi_df[multi_df['Strategy_Selected_Daily'] == 'EPEX']['Optimised_Revenue_Daily'].sum(),
-        multi_df[multi_df['Strategy_Selected_EFA'] == 'EPEX']['Optimised_Revenue_EFA'].sum(),
+        apply_gb_net(multi_df[multi_df['Strategy_Selected_Daily'] == 'EPEX']['Optimised_Revenue_Daily'].sum()),
+        apply_gb_net(multi_df[multi_df['Strategy_Selected_EFA'] == 'EPEX']['Optimised_Revenue_EFA'].sum()),
         multi_total
     ]
 
@@ -1855,6 +1883,7 @@ def show_report_page(month: str = "September 2025"):
     )
 
     st.plotly_chart(fig_mix, use_container_width=True)
+    st.caption(GB_NET_FOOTNOTE_SHORT)
 
     # ==================== SECTION 4: DEGRADATION & WARRANTY ====================
     st.header("4️⃣ Degradation & Warranty Analysis")
@@ -1928,10 +1957,13 @@ def show_report_page(month: str = "September 2025"):
             daily_actual['Total'] += daily_actual['Imbalance Revenue']
         if 'Imbalance Charge' in daily_actual.columns:
             daily_actual['Total'] -= daily_actual['Imbalance Charge']
+        # Net daily totals by 5% GB fee for apples-to-apples with Optimised.
+        daily_actual['Total'] = daily_actual['Total'] * GB_REVENUE_NET_SHARE
     else:
         daily_actual = pd.DataFrame()
 
-    daily_multi = multi_df.groupby('Date')['Optimised_Revenue_Multi'].sum()
+    # Optimiser daily totals also netted by 5% GB fee.
+    daily_multi = multi_df.groupby('Date')['Optimised_Revenue_Multi'].sum() * GB_REVENUE_NET_SHARE
 
     # Create line chart
     fig_daily = go.Figure()
@@ -1965,6 +1997,7 @@ def show_report_page(month: str = "September 2025"):
     )
 
     st.plotly_chart(fig_daily, use_container_width=True)
+    st.caption(GB_NET_FOOTNOTE_SHORT)
 
     # ==================== SECTION 6: KEY DRIVERS OF LOSS ====================
     st.header("6️⃣ Key Drivers of Revenue Loss")
@@ -2052,12 +2085,13 @@ def show_executive_comparison():
         return 0
 
     def calc_actual_revenue(df):
-        sffr = safe_sum(df, 'SFFR revenues')
-        epex = safe_sum(df, 'EPEX 30 DA Revenue') + safe_sum(df, 'EPEX DA Revenues')
-        ida1 = safe_sum(df, 'IDA1 Revenue')
-        idc = safe_sum(df, 'IDC Revenue')
-        imb_rev = safe_sum(df, 'Imbalance Revenue')
-        imb_charge = safe_sum(df, 'Imbalance Charge')
+        """Per-stream and total Actual revenue, net of the 5% GridBeyond fee."""
+        sffr = apply_gb_net(safe_sum(df, 'SFFR revenues'))
+        epex = apply_gb_net(safe_sum(df, 'EPEX 30 DA Revenue') + safe_sum(df, 'EPEX DA Revenues'))
+        ida1 = apply_gb_net(safe_sum(df, 'IDA1 Revenue'))
+        idc = apply_gb_net(safe_sum(df, 'IDC Revenue'))
+        imb_rev = apply_gb_net(safe_sum(df, 'Imbalance Revenue'))
+        imb_charge = apply_gb_net(safe_sum(df, 'Imbalance Charge'))
         return {
             'total': sffr + epex + ida1 + idc + imb_rev - imb_charge,
             'sffr': sffr, 'epex': epex, 'ida1': ida1, 'idc': idc,
@@ -2070,7 +2104,8 @@ def show_executive_comparison():
             master = pd.read_csv(os.path.join(DATA_DIR, master_f))
             opt = pd.read_csv(os.path.join(DATA_DIR, opt_f))
             actual = calc_actual_revenue(master)
-            optimal = opt['Optimised_Revenue_Multi'].sum()
+            # Optimiser output netted by 5% GB fee for apples-to-apples with Actual.
+            optimal = apply_gb_net(opt['Optimised_Revenue_Multi'].sum())
             capture = (actual['total'] / optimal * 100) if optimal > 0 else 0
             gap = optimal - actual['total']
 
@@ -2135,11 +2170,13 @@ def show_executive_comparison():
     fig_bar.update_traces(textposition='outside')
     fig_bar.update_layout(yaxis_title="Revenue (£)", xaxis_title="", showlegend=True, height=450)
     st.plotly_chart(fig_bar, use_container_width=True)
+    st.caption(GB_NET_FOOTNOTE_SHORT)
     st.markdown("---")
 
     # ==================== SECTION 3: GAP ANALYSIS TABLE ====================
     st.header("3️⃣ Performance Gap Analysis")
-    st.caption("**Methodology:** Gap = Optimal - Actual. Optimal uses hindsight-based multi-market simulation.")
+    st.caption("**Methodology:** Gap = Optimal - Actual. Optimal uses hindsight-based multi-market simulation. "
+               "Both Actual and Optimal are shown net of the 5% GridBeyond revenue share.")
 
     gap_table = {'Metric': ['GridBeyond Revenue (£)', 'Capacity Market (£)',
                             'DUoS Net Credit (£)', 'Total Revenue (£)',
@@ -2157,6 +2194,7 @@ def show_executive_comparison():
             f"£{m['actual']['imbalance']:,.0f}"
         ]
     st.dataframe(pd.DataFrame(gap_table), use_container_width=True, hide_index=True)
+    st.caption(GB_NET_FOOTNOTE_SHORT)
     st.markdown("---")
 
     # ==================== SECTION 4: MARKET MIX COMPARISON ====================
@@ -2194,6 +2232,7 @@ def show_executive_comparison():
         vals.append(f"£{m['total_all']:,.0f}")
         mkt_table[m['short']] = vals
     st.dataframe(pd.DataFrame(mkt_table), use_container_width=True, hide_index=True)
+    st.caption(GB_NET_FOOTNOTE)
     st.markdown("---")
 
     # ==================== SECTION 5: EXECUTIVE SUMMARY ====================
@@ -2531,9 +2570,9 @@ def show_imbalance_deep_dive(month: str = "September 2025"):
         st.error(f"Error loading data: {str(e)}")
         return
 
-    # Calculate imbalance columns
-    df['Imbalance Revenue'] = pd.to_numeric(df.get('Imbalance Revenue', 0), errors='coerce').fillna(0)
-    df['Imbalance Charge'] = pd.to_numeric(df.get('Imbalance Charge', 0), errors='coerce').fillna(0)
+    # Calculate imbalance columns — netted by 5% GB fee so figures tie to the GB invoice.
+    df['Imbalance Revenue'] = pd.to_numeric(df.get('Imbalance Revenue', 0), errors='coerce').fillna(0) * GB_REVENUE_NET_SHARE
+    df['Imbalance Charge'] = pd.to_numeric(df.get('Imbalance Charge', 0), errors='coerce').fillna(0) * GB_REVENUE_NET_SHARE
     df['Net_Imbalance'] = df['Imbalance Revenue'] - df['Imbalance Charge']
     df['SSP'] = pd.to_numeric(df['SSP'], errors='coerce').fillna(0)
     df['SBP'] = pd.to_numeric(df['SBP'], errors='coerce').fillna(0)
@@ -2570,6 +2609,8 @@ def show_imbalance_deep_dive(month: str = "September 2025"):
         st.error(f"⚠️ **Critical:** Net imbalance loss of **£{abs(net_imbalance):,.0f}** this month")
     else:
         st.success(f"✅ Net imbalance profit of **£{net_imbalance:,.0f}** this month")
+
+    st.caption(GB_NET_FOOTNOTE_SHORT)
 
     st.markdown("---")
 
@@ -2614,6 +2655,7 @@ def show_imbalance_deep_dive(month: str = "September 2025"):
     worst_display['Date'] = worst_display['Date'].dt.strftime('%Y-%m-%d')
     worst_display.columns = ['Date', 'Revenue (£)', 'Charges (£)', 'Net (£)']
     st.dataframe(worst_display, use_container_width=True, hide_index=True)
+    st.caption(GB_NET_FOOTNOTE_SHORT)
 
     st.markdown("---")
 
@@ -2777,11 +2819,12 @@ def show_ancillary_services_analysis(month: str = "September 2025"):
         'DRH': {'avail': 'DRH Availability', 'price': 'DRH Clearing Price', 'rev': 'DRH revenues', 'name': 'DR High'},
     }
 
-    # Calculate metrics for each service
+    # Calculate metrics for each service.
+    # All ancillary revenues are GB-traded, so net by 5% to match the GB invoice.
     service_metrics = []
     for code, cols in services.items():
         if cols['rev'] in df.columns:
-            revenue = pd.to_numeric(df[cols['rev']], errors='coerce').fillna(0).sum()
+            revenue = apply_gb_net(pd.to_numeric(df[cols['rev']], errors='coerce').fillna(0).sum())
             avail = pd.to_numeric(df.get(cols['avail'], 0), errors='coerce').fillna(0)
             price = pd.to_numeric(df.get(cols['price'], 0), errors='coerce').fillna(0)
             periods_active = (avail > 0).sum()
@@ -2850,6 +2893,7 @@ def show_ancillary_services_analysis(month: str = "September 2025"):
     display_df['Avg Price'] = display_df['Avg Price'].apply(lambda x: f"£{x:.2f}/MW/h")
     display_df['Revenue per MW-Hour'] = display_df['Revenue per MW-Hour'].apply(lambda x: f"£{x:.2f}")
     st.dataframe(display_df, use_container_width=True, hide_index=True)
+    st.caption(GB_NET_FOOTNOTE_SHORT)
 
     st.markdown("---")
 
@@ -2869,9 +2913,10 @@ def show_ancillary_services_analysis(month: str = "September 2025"):
         fig.update_layout(title="Revenue Distribution by Service", height=400)
         st.plotly_chart(fig, use_container_width=True)
 
-    # Hourly heatmap for SFFR (main service)
+    # Hourly heatmap for SFFR (main service) — netted by 5% GB fee.
     if 'SFFR revenues' in df.columns:
         hourly_sffr = df.groupby('Hour')['SFFR revenues'].sum().reset_index()
+        hourly_sffr['SFFR revenues'] = hourly_sffr['SFFR revenues'] * GB_REVENUE_NET_SHARE
 
         fig = go.Figure()
         fig.add_trace(go.Bar(
@@ -2887,6 +2932,7 @@ def show_ancillary_services_analysis(month: str = "September 2025"):
             height=350
         )
         st.plotly_chart(fig, use_container_width=True)
+        st.caption(GB_NET_FOOTNOTE_SHORT)
 
     st.markdown("---")
 
@@ -2993,15 +3039,18 @@ def generate_pdf_report(month: str = "September 2025"):
             return pd.to_numeric(dataframe[col], errors='coerce').fillna(0).sum()
         return 0
 
-    sffr = safe_sum(df, 'SFFR revenues')
-    epex = safe_sum(df, 'EPEX 30 DA Revenue') + safe_sum(df, 'EPEX DA Revenues')
-    ida1 = safe_sum(df, 'IDA1 Revenue')
-    idc = safe_sum(df, 'IDC Revenue')
-    imb_rev = safe_sum(df, 'Imbalance Revenue')
-    imb_charge = safe_sum(df, 'Imbalance Charge')
+    # All GB-traded streams and the optimiser output are netted by the 5% GridBeyond fee
+    # so the numbers in the report tie to the GridBeyond invoice and Actual vs Optimal
+    # is apples-to-apples.
+    sffr = apply_gb_net(safe_sum(df, 'SFFR revenues'))
+    epex = apply_gb_net(safe_sum(df, 'EPEX 30 DA Revenue') + safe_sum(df, 'EPEX DA Revenues'))
+    ida1 = apply_gb_net(safe_sum(df, 'IDA1 Revenue'))
+    idc = apply_gb_net(safe_sum(df, 'IDC Revenue'))
+    imb_rev = apply_gb_net(safe_sum(df, 'Imbalance Revenue'))
+    imb_charge = apply_gb_net(safe_sum(df, 'Imbalance Charge'))
     total_actual = sffr + epex + ida1 + idc + imb_rev - imb_charge
 
-    optimal = opt_df['Optimised_Revenue_Multi'].sum() if 'Optimised_Revenue_Multi' in opt_df.columns else 0
+    optimal = apply_gb_net(opt_df['Optimised_Revenue_Multi'].sum()) if 'Optimised_Revenue_Multi' in opt_df.columns else 0
     capture_rate = (total_actual / optimal * 100) if optimal > 0 else 0
     gap = optimal - total_actual
 
@@ -3024,6 +3073,11 @@ ACTUAL REVENUE:         £{total_actual:,.0f}
 OPTIMAL (SIMULATED):    £{optimal:,.0f}
 REVENUE GAP:            £{gap:,.0f}
 CAPTURE RATE:           {capture_rate:.1f}%
+
+  All figures are shown net of the 5% GridBeyond revenue share.
+  The optimiser output is also netted on the assumption that, in
+  real-world deployment, the optimised revenue would clear through
+  GridBeyond or an equivalent aggregator.
 
 --------------------------------------------------------------------------------
                         REVENUE BREAKDOWN
@@ -3187,16 +3241,19 @@ def show_pdf_export_page(month: str = "September 2025"):
                 }
 
                 def calc_metrics(master_df, opt_df, short):
+                    """All GB-traded streams and optimiser output netted by 5% GB fee."""
                     def safe_sum(dataframe, col):
                         if col in dataframe.columns:
                             return pd.to_numeric(dataframe[col], errors='coerce').fillna(0).sum()
                         return 0
 
-                    sffr = safe_sum(master_df, 'SFFR revenues')
-                    epex = safe_sum(master_df, 'EPEX 30 DA Revenue') + safe_sum(master_df, 'EPEX DA Revenues')
-                    imb = safe_sum(master_df, 'Imbalance Revenue') - safe_sum(master_df, 'Imbalance Charge')
-                    gb_total = sffr + epex + safe_sum(master_df, 'IDA1 Revenue') + safe_sum(master_df, 'IDC Revenue') + imb
-                    optimal = opt_df['Optimised_Revenue_Multi'].sum() if 'Optimised_Revenue_Multi' in opt_df.columns else 0
+                    sffr = apply_gb_net(safe_sum(master_df, 'SFFR revenues'))
+                    epex = apply_gb_net(safe_sum(master_df, 'EPEX 30 DA Revenue') + safe_sum(master_df, 'EPEX DA Revenues'))
+                    ida1 = apply_gb_net(safe_sum(master_df, 'IDA1 Revenue'))
+                    idc = apply_gb_net(safe_sum(master_df, 'IDC Revenue'))
+                    imb = apply_gb_net(safe_sum(master_df, 'Imbalance Revenue') - safe_sum(master_df, 'Imbalance Charge'))
+                    gb_total = sffr + epex + ida1 + idc + imb
+                    optimal = apply_gb_net(opt_df['Optimised_Revenue_Multi'].sum()) if 'Optimised_Revenue_Multi' in opt_df.columns else 0
                     cm = CM_EXPORT.get(short, 0)
                     duos_net = DUOS_EXPORT.get(short, {}).get('net', 0)
                     total_all = gb_total + cm + duos_net
@@ -3338,7 +3395,7 @@ def show_benchmark_comparison():
             return 0
 
         def calculate_monthly_revenue(df):
-            """Calculate total revenue for a month."""
+            """Total GB-traded revenue for a month, NET of the 5% GridBeyond fee."""
             sffr = safe_sum_b(df, 'SFFR revenues')
             epex = safe_sum_b(df, 'EPEX 30 DA Revenue') + safe_sum_b(df, 'EPEX DA Revenues')
             ida1 = safe_sum_b(df, 'IDA1 Revenue')
@@ -3346,7 +3403,8 @@ def show_benchmark_comparison():
             imb_rev = safe_sum_b(df, 'Imbalance Revenue')
             imb_charge = safe_sum_b(df, 'Imbalance Charge')
 
-            return sffr + epex + ida1 + idc + imb_rev - imb_charge
+            gross = sffr + epex + ida1 + idc + imb_rev - imb_charge
+            return apply_gb_net(gross)
 
         def calculate_cycles_local(df, power_col, capacity_mwh=8.4, dt_hours=0.5):
             """Calculate cycles using industry standard method."""
@@ -3548,6 +3606,8 @@ def show_benchmark_comparison():
         tile_cols[1].metric("Avg capture vs IAR", f"{avg_cap_iar:.0f}%")
         tile_cols[2].metric("Best · worst vs Modo", best_worst)
 
+        st.caption(GB_NET_FOOTNOTE)
+
         # ---- Historical industry range (demoted to expander) ----
         with st.expander("Historical industry range (Modo 2024–25 envelope)"):
             st.caption(
@@ -3568,14 +3628,18 @@ def show_benchmark_comparison():
             st.markdown("""
 **Formula:**
 ```
-GridBeyond Revenue = SFFR + EPEX DA + IDA1 + IDC + Imbalance Revenue - Imbalance Charge
-Total Revenue = GridBeyond Revenue + Capacity Market + DUoS Net Credit - DUoS Fixed Charges
+GridBeyond Gross  = SFFR + EPEX DA + IDA1 + IDC + Imbalance Revenue - Imbalance Charge
+GridBeyond Net    = GridBeyond Gross × 0.95   (5% GB revenue share deducted)
+Total Revenue     = GridBeyond Net + Capacity Market + DUoS Net Credit - DUoS Fixed Charges
 ```
 
 **Explanation:**
-GridBeyond revenue is the sum of all wholesale/ancillary revenues traded by the aggregator.
+GridBeyond gross revenue is the sum of all wholesale/ancillary revenues traded by the aggregator.
+The dashboard shows the **net** figure — after GridBeyond's 5% revenue share — so the numbers
+tie out to the GridBeyond invoice and are directly comparable to the IAR (which is also post-fee).
 Total Revenue adds non-GridBeyond streams: Capacity Market payments (EMR Settlement T062)
-and Distribution Use of System credits (Hartree Partners passthrough invoices).
+and Distribution Use of System credits (Hartree Partners passthrough invoices) — these are paid
+direct and are not subject to the GB fee.
 
 **Example (October 2025):**
 - GridBeyond Revenue: £38,344 (SFFR + EPEX + IDA1 + IDC + Imbalance)
@@ -3751,22 +3815,21 @@ battery cells, and thermal management.
         var = ((actual - iar_val) / abs(iar_val)) * 100
         return f"{var:+.0f}%"
 
-    # Build actuals from GridBeyond data + invoice data
-    # GridBeyond-traded streams are netted by the 5% revenue share so they match the
-    # post-fee IAR projections (and the GridBeyond invoice Ampyr receives).
+    # Build actuals from GridBeyond data + invoice data.
+    # GB-traded streams netted by GB_REVENUE_NET_SHARE (0.95) so they match
+    # the post-fee IAR projections and the GridBeyond invoice.
     # CM, DUoS Battery, DUoS Fixed, TNUoS are paid direct (EMR / Hartree) — no GB fee.
-    GB_NET_SHARE = 0.95
     actual_data = {}
     if data_loaded:
         for m in bm:
             short = m['short']
             df = masters[short]
-            epex = (safe_sum_b(df, 'EPEX 30 DA Revenue') + safe_sum_b(df, 'EPEX DA Revenues')) * GB_NET_SHARE
-            ida1 = safe_sum_b(df, 'IDA1 Revenue') * GB_NET_SHARE
-            idc = safe_sum_b(df, 'IDC Revenue') * GB_NET_SHARE
-            sffr = safe_sum_b(df, 'SFFR revenues') * GB_NET_SHARE
-            imb_rev = safe_sum_b(df, 'Imbalance Revenue') * GB_NET_SHARE
-            imb_charge = safe_sum_b(df, 'Imbalance Charge') * GB_NET_SHARE
+            epex = apply_gb_net(safe_sum_b(df, 'EPEX 30 DA Revenue') + safe_sum_b(df, 'EPEX DA Revenues'))
+            ida1 = apply_gb_net(safe_sum_b(df, 'IDA1 Revenue'))
+            idc = apply_gb_net(safe_sum_b(df, 'IDC Revenue'))
+            sffr = apply_gb_net(safe_sum_b(df, 'SFFR revenues'))
+            imb_rev = apply_gb_net(safe_sum_b(df, 'Imbalance Revenue'))
+            imb_charge = apply_gb_net(safe_sum_b(df, 'Imbalance Charge'))
             cm = m['cm']
             duos_cr = m['duos_credit']
             duos_fx = m['duos_fixed']
@@ -3815,6 +3878,7 @@ battery cells, and thermal management.
                "CM actuals from EMR Settlement (T062) — paid direct, no GB fee. "
                "DUoS actuals from Hartree Partners invoices — paid direct, no GB fee. "
                "TNUoS invoices not yet available.*")
+    st.caption(GB_NET_FOOTNOTE_SHORT)
 
     # Summary metrics for IAR comparison
     iar_months = [m for m in bm if m['short'] in IAR_PROJ and m['short'] in actual_data]
@@ -3899,7 +3963,10 @@ calculated per MW/month and multiplied by 4.2 MW for comparison. No indexation i
 
     # Section 3: Multi-Market Optimization vs Actual
     st.header("3. Multi-Market Optimization vs Actual")
-    st.caption("Compare actual GridBeyond performance against optimized multi-market strategy with perfect foresight")
+    st.caption("Compare actual GridBeyond performance against optimized multi-market strategy with perfect foresight. "
+               "Both Actual and Optimised are shown **net of the 5% GridBeyond revenue share** (the optimiser output is "
+               "scaled by 0.95 on the assumption that, in real-world deployment, the optimised revenue would also be "
+               "traded through GridBeyond or an equivalent aggregator).")
 
     if data_loaded and opts:
         def get_revenue_breakdown(df):
@@ -3909,9 +3976,15 @@ calculated per MW/month and multiplied by 4.2 MW for comparison. No indexation i
             idc = safe_sum_b(df, 'IDC Revenue')
             imb_rev = safe_sum_b(df, 'Imbalance Revenue')
             imb_charge = safe_sum_b(df, 'Imbalance Charge')
-            return {'SFFR': sffr, 'EPEX DA': epex, 'IDA1': ida1, 'IDC': idc,
-                    'Imbalance': imb_rev - imb_charge,
-                    'Total': sffr + epex + ida1 + idc + imb_rev - imb_charge}
+            # Net 5% GridBeyond fee — apples-to-apples with the GB invoice and the optimiser output below.
+            return {
+                'SFFR': apply_gb_net(sffr),
+                'EPEX DA': apply_gb_net(epex),
+                'IDA1': apply_gb_net(ida1),
+                'IDC': apply_gb_net(idc),
+                'Imbalance': apply_gb_net(imb_rev - imb_charge),
+                'Total': apply_gb_net(sffr + epex + ida1 + idc + imb_rev - imb_charge),
+            }
 
         def get_opt_revenue_breakdown(df):
             df = df.copy()
@@ -3923,8 +3996,15 @@ calculated per MW/month and multiplied by 4.2 MW for comparison. No indexation i
             ssp = df[df['Market'].str.contains('SSP|SBP', na=False)]['Revenue'].sum()
             da_hh = df[df['Market'].str.contains('DA_HH', na=False)]['Revenue'].sum()
             total = df['Revenue'].sum()
-            return {'SFFR': sffr, 'EPEX DA': epex + da_hh, 'IDA1': isem, 'IDC': 0,
-                    'Imbalance': ssp, 'Total': total}
+            # Net 5% — assume the optimised revenue would also be traded via GB in deployment.
+            return {
+                'SFFR': apply_gb_net(sffr),
+                'EPEX DA': apply_gb_net(epex + da_hh),
+                'IDA1': apply_gb_net(isem),
+                'IDC': 0,
+                'Imbalance': apply_gb_net(ssp),
+                'Total': apply_gb_net(total),
+            }
 
         # Summary metrics row
         metric_cols = st.columns(len(bm))
@@ -3976,6 +4056,7 @@ calculated per MW/month and multiplied by 4.2 MW for comparison. No indexation i
             return [''] * len(row)
 
         st.dataframe(comp_df.style.apply(style_comp, axis=1), use_container_width=True, hide_index=True)
+        st.caption(GB_NET_FOOTNOTE_SHORT)
 
         total_gap = sum(all_gaps.values())
         avg_cap = sum(all_captures.values()) / len(all_captures)
