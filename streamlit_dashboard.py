@@ -3687,7 +3687,9 @@ battery cells, and thermal management.
 
     # Section 2: IAR vs Actual Revenue Comparison
     st.header("2. Revenue IAR vs Actual")
-    st.caption("Comparison of Internal Appraisal Report (IAR) projections against actual GridBeyond revenues")
+    st.caption("Comparison of Internal Appraisal Report (IAR) projections against actual GridBeyond revenues. "
+               "Both columns are shown **net of the 5% GridBeyond revenue share** so they are directly comparable "
+               "to the GridBeyond invoice.")
 
     # Revenue stream labels
     streams = [
@@ -3750,17 +3752,21 @@ battery cells, and thermal management.
         return f"{var:+.0f}%"
 
     # Build actuals from GridBeyond data + invoice data
+    # GridBeyond-traded streams are netted by the 5% revenue share so they match the
+    # post-fee IAR projections (and the GridBeyond invoice Ampyr receives).
+    # CM, DUoS Battery, DUoS Fixed, TNUoS are paid direct (EMR / Hartree) — no GB fee.
+    GB_NET_SHARE = 0.95
     actual_data = {}
     if data_loaded:
         for m in bm:
             short = m['short']
             df = masters[short]
-            epex = safe_sum_b(df, 'EPEX 30 DA Revenue') + safe_sum_b(df, 'EPEX DA Revenues')
-            ida1 = safe_sum_b(df, 'IDA1 Revenue')
-            idc = safe_sum_b(df, 'IDC Revenue')
-            sffr = safe_sum_b(df, 'SFFR revenues')
-            imb_rev = safe_sum_b(df, 'Imbalance Revenue')
-            imb_charge = safe_sum_b(df, 'Imbalance Charge')
+            epex = (safe_sum_b(df, 'EPEX 30 DA Revenue') + safe_sum_b(df, 'EPEX DA Revenues')) * GB_NET_SHARE
+            ida1 = safe_sum_b(df, 'IDA1 Revenue') * GB_NET_SHARE
+            idc = safe_sum_b(df, 'IDC Revenue') * GB_NET_SHARE
+            sffr = safe_sum_b(df, 'SFFR revenues') * GB_NET_SHARE
+            imb_rev = safe_sum_b(df, 'Imbalance Revenue') * GB_NET_SHARE
+            imb_charge = safe_sum_b(df, 'Imbalance Charge') * GB_NET_SHARE
             cm = m['cm']
             duos_cr = m['duos_credit']
             duos_fx = m['duos_fixed']
@@ -3804,7 +3810,11 @@ battery cells, and thermal management.
     styled_iar_df = iar_df.style.apply(highlight_total, axis=1)
     st.dataframe(styled_iar_df, use_container_width=True, hide_index=True, height=460)
 
-    st.caption("*IAR projections based on 4.2 MW capacity with indexation factor 1.073. CM actuals from EMR Settlement (T062). DUoS actuals from Hartree Partners invoices. TNUoS invoices not yet available.*")
+    st.caption("*IAR projections based on 4.2 MW capacity with indexation factor 1.073. "
+               "Wholesale DA/ID, Frequency Response and Imbalance actuals are shown net of the 5% GridBeyond revenue share. "
+               "CM actuals from EMR Settlement (T062) — paid direct, no GB fee. "
+               "DUoS actuals from Hartree Partners invoices — paid direct, no GB fee. "
+               "TNUoS invoices not yet available.*")
 
     # Summary metrics for IAR comparison
     iar_months = [m for m in bm if m['short'] in IAR_PROJ and m['short'] in actual_data]

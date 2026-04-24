@@ -204,7 +204,7 @@ def _show_overview_tab():
     if summary:
         sub_total = summary['summary'].get('energy_revenue', {}).get('_sub_total', 0)
         col3.metric("Reported Net Revenue (Jan)", f"£{sub_total:,.2f}",
-                    help="Summary Statement sub-total (net 93%)")
+                    help="Summary Statement sub-total (net 95%, after 5% GridBeyond fee)")
     else:
         col3.metric("Summary Statement", "Not Available")
 
@@ -278,7 +278,7 @@ def _show_overview_tab():
                     textposition='outside',
                 ))
                 fig.update_layout(
-                    title='Revenue by Stream (Net 93%)',
+                    title='Revenue by Stream (Net 95%)',
                     yaxis_title='Revenue (£)',
                     height=350,
                     margin=dict(t=40),
@@ -465,7 +465,7 @@ def _show_revenue_tab():
     if period.get('from'):
         month_label = period['from'].strftime('%B %Y')
 
-    st.caption(f"Comparing Master CSV (gross) vs Summary Statement (net 93%) for **{month_label}**")
+    st.caption(f"Comparing Master CSV (gross) vs Summary Statement (net 95%, after 5% GridBeyond fee) for **{month_label}**")
 
     master_df = _load_month_master(month_label)
 
@@ -485,8 +485,8 @@ def _show_revenue_tab():
 
     col1, col2, col3, col4, col5 = st.columns(5)
     col1.metric("Gross Revenue", f"£{fee_breakdown['gross']:,.2f}")
-    col2.metric("Aggregator Fee (7%)", f"£{fee_breakdown['fee']:,.2f}")
-    col3.metric("Expected Net (93%)", f"£{fee_breakdown['expected_net']:,.2f}")
+    col2.metric("GridBeyond Fee (5%)", f"£{fee_breakdown['fee']:,.2f}")
+    col3.metric("Expected Net (95%)", f"£{fee_breakdown['expected_net']:,.2f}")
     col4.metric("Reported Net", f"£{fee_breakdown['reported_net']:,.2f}")
     variance = fee_breakdown['variance']
     col5.metric("Variance", f"£{variance:,.2f}",
@@ -494,7 +494,7 @@ def _show_revenue_tab():
 
     # Waterfall chart
     st.subheader("Revenue Waterfall")
-    waterfall_labels = ['Gross Revenue', 'Aggregator Fee (-7%)', 'Expected Net',
+    waterfall_labels = ['Gross Revenue', 'GridBeyond Fee (-5%)', 'Expected Net',
                         'Reported Net', 'Variance']
     waterfall_values = [
         fee_breakdown['gross'],

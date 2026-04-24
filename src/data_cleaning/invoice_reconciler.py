@@ -166,17 +166,17 @@ def reconcile_solar_pv(
 def reconcile_revenue(
     master_df: Optional[pd.DataFrame],
     summary_statement: Optional[Dict],
-    aggregator_share: float = 0.93,
+    aggregator_share: float = 0.95,
 ) -> pd.DataFrame:
     """
-    Compare revenue per stream: Master CSV (gross) vs Summary Statement (net 93%).
+    Compare revenue per stream: Master CSV (gross) vs Summary Statement (net 95%).
 
     Shows both gross and net to catch errors at both calculation and fee stages.
 
     Args:
         master_df: Master CSV data (northwold_df from load_month_data)
         summary_statement: Parsed summary statement dict
-        aggregator_share: Asset owner's share (default 0.93 = 93%)
+        aggregator_share: Asset owner's share (default 0.95 = 95%, i.e. 5% GridBeyond fee)
 
     Returns:
         DataFrame with columns: stream, gross_revenue, expected_net,
@@ -250,11 +250,11 @@ def reconcile_revenue(
 def compute_aggregator_fee_breakdown(
     master_df: Optional[pd.DataFrame],
     summary_statement: Optional[Dict],
-    aggregator_share: float = 0.93,
+    aggregator_share: float = 0.95,
 ) -> Dict:
     """
     Compute the aggregator fee waterfall:
-    Gross Revenue -> Aggregator Fee (7%) -> Expected Net -> Reported Net -> Variance
+    Gross Revenue -> Aggregator Fee (5%) -> Expected Net -> Reported Net -> Variance
 
     Returns:
         Dict with gross, fee, expected_net, reported_net, variance
