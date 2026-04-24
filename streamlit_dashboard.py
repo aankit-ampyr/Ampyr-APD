@@ -3242,6 +3242,35 @@ def show_pdf_export_page(month: str = "September 2025"):
                 st.error(f"Error generating comparison: {str(e)}")
 
 
+@st.cache_data
+def _load_iar_monthly_per_mw():
+    """Return {short_month: monthly £/MW total} from the IAR Excel.
+
+    Excel stores £/MW per month per stream in columns 11..17 (Sep 25 → Mar 26),
+    rows 4..11 (8 revenue streams). Sum the 8 stream rows per month to get
+    total monthly £/MW. Section 1's 3-way bar chart uses this directly
+    (Monthly £/MW view) and annualises via × 365/days for the annualised view.
+    Returns {} on read failure.
+    """
+    iar_file = os.path.join(os.path.dirname(__file__), 'extra', 'Northwold BESS Revenue_IAR.xlsx')
+    try:
+        import openpyxl
+        wb = openpyxl.load_workbook(iar_file, data_only=True)
+        ws = wb['Sheet1']
+        col_map = {11: 'Sep 25', 12: 'Oct 25', 13: 'Nov 25', 14: 'Dec 25',
+                   15: 'Jan 26', 16: 'Feb 26', 17: 'Mar 26'}
+        stream_rows = [4, 5, 6, 7, 8, 9, 10, 11]
+        result = {}
+        for col_idx, short in col_map.items():
+            total_per_mw = sum((ws.cell(row=r, column=col_idx).value or 0)
+                               for r in stream_rows)
+            result[short] = float(total_per_mw)
+        wb.close()
+        return result
+    except Exception:
+        return {}
+
+
 def show_benchmark_comparison():
     """Display industry benchmark comparison page."""
     st.title("📊 Benchmarks")
@@ -3397,62 +3426,140 @@ def show_benchmark_comparison():
         bm = []
         avg_annual = 0
 
-    # ==================== Section 1: Northwold vs Industry ====================
-    st.header("1. Northwold vs Industry")
+    # ==================== Section 1: Revenue vs Benchmarks ====================
+    st.header("1. Revenue vs Benchmarks")
+    st.markdown(
+        "Three-way comparison of Northwold actual revenue against the Modo Energy "
+        "GB BESS benchmark and the Internal Appraisal Report (IAR) projection. "
+        "**Monthly £/MW** shows what each party earned per MW in each real month "
+        "(honest apples-to-apples). **Annualised £/MW/year** projects the same "
+        "numbers to a full year for board-level comparison."
+    )
 
     if data_loaded:
-        # Build combined table with all months
-        combined_data = {
-            'Metric': [
-                'GridBeyond Revenue (£)',
-                'Capacity Market (£)',
-                'DUoS Credit (£)',
-                'DUoS Fixed Charges (£)',
-                'Total Revenue (£)',
-                'Revenue (£/MW/year)',
-                'Modo Benchmark (£/MW/yr)',
-                'Daily Cycles',
-                'Round-Trip Efficiency (%)'
-            ],
-        }
-        for m in bm:
-            combined_data[m['short']] = [
-                f"£{round(m['revenue']):,}",
-                f"£{round(m['cm']):,}" if m['cm'] else '-',
-                f"£{round(m['duos_credit']):,}" if m['duos_credit'] else '-',
-                f"-£{round(m['duos_fixed']):,}" if m['duos_fixed'] else '-',
-                f"£{round(m['total_revenue']):,}",
-                f"£{round(m['total_annual_per_mw']):,}",
-                f"£{m['modo']:,}" if m['modo'] else '-',
-                f"{m['daily_cycles']:.2f}" if m['daily_cycles'] else "N/A",
-                "~85%"
-            ]
-        combined_data['Industry Low'] = ['-', '-', '-', '-', '-', '£36,000', '-', '1.0', '82%']
-        combined_data['Industry Mid'] = ['-', '-', '-', '-', '-', '£60,000', '-', '1.5', '85%']
-        combined_data['Industry High'] = ['-', '-', '-', '-', '-', '£88,000', '-', '3.0', '90%']
+        iar_monthly_per_mw = _load_iar_monthly_per_mw()
 
-        combined_df = pd.DataFrame(combined_data)
-        st.dataframe(combined_df, use_container_width=True, hide_index=True)
+        # Shared arrays (same month order as `bm`).
+        months = [m['short'] for m in bm]
+        days_by_short = {m['short']: m['days'] for m in bm}
 
-        # Rating indicators — one per month plus an Average tile at the end.
-        # Columns scale with month count (previously capped at 6 which broke
-        # once the month list exceeded 5 entries).
-        rating_cols = st.columns(len(bm) + 1)
-        for idx, m in enumerate(bm):
-            with rating_cols[idx]:
-                st.markdown(f"**{m['short']}:**")
-                apm = m['total_annual_per_mw']
-                if apm < 36000:
-                    st.error("Below industry low")
-                elif apm < 60000:
-                    st.warning("Below industry mid")
-                elif apm < 88000:
-                    st.success("Above industry mid")
-                else:
-                    st.success("Above industry high!")
-        with rating_cols[len(bm)]:
-            st.markdown("**Average:**")
-            st.metric("£/MW/year", f"£{round(avg_annual):,}")
+        # --- Monthly £/MW (actual reality, no annualisation) ---
+        actual_monthly = [m['total_revenue'] / capacity_mw for m in bm]
+        modo_monthly = [
+            (MODO_BENCHMARKS.get(s, 0) * days_by_short[s] / 365)
+            if MODO_BENCHMARKS.get(s) else 0
+            for s in months
+        ]
+        iar_monthly = [iar_monthly_per_mw.get(s, 0) for s in months]
+
+        # --- Annualised £/MW/year (board-level view) ---
+        actual_annual = [m['total_annual_per_mw'] for m in bm]
+        modo_annual = [MODO_BENCHMARKS.get(s, 0) for s in months]
+        iar_annual = [
+            (iar_monthly_per_mw.get(s, 0) * 365 / days_by_short[s])
+            if iar_monthly_per_mw.get(s) else 0
+            for s in months
+        ]
+
+        # Colour assignment — reuse existing palette for consistency across the page.
+        C_ACTUAL = COLOR_ACTUAL         # Blue — Northwold
+        C_MODO = COLOR_IDC              # Purple — external benchmark
+        C_IAR = COLOR_MULTI_MARKET      # Green — internal target
+
+        def _grouped_bars(title, y_title, actual_ys, modo_ys, iar_ys, hover_unit):
+            fig = go.Figure()
+            fig.add_trace(go.Bar(
+                name='Northwold actual', x=months, y=actual_ys,
+                marker_color=C_ACTUAL,
+                hovertemplate=f'%{{x}}<br>Actual: £%{{y:,.0f}}{hover_unit}<extra></extra>',
+            ))
+            fig.add_trace(go.Bar(
+                name='Modo benchmark', x=months, y=modo_ys,
+                marker_color=C_MODO,
+                hovertemplate=f'%{{x}}<br>Modo: £%{{y:,.0f}}{hover_unit}<extra></extra>',
+            ))
+            fig.add_trace(go.Bar(
+                name='IAR projection', x=months, y=iar_ys,
+                marker_color=C_IAR,
+                hovertemplate=f'%{{x}}<br>IAR: £%{{y:,.0f}}{hover_unit}<extra></extra>',
+            ))
+            fig.update_layout(
+                title=title, barmode='group', yaxis_title=y_title,
+                height=420, showlegend=True, margin=dict(t=60, b=40),
+            )
+            return fig
+
+        st.plotly_chart(
+            _grouped_bars(
+                'Monthly £/MW — what each earned per MW in each real month',
+                '£/MW (month)', actual_monthly, modo_monthly, iar_monthly, '/MW',
+            ),
+            use_container_width=True,
+        )
+
+        st.plotly_chart(
+            _grouped_bars(
+                'Annualised £/MW/year — projecting each month at full-year pace',
+                '£/MW/year', actual_annual, modo_annual, iar_annual, '/MW/yr',
+            ),
+            use_container_width=True,
+        )
+
+        # ---- Per-month capture table ----
+        st.subheader("Per-month capture")
+        summary_rows = []
+        for i, m in enumerate(bm):
+            s = m['short']
+            act_m = actual_monthly[i]
+            mod_m = modo_monthly[i]
+            iar_m = iar_monthly[i]
+            cap_modo = (act_m / mod_m * 100) if mod_m else None
+            cap_iar = (act_m / iar_m * 100) if iar_m else None
+            summary_rows.append({
+                'Month': s,
+                'Actual (£/MW/mo)': f"£{round(act_m):,}",
+                'Modo (£/MW/mo)': f"£{round(mod_m):,}" if mod_m else '—',
+                'IAR (£/MW/mo)': f"£{round(iar_m):,}" if iar_m else '—',
+                'Capture vs Modo': f"{cap_modo:.0f}%" if cap_modo is not None else '—',
+                'Capture vs IAR': f"{cap_iar:.0f}%" if cap_iar is not None else '—',
+            })
+        st.dataframe(pd.DataFrame(summary_rows), use_container_width=True, hide_index=True)
+
+        # ---- Portfolio tiles ----
+        modo_pairs = [
+            (m['short'], actual_monthly[i] / modo_monthly[i] * 100)
+            for i, m in enumerate(bm) if modo_monthly[i]
+        ]
+        iar_pairs = [
+            (m['short'], actual_monthly[i] / iar_monthly[i] * 100)
+            for i, m in enumerate(bm) if iar_monthly[i]
+        ]
+        avg_cap_modo = (sum(p[1] for p in modo_pairs) / len(modo_pairs)) if modo_pairs else 0
+        avg_cap_iar = (sum(p[1] for p in iar_pairs) / len(iar_pairs)) if iar_pairs else 0
+        if modo_pairs:
+            best = max(modo_pairs, key=lambda p: p[1])
+            worst = min(modo_pairs, key=lambda p: p[1])
+            best_worst = f"{best[0]} {best[1]:.0f}% · {worst[0]} {worst[1]:.0f}%"
+        else:
+            best_worst = '—'
+
+        tile_cols = st.columns(3)
+        tile_cols[0].metric("Avg capture vs Modo", f"{avg_cap_modo:.0f}%")
+        tile_cols[1].metric("Avg capture vs IAR", f"{avg_cap_iar:.0f}%")
+        tile_cols[2].metric("Best · worst vs Modo", best_worst)
+
+        # ---- Historical industry range (demoted to expander) ----
+        with st.expander("Historical industry range (Modo 2024–25 envelope)"):
+            st.caption(
+                "Previously shown as the primary benchmark here. Kept as reference "
+                "context — values are the min / median / max of Modo's monthly GB "
+                "BESS Index figures across calendar years 2024 and 2025."
+            )
+            st.dataframe(pd.DataFrame([
+                {'Tier': 'Low',  '£/MW/year': '£36,000', 'Cycles/day': '1.0', 'RTE': '82%'},
+                {'Tier': 'Mid',  '£/MW/year': '£60,000', 'Cycles/day': '1.5', 'RTE': '85%'},
+                {'Tier': 'High', '£/MW/year': '£88,000', 'Cycles/day': '3.0', 'RTE': '90%'},
+            ]), use_container_width=True, hide_index=True)
 
         # Calculation explanations for Section 1
         st.subheader("Metric Calculations")
