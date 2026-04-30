@@ -45,7 +45,7 @@ from data_cleaning.invoice_loader import (
 # ─────────────────────────────────────────────────────────────
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-RAW_DIR_DEFAULT = PROJECT_ROOT / "raw" / "New"
+RAW_DIR_DEFAULT = PROJECT_ROOT / "raw"
 DATA_DIR = PROJECT_ROOT / "data" / "invoices"
 
 PATHS = {
@@ -72,7 +72,7 @@ def _write_df(df: pd.DataFrame, path: Path) -> None:
 
 def _write_summary_statement(raw_dir: Path) -> bool:
     """Save the Summary Statement (dict with embedded DataFrame) as JSON + parquet."""
-    candidates = sorted(raw_dir.glob("Northwold - *.xlsx"))
+    candidates = sorted(raw_dir.rglob("Northwold - *.xlsx"))
     if not candidates:
         # Clear stale outputs so the reader returns None cleanly.
         for key in ("summary_meta", "summary_detail"):

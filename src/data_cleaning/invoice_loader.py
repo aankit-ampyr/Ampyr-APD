@@ -35,7 +35,7 @@ def load_emr_capacity_market(raw_dir: str) -> pd.DataFrame:
         weighting_factor, payment_due, payment_payable, source_file
     """
     raw_path = Path(raw_dir)
-    csv_files = sorted(raw_path.glob("NORTHWO_*_T062.csv"))
+    csv_files = sorted(raw_path.rglob("NORTHWO_*_T062.csv"))
 
     if not csv_files:
         return pd.DataFrame()
@@ -86,7 +86,7 @@ def load_emr_txt_files(raw_dir: str) -> pd.DataFrame:
         DataFrame with invoice_number, invoice_date, payment_date, invoice_total
     """
     raw_path = Path(raw_dir)
-    txt_files = sorted(raw_path.glob("NORTHWO_*_*.txt"))
+    txt_files = sorted(raw_path.rglob("NORTHWO_*_*.txt"))
 
     records = []
     for f in txt_files:
@@ -103,7 +103,10 @@ def load_emr_txt_files(raw_dir: str) -> pd.DataFrame:
                         'source_file': f.name,
                     })
 
-    return pd.DataFrame(records) if records else pd.DataFrame()
+    if not records:
+        return pd.DataFrame()
+    # Sort for deterministic output regardless of file iteration order.
+    return pd.DataFrame(records).sort_values('invoice_date').reset_index(drop=True)
 
 
 # ─────────────────────────────────────────────────────────────
@@ -204,11 +207,8 @@ def load_hartree_bess_readings(raw_dir: str) -> pd.DataFrame:
         DataFrame with Timestamp index, BESS_Import_kWh, BESS_Export_kWh columns
     """
     raw_path = Path(raw_dir)
-    bess_files = []
-
-    # Search in OneDrive subfolders and root
-    for pattern in ['OneDrive_*/*BESS*Readings.xlsx', '*BESS*Readings.xlsx']:
-        bess_files.extend(raw_path.glob(pattern))
+    # Recursive: match anywhere in raw/ regardless of folder layout
+    bess_files = list(raw_path.rglob("*BESS*Readings.xlsx"))
 
     if not bess_files:
         return pd.DataFrame()
@@ -254,10 +254,7 @@ def load_hartree_pv_readings(raw_dir: str) -> pd.DataFrame:
         invoiced_sin2_03, under_over_invoiced_kwh
     """
     raw_path = Path(raw_dir)
-    pv_files = []
-
-    for pattern in ['OneDrive_*/*PV*Readings.xlsx']:
-        pv_files.extend(raw_path.glob(pattern))
+    pv_files = list(raw_path.rglob("*PV*Readings.xlsx"))
 
     if not pv_files:
         return pd.DataFrame()
@@ -318,7 +315,7 @@ def load_solar_generation(raw_dir: str) -> pd.DataFrame:
         DataFrame with Timestamp index and Allocated_Quantity_kWh column
     """
     raw_path = Path(raw_dir)
-    files = sorted(raw_path.glob("Northwold Solar Generation*.xlsx"))
+    files = sorted(raw_path.rglob("Northwold Solar Generation*.xlsx"))
 
     if not files:
         return pd.DataFrame()
@@ -368,7 +365,7 @@ def load_scada_monitoring(raw_dir: str) -> pd.DataFrame:
     """
     raw_path = Path(raw_dir)
     month_pattern = re.compile(r'^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)-\d{2}-', re.IGNORECASE)
-    files = [f for f in raw_path.glob("*.xlsx") if month_pattern.match(f.name)]
+    files = [f for f in raw_path.rglob("*.xlsx") if month_pattern.match(f.name)]
 
     if not files:
         return pd.DataFrame()
