@@ -24,15 +24,15 @@ import sys
 # Add parent directory to path for imports
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
-from data_cleaning.invoice_loader import (
-    load_emr_capacity_market,
-    load_emr_txt_files,
-    load_summary_statement,
-    load_hartree_bess_readings,
-    load_hartree_pv_readings,
-    load_solar_generation,
-    load_scada_monitoring,
-    load_all_pdfs,
+from data_cleaning.process_invoices import (
+    read_emr_capacity_market,
+    read_emr_invoice_totals,
+    read_summary_statement,
+    read_hartree_bess_readings,
+    read_hartree_pv_readings,
+    read_solar_generation,
+    read_scada_monitoring,
+    read_pdf_invoices,
 )
 from data_cleaning.invoice_reconciler import (
     reconcile_bess_energy,
@@ -44,8 +44,8 @@ from data_cleaning.invoice_reconciler import (
     variance_status,
 )
 
-# Raw data directory
-RAW_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'raw', 'New')
+# Pre-processed invoice data is read from data/invoices/. The raw/ folder is
+# only touched by src/data_cleaning/process_invoices.py during ETL.
 
 # Color constants (matching dashboard palette)
 COLOR_SFFR = '#2C4B78'
@@ -85,40 +85,35 @@ STREAM_COLORS = {
 
 @st.cache_data
 def _load_emr():
-    return load_emr_capacity_market(RAW_DIR)
+    return read_emr_capacity_market()
 
 @st.cache_data
 def _load_emr_txt():
-    return load_emr_txt_files(RAW_DIR)
+    return read_emr_invoice_totals()
 
 @st.cache_data
 def _load_summary():
-    # Find summary statement file
-    raw_path = Path(RAW_DIR)
-    candidates = list(raw_path.glob("Northwold - *.xlsx"))
-    if candidates:
-        return load_summary_statement(str(candidates[0]))
-    return None
+    return read_summary_statement()
 
 @st.cache_data
 def _load_hartree_bess():
-    return load_hartree_bess_readings(RAW_DIR)
+    return read_hartree_bess_readings()
 
 @st.cache_data
 def _load_hartree_pv():
-    return load_hartree_pv_readings(RAW_DIR)
+    return read_hartree_pv_readings()
 
 @st.cache_data
 def _load_solar_gen():
-    return load_solar_generation(RAW_DIR)
+    return read_solar_generation()
 
 @st.cache_data
 def _load_scada():
-    return load_scada_monitoring(RAW_DIR)
+    return read_scada_monitoring()
 
 @st.cache_data
 def _load_pdfs():
-    return load_all_pdfs(RAW_DIR)
+    return read_pdf_invoices()
 
 
 @st.cache_data
@@ -186,7 +181,8 @@ def _show_overview_tab():
     summary = _load_summary()
 
     if emr.empty:
-        st.warning("No EMR capacity market data found in raw/New/")
+        st.warning("No EMR capacity market data found. Run "
+                   "`python -m src.data_cleaning.process_invoices` to ingest raw files.")
         return
 
     # Key metrics
@@ -455,7 +451,9 @@ def _show_revenue_tab():
 
     if not summary:
         st.warning("No Summary Statement found. Revenue reconciliation requires "
-                    "a Summary Statement file (Northwold - *.xlsx) in raw/New/")
+                   "a `Northwold - *.xlsx` Summary Statement to be present in raw/New/ "
+                   "and the ETL to have been run "
+                   "(`python -m src.data_cleaning.process_invoices`).")
         st.info("Currently only January 2026 Summary Statement is available.")
         return
 
@@ -722,7 +720,8 @@ def _show_pdf_invoices_tab():
         pdf_data = _load_pdfs()
 
     if pdf_data.empty:
-        st.warning("No PDF files found in raw/New/")
+        st.warning("No PDF invoices found. Run "
+                   "`python -m src.data_cleaning.process_invoices` to ingest raw files.")
         return
 
     # Summary

@@ -22,16 +22,14 @@ import openpyxl
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 from config import GB_REVENUE_NET_SHARE, GB_NET_FOOTNOTE_SHORT, apply_gb_net
-from data_cleaning.invoice_loader import (
-    load_emr_capacity_market,
-    load_summary_statement,
-    load_hartree_bess_readings,
-    load_hartree_pv_readings,
-    load_scada_monitoring,
+from data_cleaning.process_invoices import (
+    read_emr_capacity_market,
+    read_summary_statement,
+    read_scada_monitoring,
 )
 
-# Paths
-RAW_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'raw', 'New')
+# Pre-processed invoice data is read from data/invoices/. The raw/ folder is
+# only touched by src/data_cleaning/process_invoices.py during ETL.
 DATA_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'data')
 IAR_FILE = os.path.join(os.path.dirname(__file__), '..', '..', 'extra', 'Northwold BESS Revenue_IAR.xlsx')
 
@@ -152,21 +150,17 @@ def _load_iar_projections():
 
 @st.cache_data
 def _load_emr():
-    return load_emr_capacity_market(RAW_DIR)
+    return read_emr_capacity_market()
 
 
 @st.cache_data
 def _load_scada():
-    return load_scada_monitoring(RAW_DIR)
+    return read_scada_monitoring()
 
 
 @st.cache_data
 def _load_summary():
-    raw_path = Path(RAW_DIR)
-    candidates = list(raw_path.glob("Northwold - *.xlsx"))
-    if candidates:
-        return load_summary_statement(str(candidates[0]))
-    return None
+    return read_summary_statement()
 
 
 def _calculate_revenue(df):

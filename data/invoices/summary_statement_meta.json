@@ -1,0 +1,27 @@
+{
+  "summary": {
+    "energy_revenue": {
+      "EPEX DAM 60": 0.0,
+      "EPEX DAM 30": -4501.952150000001,
+      "EPEX IDA1": 11340.289649999999,
+      "EPEX IDC": -5216.5545,
+      "Imbalance": 2752.7831369619585,
+      "_total": 4374.566136961956,
+      "_sub_total": 26816.854354861945
+    },
+    "ancillary_revenue": {
+      "DC": 0.0,
+      "DR": 0.0,
+      "DM": 0.0,
+      "SFFR": 22442.28821789999,
+      "_total": 22442.28821789999
+    },
+    "net_percentage": 0.93
+  },
+  "commentary": "Day ahead and intraday power prices in January were characterised by strong renewable volatility, with wind starting off strong, and not fully recoveing until around the 21st Jan. DA prices traded roughly in the £75-£115 range, however intraday prices increased sharply on two occasions through cold/low wind spells. \n\nNorthwold remained in SFFR due to strong clearing prices, ramping issues while in the dynamic services, and greater wholesale flexbility.",
+  "period": {
+    "from": "2026-01-01T00:00:00",
+    "to": "2026-01-31T00:00:00"
+  },
+  "source_file": "Northwold - 20260101 to 20260131.xlsx"
+}
