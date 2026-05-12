@@ -1,0 +1,1092 @@
+{
+  "source": "Modo Energy Terminal export",
+  "extracted_on": "2026-05-12",
+  "sheets": {
+    "30 Days": [
+      {
+        "Index": "ME BESS GB",
+        "24h Value": 16951,
+        "Value (Summary)": 55358,
+        "Currency": "GBP/MW/year",
+        "P10": 30253,
+        "P50": 52704,
+        "P90": 84618
+      },
+      {
+        "Index": "ME BESS GB (1H)",
+        "24h Value": 16151,
+        "Value (Summary)": 41225,
+        "Currency": "GBP/MW/year",
+        "P10": 24351,
+        "P50": 40192,
+        "P90": 57303
+      },
+      {
+        "Index": "ME BESS GB (2H)",
+        "24h Value": 16412,
+        "Value (Summary)": 63903,
+        "Currency": "GBP/MW/year",
+        "P10": 31179,
+        "P50": 61278,
+        "P90": 101894
+      },
+      {
+        "Index": "ME BESS GB-EAST",
+        "24h Value": 17958,
+        "Value (Summary)": 59470,
+        "Currency": "GBP/MW/year",
+        "P10": 29419,
+        "P50": 52940,
+        "P90": 94112
+      },
+      {
+        "Index": "ME BESS GB-EMID",
+        "24h Value": 13774,
+        "Value (Summary)": 48970,
+        "Currency": "GBP/MW/year",
+        "P10": 22542,
+        "P50": 47982,
+        "P90": 73343
+      },
+      {
+        "Index": "ME BESS GB-MERS",
+        "24h Value": 21856,
+        "Value (Summary)": 52454,
+        "Currency": "GBP/MW/year",
+        "P10": 27311,
+        "P50": 47076,
+        "P90": 83315
+      },
+      {
+        "Index": "ME BESS GB-NEAST",
+        "24h Value": 24989,
+        "Value (Summary)": 55308,
+        "Currency": "GBP/MW/year",
+        "P10": 27549,
+        "P50": 51409,
+        "P90": 79626
+      },
+      {
+        "Index": "ME BESS GB-NSCOT",
+        "24h Value": 23231,
+        "Value (Summary)": 69488,
+        "Currency": "GBP/MW/year",
+        "P10": 26807,
+        "P50": 73666,
+        "P90": 122787
+      },
+      {
+        "Index": "ME BESS GB-NWEST",
+        "24h Value": 9057,
+        "Value (Summary)": 57571,
+        "Currency": "GBP/MW/year",
+        "P10": 30981,
+        "P50": 53798,
+        "P90": 92078
+      },
+      {
+        "Index": "ME BESS GB-SEAST",
+        "24h Value": 15783,
+        "Value (Summary)": 43059,
+        "Currency": "GBP/MW/year",
+        "P10": 24114,
+        "P50": 38951,
+        "P90": 68086
+      },
+      {
+        "Index": "ME BESS GB-SOUTH",
+        "24h Value": 12517,
+        "Value (Summary)": 49676,
+        "Currency": "GBP/MW/year",
+        "P10": 30874,
+        "P50": 48018,
+        "P90": 65947
+      },
+      {
+        "Index": "ME BESS GB-SSCOT",
+        "24h Value": 18947,
+        "Value (Summary)": 55879,
+        "Currency": "GBP/MW/year",
+        "P10": 24745,
+        "P50": 56449,
+        "P90": 84122
+      },
+      {
+        "Index": "ME BESS GB-SWALE",
+        "24h Value": -29793,
+        "Value (Summary)": 80781,
+        "Currency": "GBP/MW/year",
+        "P10": 22302,
+        "P50": 87887,
+        "P90": 133635
+      },
+      {
+        "Index": "ME BESS GB-SWEST",
+        "24h Value": 14749,
+        "Value (Summary)": 35304,
+        "Currency": "GBP/MW/year",
+        "P10": 14417,
+        "P50": 35083,
+        "P90": 60968
+      },
+      {
+        "Index": "ME BESS GB-WMID",
+        "24h Value": 16330,
+        "Value (Summary)": 54681,
+        "Currency": "GBP/MW/year",
+        "P10": 20804,
+        "P50": 56520,
+        "P90": 79781
+      },
+      {
+        "Index": "ME BESS GB-YORK",
+        "24h Value": 18852,
+        "Value (Summary)": 52157,
+        "Currency": "GBP/MW/year",
+        "P10": 19700,
+        "P50": 49234,
+        "P90": 91952
+      },
+      {
+        "Index": "ME TB1 DE DA (Hourly)",
+        "24h Value": 44899,
+        "Value (Summary)": 66786,
+        "Currency": "EUR/MW/year",
+        "P10": 27267,
+        "P50": 54193,
+        "P90": 108874
+      },
+      {
+        "Index": "ME TB1 DE ID (Hourly)",
+        "24h Value": 24969,
+        "Value (Summary)": 66387,
+        "Currency": "EUR/MW/year",
+        "P10": 33423,
+        "P50": 54311,
+        "P90": 85559
+      },
+      {
+        "Index": "ME TB1 GB DA (Hourly)",
+        "24h Value": 12406,
+        "Value (Summary)": 22683,
+        "Currency": "GBP/MW/year",
+        "P10": 14528,
+        "P50": 19927,
+        "P90": 35299
+      },
+      {
+        "Index": "ME TB1 GB ID (Hourly)",
+        "24h Value": 39834,
+        "Value (Summary)": 27922,
+        "Currency": "GBP/MW/year",
+        "P10": 15711,
+        "P50": 24130,
+        "P90": 44301
+      },
+      {
+        "Index": "ME TB1 NL DA (Hourly)",
+        "24h Value": 42842,
+        "Value (Summary)": 65339,
+        "Currency": "EUR/MW/year",
+        "P10": 32039,
+        "P50": 48425,
+        "P90": 102114
+      },
+      {
+        "Index": "ME TB1 NL ID (Hourly)",
+        "24h Value": 27743,
+        "Value (Summary)": 64339,
+        "Currency": "EUR/MW/year",
+        "P10": 26726,
+        "P50": 50727,
+        "P90": 83759
+      },
+      {
+        "Index": "ME TB2 DE DA (Hourly)",
+        "24h Value": 87025,
+        "Value (Summary)": 127974,
+        "Currency": "EUR/MW/year",
+        "P10": 50300,
+        "P50": 104267,
+        "P90": 206678
+      },
+      {
+        "Index": "ME TB2 DE ID (Hourly)",
+        "24h Value": 46917,
+        "Value (Summary)": 127072,
+        "Currency": "EUR/MW/year",
+        "P10": 64288,
+        "P50": 107815,
+        "P90": 154646
+      },
+      {
+        "Index": "ME TB2 GB DA (Hourly)",
+        "24h Value": 23810,
+        "Value (Summary)": 43973,
+        "Currency": "GBP/MW/year",
+        "P10": 28088,
+        "P50": 37702,
+        "P90": 69194
+      },
+      {
+        "Index": "ME TB2 GB ID (Hourly)",
+        "24h Value": 75805,
+        "Value (Summary)": 53150,
+        "Currency": "GBP/MW/year",
+        "P10": 29401,
+        "P50": 47658,
+        "P90": 84461
+      },
+      {
+        "Index": "ME TB2 NL DA (Hourly)",
+        "24h Value": 84968,
+        "Value (Summary)": 125393,
+        "Currency": "EUR/MW/year",
+        "P10": 59509,
+        "P50": 92705,
+        "P90": 187094
+      },
+      {
+        "Index": "ME TB2 NL ID (Hourly)",
+        "24h Value": 49837,
+        "Value (Summary)": 122989,
+        "Currency": "EUR/MW/year",
+        "P10": 48928,
+        "P50": 100112,
+        "P90": 158926
+      },
+      {
+        "Index": "ME TB3 DE DA (Hourly)",
+        "24h Value": 120429,
+        "Value (Summary)": 179280,
+        "Currency": "EUR/MW/year",
+        "P10": 71250,
+        "P50": 153857,
+        "P90": 290903
+      },
+      {
+        "Index": "ME TB3 DE ID (Hourly)",
+        "24h Value": 67360,
+        "Value (Summary)": 175862,
+        "Currency": "EUR/MW/year",
+        "P10": 88442,
+        "P50": 159473,
+        "P90": 211990
+      },
+      {
+        "Index": "ME TB3 GB DA (Hourly)",
+        "24h Value": 34395,
+        "Value (Summary)": 63643,
+        "Currency": "GBP/MW/year",
+        "P10": 40195,
+        "P50": 54466,
+        "P90": 101130
+      },
+      {
+        "Index": "ME TB3 GB ID (Hourly)",
+        "24h Value": 111078,
+        "Value (Summary)": 75177,
+        "Currency": "GBP/MW/year",
+        "P10": 41352,
+        "P50": 69725,
+        "P90": 117650
+      },
+      {
+        "Index": "ME TB3 NL DA (Hourly)",
+        "24h Value": 118220,
+        "Value (Summary)": 175429,
+        "Currency": "EUR/MW/year",
+        "P10": 86113,
+        "P50": 128469,
+        "P90": 259800
+      },
+      {
+        "Index": "ME TB3 NL ID (Hourly)",
+        "24h Value": 69371,
+        "Value (Summary)": 171417,
+        "Currency": "EUR/MW/year",
+        "P10": 68057,
+        "P50": 145406,
+        "P90": 228563
+      },
+      {
+        "Index": "ME TB4 DE DA (Hourly)",
+        "24h Value": 151568,
+        "Value (Summary)": 223463,
+        "Currency": "EUR/MW/year",
+        "P10": 90362,
+        "P50": 200874,
+        "P90": 357447
+      },
+      {
+        "Index": "ME TB4 DE ID (Hourly)",
+        "24h Value": 83289,
+        "Value (Summary)": 217803,
+        "Currency": "EUR/MW/year",
+        "P10": 109459,
+        "P50": 198056,
+        "P90": 259882
+      },
+      {
+        "Index": "ME TB4 GB DA (Hourly)",
+        "24h Value": 43887,
+        "Value (Summary)": 81361,
+        "Currency": "GBP/MW/year",
+        "P10": 49676,
+        "P50": 70162,
+        "P90": 131229
+      },
+      {
+        "Index": "ME TB4 GB ID (Hourly)",
+        "24h Value": 144063,
+        "Value (Summary)": 94092,
+        "Currency": "GBP/MW/year",
+        "P10": 51305,
+        "P50": 85858,
+        "P90": 151515
+      },
+      {
+        "Index": "ME TB4 NL DA (Hourly)",
+        "24h Value": 149740,
+        "Value (Summary)": 218800,
+        "Currency": "EUR/MW/year",
+        "P10": 101367,
+        "P50": 160305,
+        "P90": 321541
+      },
+      {
+        "Index": "ME TB4 NL ID (Hourly)",
+        "24h Value": 82723,
+        "Value (Summary)": 212768,
+        "Currency": "EUR/MW/year",
+        "P10": 82722,
+        "P50": 183938,
+        "P90": 288478
+      }
+    ],
+    "90 Days": [
+      {
+        "Index": "ME BESS GB",
+        "24h Value": 16951,
+        "Value (Summary)": 62305,
+        "Currency": "GBP/MW/year",
+        "P10": 32206,
+        "P50": 59783,
+        "P90": 96184
+      },
+      {
+        "Index": "ME BESS GB (1H)",
+        "24h Value": 16151,
+        "Value (Summary)": 43913,
+        "Currency": "GBP/MW/year",
+        "P10": 26348,
+        "P50": 44584,
+        "P90": 61574
+      },
+      {
+        "Index": "ME BESS GB (2H)",
+        "24h Value": 16412,
+        "Value (Summary)": 72900,
+        "Currency": "GBP/MW/year",
+        "P10": 35288,
+        "P50": 68918,
+        "P90": 113960
+      },
+      {
+        "Index": "ME BESS GB-EAST",
+        "24h Value": 17958,
+        "Value (Summary)": 64259,
+        "Currency": "GBP/MW/year",
+        "P10": 30773,
+        "P50": 62499,
+        "P90": 94133
+      },
+      {
+        "Index": "ME BESS GB-EMID",
+        "24h Value": 13774,
+        "Value (Summary)": 57068,
+        "Currency": "GBP/MW/year",
+        "P10": 26358,
+        "P50": 54397,
+        "P90": 88546
+      },
+      {
+        "Index": "ME BESS GB-MERS",
+        "24h Value": 21856,
+        "Value (Summary)": 55408,
+        "Currency": "GBP/MW/year",
+        "P10": 27841,
+        "P50": 51361,
+        "P90": 90011
+      },
+      {
+        "Index": "ME BESS GB-NEAST",
+        "24h Value": 24989,
+        "Value (Summary)": 58729,
+        "Currency": "GBP/MW/year",
+        "P10": 31260,
+        "P50": 54403,
+        "P90": 88256
+      },
+      {
+        "Index": "ME BESS GB-NSCOT",
+        "24h Value": 23231,
+        "Value (Summary)": 89860,
+        "Currency": "GBP/MW/year",
+        "P10": 35242,
+        "P50": 86262,
+        "P90": 145644
+      },
+      {
+        "Index": "ME BESS GB-NWEST",
+        "24h Value": 9057,
+        "Value (Summary)": 61255,
+        "Currency": "GBP/MW/year",
+        "P10": 32833,
+        "P50": 54853,
+        "P90": 94154
+      },
+      {
+        "Index": "ME BESS GB-SEAST",
+        "24h Value": 15783,
+        "Value (Summary)": 45093,
+        "Currency": "GBP/MW/year",
+        "P10": 23379,
+        "P50": 43794,
+        "P90": 68086
+      },
+      {
+        "Index": "ME BESS GB-SOUTH",
+        "24h Value": 12517,
+        "Value (Summary)": 59481,
+        "Currency": "GBP/MW/year",
+        "P10": 34948,
+        "P50": 56070,
+        "P90": 90507
+      },
+      {
+        "Index": "ME BESS GB-SSCOT",
+        "24h Value": 18947,
+        "Value (Summary)": 59464,
+        "Currency": "GBP/MW/year",
+        "P10": 30149,
+        "P50": 60762,
+        "P90": 88917
+      },
+      {
+        "Index": "ME BESS GB-SWALE",
+        "24h Value": -29793,
+        "Value (Summary)": 93022,
+        "Currency": "GBP/MW/year",
+        "P10": 39759,
+        "P50": 91219,
+        "P90": 143247
+      },
+      {
+        "Index": "ME BESS GB-SWEST",
+        "24h Value": 14749,
+        "Value (Summary)": 35582,
+        "Currency": "GBP/MW/year",
+        "P10": 10495,
+        "P50": 33559,
+        "P90": 60968
+      },
+      {
+        "Index": "ME BESS GB-WMID",
+        "24h Value": 16330,
+        "Value (Summary)": 57133,
+        "Currency": "GBP/MW/year",
+        "P10": 21169,
+        "P50": 54522,
+        "P90": 102207
+      },
+      {
+        "Index": "ME BESS GB-YORK",
+        "24h Value": 18852,
+        "Value (Summary)": 60560,
+        "Currency": "GBP/MW/year",
+        "P10": 28387,
+        "P50": 50346,
+        "P90": 103643
+      },
+      {
+        "Index": "ME TB1 DE DA (Hourly)",
+        "24h Value": 44899,
+        "Value (Summary)": 54822,
+        "Currency": "EUR/MW/year",
+        "P10": 24131,
+        "P50": 51495,
+        "P90": 77127
+      },
+      {
+        "Index": "ME TB1 DE ID (Hourly)",
+        "24h Value": 24969,
+        "Value (Summary)": 54367,
+        "Currency": "EUR/MW/year",
+        "P10": 20145,
+        "P50": 50129,
+        "P90": 75662
+      },
+      {
+        "Index": "ME TB1 GB DA (Hourly)",
+        "24h Value": 12406,
+        "Value (Summary)": 24863,
+        "Currency": "GBP/MW/year",
+        "P10": 12398,
+        "P50": 22272,
+        "P90": 45866
+      },
+      {
+        "Index": "ME TB1 GB ID (Hourly)",
+        "24h Value": 39834,
+        "Value (Summary)": 29203,
+        "Currency": "GBP/MW/year",
+        "P10": 13145,
+        "P50": 25377,
+        "P90": 50762
+      },
+      {
+        "Index": "ME TB1 NL DA (Hourly)",
+        "24h Value": 42842,
+        "Value (Summary)": 53594,
+        "Currency": "EUR/MW/year",
+        "P10": 23571,
+        "P50": 48425,
+        "P90": 74711
+      },
+      {
+        "Index": "ME TB1 NL ID (Hourly)",
+        "24h Value": 27743,
+        "Value (Summary)": 53901,
+        "Currency": "EUR/MW/year",
+        "P10": 22793,
+        "P50": 49953,
+        "P90": 76263
+      },
+      {
+        "Index": "ME TB2 DE DA (Hourly)",
+        "24h Value": 87025,
+        "Value (Summary)": 104818,
+        "Currency": "EUR/MW/year",
+        "P10": 45336,
+        "P50": 99058,
+        "P90": 148112
+      },
+      {
+        "Index": "ME TB2 DE ID (Hourly)",
+        "24h Value": 46917,
+        "Value (Summary)": 103843,
+        "Currency": "EUR/MW/year",
+        "P10": 39056,
+        "P50": 95578,
+        "P90": 142915
+      },
+      {
+        "Index": "ME TB2 GB DA (Hourly)",
+        "24h Value": 23810,
+        "Value (Summary)": 47378,
+        "Currency": "GBP/MW/year",
+        "P10": 23645,
+        "P50": 43559,
+        "P90": 88530
+      },
+      {
+        "Index": "ME TB2 GB ID (Hourly)",
+        "24h Value": 75805,
+        "Value (Summary)": 55255,
+        "Currency": "GBP/MW/year",
+        "P10": 25472,
+        "P50": 46785,
+        "P90": 96528
+      },
+      {
+        "Index": "ME TB2 NL DA (Hourly)",
+        "24h Value": 84968,
+        "Value (Summary)": 102438,
+        "Currency": "EUR/MW/year",
+        "P10": 44181,
+        "P50": 93144,
+        "P90": 144362
+      },
+      {
+        "Index": "ME TB2 NL ID (Hourly)",
+        "24h Value": 49837,
+        "Value (Summary)": 102095,
+        "Currency": "EUR/MW/year",
+        "P10": 42097,
+        "P50": 94378,
+        "P90": 147903
+      },
+      {
+        "Index": "ME TB3 DE DA (Hourly)",
+        "24h Value": 120429,
+        "Value (Summary)": 147111,
+        "Currency": "EUR/MW/year",
+        "P10": 61991,
+        "P50": 141313,
+        "P90": 209250
+      },
+      {
+        "Index": "ME TB3 DE ID (Hourly)",
+        "24h Value": 67360,
+        "Value (Summary)": 144975,
+        "Currency": "EUR/MW/year",
+        "P10": 56745,
+        "P50": 133538,
+        "P90": 193379
+      },
+      {
+        "Index": "ME TB3 GB DA (Hourly)",
+        "24h Value": 34395,
+        "Value (Summary)": 67202,
+        "Currency": "GBP/MW/year",
+        "P10": 33736,
+        "P50": 59854,
+        "P90": 125738
+      },
+      {
+        "Index": "ME TB3 GB ID (Hourly)",
+        "24h Value": 111078,
+        "Value (Summary)": 78079,
+        "Currency": "GBP/MW/year",
+        "P10": 34899,
+        "P50": 66376,
+        "P90": 141176
+      },
+      {
+        "Index": "ME TB3 NL DA (Hourly)",
+        "24h Value": 118220,
+        "Value (Summary)": 143777,
+        "Currency": "EUR/MW/year",
+        "P10": 60416,
+        "P50": 135613,
+        "P90": 204571
+      },
+      {
+        "Index": "ME TB3 NL ID (Hourly)",
+        "24h Value": 69371,
+        "Value (Summary)": 142727,
+        "Currency": "EUR/MW/year",
+        "P10": 60316,
+        "P50": 134046,
+        "P90": 202666
+      },
+      {
+        "Index": "ME TB4 DE DA (Hourly)",
+        "24h Value": 151568,
+        "Value (Summary)": 184058,
+        "Currency": "EUR/MW/year",
+        "P10": 74678,
+        "P50": 177691,
+        "P90": 264859
+      },
+      {
+        "Index": "ME TB4 DE ID (Hourly)",
+        "24h Value": 83289,
+        "Value (Summary)": 180540,
+        "Currency": "EUR/MW/year",
+        "P10": 67619,
+        "P50": 164297,
+        "P90": 245157
+      },
+      {
+        "Index": "ME TB4 GB DA (Hourly)",
+        "24h Value": 43887,
+        "Value (Summary)": 84850,
+        "Currency": "GBP/MW/year",
+        "P10": 41111,
+        "P50": 74111,
+        "P90": 157634
+      },
+      {
+        "Index": "ME TB4 GB ID (Hourly)",
+        "24h Value": 144063,
+        "Value (Summary)": 98075,
+        "Currency": "GBP/MW/year",
+        "P10": 42114,
+        "P50": 80507,
+        "P90": 183400
+      },
+      {
+        "Index": "ME TB4 NL DA (Hourly)",
+        "24h Value": 149740,
+        "Value (Summary)": 179720,
+        "Currency": "EUR/MW/year",
+        "P10": 72254,
+        "P50": 169012,
+        "P90": 257110
+      },
+      {
+        "Index": "ME TB4 NL ID (Hourly)",
+        "24h Value": 82723,
+        "Value (Summary)": 178053,
+        "Currency": "EUR/MW/year",
+        "P10": 76016,
+        "P50": 170965,
+        "P90": 257279
+      }
+    ],
+    "1 Year": [
+      {
+        "Index": "ME BESS GB",
+        "24h Value": 16951,
+        "Value (Summary)": 62282,
+        "Currency": "GBP/MW/year",
+        "P10": 36536,
+        "P50": 57511,
+        "P90": 97382
+      },
+      {
+        "Index": "ME BESS GB (1H)",
+        "24h Value": 16151,
+        "Value (Summary)": 47566,
+        "Currency": "GBP/MW/year",
+        "P10": 30154,
+        "P50": 45669,
+        "P90": 69564
+      },
+      {
+        "Index": "ME BESS GB (2H)",
+        "24h Value": 16412,
+        "Value (Summary)": 72381,
+        "Currency": "GBP/MW/year",
+        "P10": 39671,
+        "P50": 66702,
+        "P90": 114025
+      },
+      {
+        "Index": "ME BESS GB-EAST",
+        "24h Value": 17958,
+        "Value (Summary)": 61346,
+        "Currency": "GBP/MW/year",
+        "P10": 32502,
+        "P50": 55551,
+        "P90": 96558
+      },
+      {
+        "Index": "ME BESS GB-EMID",
+        "24h Value": 13774,
+        "Value (Summary)": 64766,
+        "Currency": "GBP/MW/year",
+        "P10": 34393,
+        "P50": 61277,
+        "P90": 101419
+      },
+      {
+        "Index": "ME BESS GB-MERS",
+        "24h Value": 21856,
+        "Value (Summary)": 54944,
+        "Currency": "GBP/MW/year",
+        "P10": 28272,
+        "P50": 50264,
+        "P90": 87937
+      },
+      {
+        "Index": "ME BESS GB-NEAST",
+        "24h Value": 24989,
+        "Value (Summary)": 62182,
+        "Currency": "GBP/MW/year",
+        "P10": 33885,
+        "P50": 57393,
+        "P90": 100093
+      },
+      {
+        "Index": "ME BESS GB-NSCOT",
+        "24h Value": 23231,
+        "Value (Summary)": 80462,
+        "Currency": "GBP/MW/year",
+        "P10": 39582,
+        "P50": 77593,
+        "P90": 125142
+      },
+      {
+        "Index": "ME BESS GB-NWEST",
+        "24h Value": 9057,
+        "Value (Summary)": 64440,
+        "Currency": "GBP/MW/year",
+        "P10": 35603,
+        "P50": 60408,
+        "P90": 101860
+      },
+      {
+        "Index": "ME BESS GB-SEAST",
+        "24h Value": 15783,
+        "Value (Summary)": 50310,
+        "Currency": "GBP/MW/year",
+        "P10": 26986,
+        "P50": 47955,
+        "P90": 77187
+      },
+      {
+        "Index": "ME BESS GB-SOUTH",
+        "24h Value": 12517,
+        "Value (Summary)": 60486,
+        "Currency": "GBP/MW/year",
+        "P10": 35196,
+        "P50": 54749,
+        "P90": 98505
+      },
+      {
+        "Index": "ME BESS GB-SSCOT",
+        "24h Value": 18947,
+        "Value (Summary)": 63049,
+        "Currency": "GBP/MW/year",
+        "P10": 31785,
+        "P50": 60525,
+        "P90": 99419
+      },
+      {
+        "Index": "ME BESS GB-SWALE",
+        "24h Value": -29793,
+        "Value (Summary)": 80589,
+        "Currency": "GBP/MW/year",
+        "P10": 41082,
+        "P50": 77321,
+        "P90": 125964
+      },
+      {
+        "Index": "ME BESS GB-SWEST",
+        "24h Value": 14749,
+        "Value (Summary)": 28613,
+        "Currency": "GBP/MW/year",
+        "P10": 10559,
+        "P50": 25619,
+        "P90": 51111
+      },
+      {
+        "Index": "ME BESS GB-WMID",
+        "24h Value": 16330,
+        "Value (Summary)": 59044,
+        "Currency": "GBP/MW/year",
+        "P10": 28175,
+        "P50": 51038,
+        "P90": 103367
+      },
+      {
+        "Index": "ME BESS GB-YORK",
+        "24h Value": 18852,
+        "Value (Summary)": 65236,
+        "Currency": "GBP/MW/year",
+        "P10": 34818,
+        "P50": 59414,
+        "P90": 106954
+      },
+      {
+        "Index": "ME TB1 DE DA (Hourly)",
+        "24h Value": 44899,
+        "Value (Summary)": 45026,
+        "Currency": "EUR/MW/year",
+        "P10": 15954,
+        "P50": 41199,
+        "P90": 75538
+      },
+      {
+        "Index": "ME TB1 DE ID (Hourly)",
+        "24h Value": 24969,
+        "Value (Summary)": 45008,
+        "Currency": "EUR/MW/year",
+        "P10": 15421,
+        "P50": 40785,
+        "P90": 76246
+      },
+      {
+        "Index": "ME TB1 GB DA (Hourly)",
+        "24h Value": 12406,
+        "Value (Summary)": 22256,
+        "Currency": "GBP/MW/year",
+        "P10": 11822,
+        "P50": 19352,
+        "P90": 36572
+      },
+      {
+        "Index": "ME TB1 GB ID (Hourly)",
+        "24h Value": 39834,
+        "Value (Summary)": 26062,
+        "Currency": "GBP/MW/year",
+        "P10": 11513,
+        "P50": 21784,
+        "P90": 44855
+      },
+      {
+        "Index": "ME TB1 NL DA (Hourly)",
+        "24h Value": 42842,
+        "Value (Summary)": 43593,
+        "Currency": "EUR/MW/year",
+        "P10": 16270,
+        "P50": 41131,
+        "P90": 71227
+      },
+      {
+        "Index": "ME TB1 NL ID (Hourly)",
+        "24h Value": 27743,
+        "Value (Summary)": 45864,
+        "Currency": "EUR/MW/year",
+        "P10": 16185,
+        "P50": 42522,
+        "P90": 74382
+      },
+      {
+        "Index": "ME TB2 DE DA (Hourly)",
+        "24h Value": 87025,
+        "Value (Summary)": 84825,
+        "Currency": "EUR/MW/year",
+        "P10": 30030,
+        "P50": 80425,
+        "P90": 144080
+      },
+      {
+        "Index": "ME TB2 DE ID (Hourly)",
+        "24h Value": 46917,
+        "Value (Summary)": 84820,
+        "Currency": "EUR/MW/year",
+        "P10": 29516,
+        "P50": 77620,
+        "P90": 139165
+      },
+      {
+        "Index": "ME TB2 GB DA (Hourly)",
+        "24h Value": 23810,
+        "Value (Summary)": 42599,
+        "Currency": "GBP/MW/year",
+        "P10": 22581,
+        "P50": 36881,
+        "P90": 70849
+      },
+      {
+        "Index": "ME TB2 GB ID (Hourly)",
+        "24h Value": 75805,
+        "Value (Summary)": 49105,
+        "Currency": "GBP/MW/year",
+        "P10": 21358,
+        "P50": 40287,
+        "P90": 83494
+      },
+      {
+        "Index": "ME TB2 NL DA (Hourly)",
+        "24h Value": 84968,
+        "Value (Summary)": 82173,
+        "Currency": "EUR/MW/year",
+        "P10": 29642,
+        "P50": 79473,
+        "P90": 136185
+      },
+      {
+        "Index": "ME TB2 NL ID (Hourly)",
+        "24h Value": 49837,
+        "Value (Summary)": 85566,
+        "Currency": "EUR/MW/year",
+        "P10": 30198,
+        "P50": 80000,
+        "P90": 139086
+      },
+      {
+        "Index": "ME TB3 DE DA (Hourly)",
+        "24h Value": 120429,
+        "Value (Summary)": 118282,
+        "Currency": "EUR/MW/year",
+        "P10": 43014,
+        "P50": 116418,
+        "P90": 195331
+      },
+      {
+        "Index": "ME TB3 DE ID (Hourly)",
+        "24h Value": 67360,
+        "Value (Summary)": 118067,
+        "Currency": "EUR/MW/year",
+        "P10": 41929,
+        "P50": 109562,
+        "P90": 191185
+      },
+      {
+        "Index": "ME TB3 GB DA (Hourly)",
+        "24h Value": 34395,
+        "Value (Summary)": 60707,
+        "Currency": "GBP/MW/year",
+        "P10": 31887,
+        "P50": 52737,
+        "P90": 101015
+      },
+      {
+        "Index": "ME TB3 GB ID (Hourly)",
+        "24h Value": 111078,
+        "Value (Summary)": 68865,
+        "Currency": "GBP/MW/year",
+        "P10": 30200,
+        "P50": 56376,
+        "P90": 118034
+      },
+      {
+        "Index": "ME TB3 NL DA (Hourly)",
+        "24h Value": 118220,
+        "Value (Summary)": 114739,
+        "Currency": "EUR/MW/year",
+        "P10": 42335,
+        "P50": 114375,
+        "P90": 188802
+      },
+      {
+        "Index": "ME TB3 NL ID (Hourly)",
+        "24h Value": 69371,
+        "Value (Summary)": 118760,
+        "Currency": "EUR/MW/year",
+        "P10": 42683,
+        "P50": 113639,
+        "P90": 184641
+      },
+      {
+        "Index": "ME TB4 DE DA (Hourly)",
+        "24h Value": 151568,
+        "Value (Summary)": 147214,
+        "Currency": "EUR/MW/year",
+        "P10": 53361,
+        "P50": 148204,
+        "P90": 237920
+      },
+      {
+        "Index": "ME TB4 DE ID (Hourly)",
+        "24h Value": 83289,
+        "Value (Summary)": 146412,
+        "Currency": "EUR/MW/year",
+        "P10": 52311,
+        "P50": 137794,
+        "P90": 239185
+      },
+      {
+        "Index": "ME TB4 GB DA (Hourly)",
+        "24h Value": 43887,
+        "Value (Summary)": 76033,
+        "Currency": "GBP/MW/year",
+        "P10": 39378,
+        "P50": 65130,
+        "P90": 128309
+      },
+      {
+        "Index": "ME TB4 GB ID (Hourly)",
+        "24h Value": 144063,
+        "Value (Summary)": 85761,
+        "Currency": "GBP/MW/year",
+        "P10": 37642,
+        "P50": 68838,
+        "P90": 150500
+      },
+      {
+        "Index": "ME TB4 NL DA (Hourly)",
+        "24h Value": 149740,
+        "Value (Summary)": 142912,
+        "Currency": "EUR/MW/year",
+        "P10": 52846,
+        "P50": 144591,
+        "P90": 234896
+      },
+      {
+        "Index": "ME TB4 NL ID (Hourly)",
+        "24h Value": 82723,
+        "Value (Summary)": 147091,
+        "Currency": "EUR/MW/year",
+        "P10": 53060,
+        "P50": 141539,
+        "P90": 229001
+      }
+    ]
+  }
+}

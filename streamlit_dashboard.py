@@ -5201,9 +5201,34 @@ ME_BESS_GB_2H = {
     'Dec 25': 57615, 'Jan 26': 63064, 'Feb 26': 49157, 'Mar 26': 87919,
 }
 
+# Modo Terminal extract (Excel scrape, 12 May 2026) — 40 indices with P10/P50/
+# P90 percentiles across 30d / 90d / 1y windows. Includes GB regional cuts and
+# TB1-TB4 GB/DE/NL spread benchmarks. Northwold sits in the EAST region.
+MODO_EXTRACT_FILE = os.path.join('data', 'benchmarks', 'modo_extract.json')
+NORTHWOLD_REGION = 'EAST'  # Norfolk → UK Power Networks East England
+
 # Empirical capture rate from Modo TB-spread research: a well-traded 2h
 # battery earns ~142% of the daily TB2 spread. Static reference value.
 MODO_TB2_CAPTURE_PCT = 142
+
+
+def _bd_load_modo_extract():
+    """Load the Modo Terminal extract JSON. Returns dict keyed by period →
+    list of index rows, or None if file missing."""
+    try:
+        import json
+        with open(MODO_EXTRACT_FILE, 'r') as f:
+            return json.load(f)
+    except (FileNotFoundError, ImportError):
+        return None
+
+
+def _bd_modo_extract_lookup(extract, period, index_name):
+    """Find a single index row in the extract for a given period."""
+    if not extract:
+        return None
+    rows = extract.get('sheets', {}).get(period, [])
+    return next((r for r in rows if r.get('Index') == index_name), None)
 
 # Per-source availability status for the Data Availability matrix.
 BENCHMARK_DATA_AVAILABILITY = [
@@ -5448,9 +5473,132 @@ market prices. It's the most honest theoretical ceiling for *this asset*.
     st.markdown("---")
 
     # ================================================================
-    # SECTION 2 — Trend over time
+    # SECTION 2 — Modo Terminal Extract: regional + theoretical ceilings
     # ================================================================
-    st.header("2. Trend over time — series with data")
+    extract = _bd_load_modo_extract()
+    if extract:
+        st.header("2. Modo Terminal Extract — Regional & Theoretical Ceilings")
+        st.caption(
+            f"📥 Source: Modo Terminal Excel export · Extracted "
+            f"**{extract.get('extracted_on', 'unknown')}** · 40 indices across 30d / 90d / 1y windows · "
+            f"Each row shows the period-summary value plus daily P10 / P50 / P90 of that index. "
+            f"Northwold sits in the **{NORTHWOLD_REGION}** region (Norfolk → UK Power Networks East)."
+        )
+
+        # Northwold reference values for comparison
+        nw_avg_actual = sum(r['actual_per_mw_yr'] for r in rows) / len(rows)
+        nw_avg_opt = sum(r['opt_per_mw_yr'] for r in rows if r['opt_per_mw_yr']) / len([r for r in rows if r['opt_per_mw_yr']])
+
+        st.subheader("2a. Regional peer comparison — Northwold's home region (EAST)")
+        st.markdown(
+            "How does Northwold's revenue compare to the rolling Modo East-region "
+            "benchmark across three windows?"
+        )
+        region_rows = []
+        for period in ['30 Days', '90 Days', '1 Year']:
+            east = _bd_modo_extract_lookup(extract, period, f'ME BESS GB-{NORTHWOLD_REGION}')
+            gb = _bd_modo_extract_lookup(extract, period, 'ME BESS GB')
+            gb_1h = _bd_modo_extract_lookup(extract, period, 'ME BESS GB (1H)')
+            if east:
+                region_rows.append({
+                    'Window': period,
+                    'Northwold (7-mo avg actual)': f"£{round(nw_avg_actual):,}",
+                    f'{NORTHWOLD_REGION} P10 / P50 / P90': f"£{east['P10']:,} / £{east['P50']:,} / £{east['P90']:,}",
+                    f'{NORTHWOLD_REGION} Summary': f"£{east['Value (Summary)']:,}" if east.get('Value (Summary)') else '—',
+                    'GB All Summary': f"£{gb['Value (Summary)']:,}" if gb and gb.get('Value (Summary)') else '—',
+                    'GB 1H Summary': f"£{gb_1h['Value (Summary)']:,}" if gb_1h and gb_1h.get('Value (Summary)') else '—',
+                    'NW vs EAST': f"{nw_avg_actual / east['Value (Summary)'] * 100:.0f}%" if east.get('Value (Summary)') else '—',
+                })
+        st.dataframe(pd.DataFrame(region_rows), use_container_width=True, hide_index=True)
+
+        # Percentile band visualisation: where does NW sit in EAST distribution?
+        east_1y = _bd_modo_extract_lookup(extract, '1 Year', f'ME BESS GB-{NORTHWOLD_REGION}')
+        if east_1y:
+            st.subheader(f"2b. Where does Northwold sit in the {NORTHWOLD_REGION} region 1-year distribution?")
+            fig_pct = go.Figure()
+            fig_pct.add_bar(name=f'{NORTHWOLD_REGION} P10→P50 (lower half)', x=['Distribution'],
+                            y=[east_1y['P50'] - east_1y['P10']], base=east_1y['P10'],
+                            marker_color='#d4e3f0', orientation='v', width=0.4)
+            fig_pct.add_bar(name=f'{NORTHWOLD_REGION} P50→P90 (upper half)', x=['Distribution'],
+                            y=[east_1y['P90'] - east_1y['P50']], base=east_1y['P50'],
+                            marker_color='#a5c6e0', orientation='v', width=0.4)
+            # Northwold actual as horizontal line
+            fig_pct.add_hline(y=nw_avg_actual, line=dict(color='#1f77b4', width=4, dash='dash'),
+                              annotation_text=f"🔋 Northwold actual: £{round(nw_avg_actual):,}", annotation_position='right')
+            fig_pct.add_hline(y=east_1y['P50'], line=dict(color='#6b7280', width=1, dash='dot'),
+                              annotation_text=f"P50: £{east_1y['P50']:,}", annotation_position='left')
+            fig_pct.update_layout(
+                title=f"Northwold £/MW/yr vs {NORTHWOLD_REGION} region distribution (1-year window)",
+                yaxis_title='£/MW/year', xaxis_visible=False,
+                height=380, legend=dict(orientation='h', y=-0.15)
+            )
+            st.plotly_chart(fig_pct, use_container_width=True)
+
+            # Position commentary
+            if nw_avg_actual < east_1y['P10']:
+                pct_position = "below P10 — bottom decile of region"
+                pct_emoji = "🔴"
+            elif nw_avg_actual < east_1y['P50']:
+                pct_position = "between P10 and P50 — lower half"
+                pct_emoji = "🟡"
+            elif nw_avg_actual < east_1y['P90']:
+                pct_position = "between P50 and P90 — upper half"
+                pct_emoji = "🟢"
+            else:
+                pct_position = "above P90 — top decile of region"
+                pct_emoji = "🟢"
+            st.markdown(f"{pct_emoji} Northwold's 7-month average sits **{pct_position}**.")
+            st.caption(
+                "Caveat: these P10/P50/P90 describe **temporal** variation of the regional "
+                "index over the period — not cross-sectional ranking of individual assets in the "
+                "region. So 'above P50' means Northwold is earning more than the median daily "
+                "regional benchmark, not necessarily more than the median asset."
+            )
+
+        st.subheader("2c. Theoretical ceilings — UK TB-spread benchmarks")
+        st.markdown(
+            "TB-spread = top-N hours minus bottom-N hours per day (perfect-arbitrage "
+            "revenue for an N-hour battery). TB1 ≈ 1h battery ceiling · TB2 ≈ 2h · "
+            "TB4 ≈ 4h. Day-Ahead and Intraday markets separately. **Northwold (1.4h) "
+            "should sit roughly between TB1 and TB2.**"
+        )
+        tb_rows = []
+        for period in ['30 Days', '90 Days', '1 Year']:
+            for tb_name, tb_label in [
+                ('ME TB1 GB DA (Hourly)', 'TB1 GB DA (1h, Day Ahead)'),
+                ('ME TB1 GB ID (Hourly)', 'TB1 GB ID (1h, Intraday)'),
+                ('ME TB2 GB DA (Hourly)', 'TB2 GB DA (2h, Day Ahead)'),
+                ('ME TB2 GB ID (Hourly)', 'TB2 GB ID (2h, Intraday)'),
+                ('ME TB4 GB DA (Hourly)', 'TB4 GB DA (4h, Day Ahead)'),
+            ]:
+                tb = _bd_modo_extract_lookup(extract, period, tb_name)
+                if tb:
+                    tb_rows.append({
+                        'Window': period,
+                        'Benchmark': tb_label,
+                        'Summary £/MW/yr': f"£{tb['Value (Summary)']:,}" if tb.get('Value (Summary)') else '—',
+                        'P10': f"£{tb['P10']:,}" if tb.get('P10') else '—',
+                        'P50': f"£{tb['P50']:,}" if tb.get('P50') else '—',
+                        'P90': f"£{tb['P90']:,}" if tb.get('P90') else '—',
+                        'NW ÷ Summary': f"{nw_avg_actual / tb['Value (Summary)'] * 100:.0f}%" if tb.get('Value (Summary)') else '—',
+                    })
+        st.dataframe(pd.DataFrame(tb_rows), use_container_width=True, hide_index=True, height=560)
+
+        st.info(
+            "**How to read NW ÷ Summary**: this is Northwold's actual £/MW/yr divided by the "
+            "theoretical perfect-arbitrage ceiling for an N-hour battery in that market. "
+            "100% = perfectly captured the TB-N spread (essentially impossible without "
+            "perfect foresight). The TB-spread research from Modo says real 2h batteries "
+            f"typically achieve ~{MODO_TB2_CAPTURE_PCT}% of TB2 (multi-market revenue stacks "
+            "exceed pure spread). For Northwold (1.4h), the right reference is between TB1 and TB2."
+        )
+
+        st.markdown("---")
+
+    # ================================================================
+    # SECTION 3 (was 2) — Trend over time
+    # ================================================================
+    st.header("3. Trend over time — series with data")
     st.markdown(
         "Multi-line view of every benchmark that has actual numeric data: "
         "Northwold actual, in-house optimiser, and Modo headline (where available). "
@@ -5500,9 +5648,9 @@ market prices. It's the most honest theoretical ceiling for *this asset*.
     st.markdown("---")
 
     # ================================================================
-    # SECTION 3 — Detail: gap to in-house optimiser
+    # SECTION 4 — Detail: gap to in-house optimiser
     # ================================================================
-    st.header("3. Gap to in-house optimiser (theoretical ceiling)")
+    st.header("4. Gap to in-house optimiser (theoretical ceiling)")
     st.markdown(
         "Per-month detail: how much money did we leave on the table relative to "
         "what perfect trading would have earned?"
@@ -5526,9 +5674,9 @@ market prices. It's the most honest theoretical ceiling for *this asset*.
     st.markdown("---")
 
     # ================================================================
-    # SECTION 4 — Detail: Modo ME-BESS-GB peer rank (duration-aware)
+    # SECTION 5 — Detail: Modo ME-BESS-GB peer rank (duration-aware)
     # ================================================================
-    st.header("4. Peer rank vs Modo ME-BESS-GB (duration-aware)")
+    st.header("5. Peer rank vs Modo ME-BESS-GB (duration-aware)")
     st.markdown(
         "Northwold's £/MW/year compared against all three duration cuts of the "
         "Modo ME-BESS-GB index. Because Northwold is asymmetric (1.2h on discharge, "
@@ -5583,9 +5731,9 @@ market prices. It's the most honest theoretical ceiling for *this asset*.
     st.markdown("---")
 
     # ================================================================
-    # SECTION 5 — Data availability + procurement case
+    # SECTION 6 — Data availability + procurement case
     # ================================================================
-    st.header("5. Data Availability & Procurement Case")
+    st.header("6. Data Availability & Procurement Case")
     st.markdown(
         "Single-pane view of which sources we have, which are missing, and "
         "what each procurement decision would unlock. Use this as the "
