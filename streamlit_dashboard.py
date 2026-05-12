@@ -5164,6 +5164,364 @@ benchmarks:
     """)
 
 
+# ============================================================================
+# Benchmark Comparison Dashboard (Lens A + Lens B)
+# ============================================================================
+# Northwold performance against UK BESS benchmarks. Two lenses:
+#   Lens A — Performance Gap: actual vs theoretical ceiling
+#   Lens B — Peer Comparison: actual vs UK fleet aggregate
+# Sources gated behind paid subscriptions are shown as placeholders so the
+# procurement case for unlocking them is visible at a glance.
+
+# Months currently in the data pipeline (Sep 25 → Mar 26).
+BENCHMARK_COMPARISON_MONTHS = [
+    ('Sep 25', 30, 'Master_BESS_Analysis_Sept_2025.csv', 'Optimized_Results_Sept_2025.csv'),
+    ('Oct 25', 31, 'Master_BESS_Analysis_Oct_2025.csv', 'Optimized_Results_Oct_2025.csv'),
+    ('Nov 25', 30, 'Master_BESS_Analysis_Nov_2025.csv', 'Optimized_Results_Nov_2025.csv'),
+    ('Dec 25', 31, 'Master_BESS_Analysis_Dec_2025.csv', 'Optimized_Results_Dec_2025.csv'),
+    ('Jan 26', 31, 'Master_BESS_Analysis_Jan_2026.csv', 'Optimized_Results_Jan_2026.csv'),
+    ('Feb 26', 28, 'Master_BESS_Analysis_Feb_2026.csv', 'Optimized_Results_Feb_2026.csv'),
+    ('Mar 26', 31, 'Master_BESS_Analysis_Mar_2026.csv', 'Optimized_Results_Mar_2026.csv'),
+]
+
+# Modo Energy GB BESS Index — manually extracted from monthly articles.
+# Feb 26 / Mar 26 = missing (article URLs unstable; gated dataset on the API).
+MODO_HEADLINE = {
+    'Sep 25': 70000, 'Oct 25': 77000, 'Nov 25': 59000,
+    'Dec 25': 47000, 'Jan 26': 88000,
+    'Feb 26': None, 'Mar 26': None,
+}
+
+# Empirical capture rate from Modo TB-spread research: a well-traded 2h
+# battery earns ~142% of the daily TB2 spread. Static reference value.
+MODO_TB2_CAPTURE_PCT = 142
+
+# Per-source availability status for the Data Availability matrix.
+BENCHMARK_DATA_AVAILABILITY = [
+    {
+        'source': 'Modo GB headline (£/MW/yr)',
+        'lens': 'B (Peer)',
+        'access': 'Manual extract from free articles',
+        'months_have': 'Sep 25 → Jan 26 (5 months)',
+        'months_missing': 'Feb 26, Mar 26 (article URLs unstable)',
+        'status': 'partial',
+        'procurement_unlock': 'Modo Professional GB Benchmarking subscription → auto-refresh via API + full history',
+    },
+    {
+        'source': 'Modo ME-BESS-GB (FCA-regulated, asset-level)',
+        'lens': 'B (Peer)',
+        'access': 'Paid subscription (Modo Professional GB Benchmarking)',
+        'months_have': 'None',
+        'months_missing': 'All months',
+        'status': 'gated',
+        'procurement_unlock': 'Asset-level peer ranking, duration-segmented benchmarks (1h/2h/4h), embeddable index values for financing docs',
+    },
+    {
+        'source': 'Modo TB-spread theoretical ceiling',
+        'lens': 'A (Gap)',
+        'access': 'Static 142% capture rate constant + raw EPEX prices via API',
+        'months_have': '142% reference value only',
+        'months_missing': 'Per-month TB2 spread (£/MWh) — need DIY computation from EPEX API',
+        'status': 'partial',
+        'procurement_unlock': 'Already partly accessible — Modo Data tier (current token) provides EPEX prices; we can compute TB2 ourselves (~2-3 hrs build)',
+    },
+    {
+        'source': 'Aurora GB Battery Index',
+        'lens': 'A + B (Theoretical + Peer)',
+        'access': 'Paid subscription (Aurora EOS / sales demo required)',
+        'months_have': 'None',
+        'months_missing': 'All months',
+        'status': 'gated',
+        'procurement_unlock': 'Independent UK theoretical + peer benchmark — second opinion to Modo. Pricing TBD via demo.',
+    },
+    {
+        'source': 'Montel UK BESS Leaderboard',
+        'lens': 'B (Peer)',
+        'access': 'Paid subscription',
+        'months_have': 'None',
+        'months_missing': 'All months',
+        'status': 'gated',
+        'procurement_unlock': 'Asset-level UK ranking + pan-EU comparability across AMPYR portfolio (NL/BE/DE coverage in one vendor)',
+    },
+    {
+        'source': 'In-house LP optimised ceiling (Northwold-specific)',
+        'lens': 'A (Gap)',
+        'access': 'Already computed (Optimized_Results_*.csv)',
+        'months_have': 'Sep 25 → Mar 26 (7 months)',
+        'months_missing': 'None',
+        'status': 'available',
+        'procurement_unlock': 'No procurement needed — this is the in-house multi-market LP optimiser',
+    },
+]
+
+
+def _bd_safe_sum(df, col):
+    """Sum a column safely whether or not it exists."""
+    if col in df.columns:
+        return pd.to_numeric(df[col], errors='coerce').fillna(0).sum()
+    return 0
+
+
+def _bd_load_month_metrics(short, days, master_f, opt_f, capacity_mw=4.2, capacity_mwh=8.4):
+    """Load actual + optimised revenue for a month. Returns dict or None on miss."""
+    try:
+        master = pd.read_csv(os.path.join(DATA_DIR, master_f))
+    except FileNotFoundError:
+        return None
+
+    # All GB-traded streams netted by 5% GridBeyond fee for consistency with
+    # the rest of the dashboard (see src/config/revenue_config.GB_REVENUE_NET_SHARE).
+    gross_actual = (
+        _bd_safe_sum(master, 'SFFR revenues')
+        + _bd_safe_sum(master, 'EPEX 30 DA Revenue') + _bd_safe_sum(master, 'EPEX DA Revenues')
+        + _bd_safe_sum(master, 'IDA1 Revenue')
+        + _bd_safe_sum(master, 'IDC Revenue')
+        + _bd_safe_sum(master, 'Imbalance Revenue')
+        - _bd_safe_sum(master, 'Imbalance Charge')
+    )
+    actual = gross_actual * GB_REVENUE_NET_SHARE
+
+    try:
+        opt = pd.read_csv(os.path.join(DATA_DIR, opt_f))
+        # In-house multi-market optimiser is the strongest ceiling
+        opt_revenue = _bd_safe_sum(opt, 'Optimised_Revenue_Multi')
+        if opt_revenue == 0:  # fall back to other variants
+            opt_revenue = _bd_safe_sum(opt, 'Optimised_Revenue_EFA')
+        if opt_revenue == 0:
+            opt_revenue = _bd_safe_sum(opt, 'Optimised_Revenue_Daily')
+        opt_revenue = opt_revenue * GB_REVENUE_NET_SHARE if opt_revenue else None
+    except FileNotFoundError:
+        opt_revenue = None
+
+    actual_per_mw_yr = (actual / days) * 365 / capacity_mw
+    actual_per_mwh_yr = (actual / days) * 365 / capacity_mwh
+    opt_per_mw_yr = ((opt_revenue / days) * 365 / capacity_mw) if opt_revenue else None
+    opt_per_mwh_yr = ((opt_revenue / days) * 365 / capacity_mwh) if opt_revenue else None
+
+    return {
+        'short': short, 'days': days,
+        'actual_revenue': actual, 'opt_revenue': opt_revenue,
+        'actual_per_mw_yr': actual_per_mw_yr,
+        'actual_per_mwh_yr': actual_per_mwh_yr,
+        'opt_per_mw_yr': opt_per_mw_yr,
+        'opt_per_mwh_yr': opt_per_mwh_yr,
+    }
+
+
+def show_benchmark_dashboard():
+    """Cross-benchmark comparison page — Lens A (gap) + Lens B (peer)."""
+    st.title("🎯 Benchmark Comparison")
+    st.markdown(
+        "Northwold performance against UK BESS benchmarks. Two analytical lenses: "
+        "**Lens A** — gap to theoretical ceiling. **Lens B** — peer comparison "
+        "vs UK fleet. Gated sources are flagged for procurement discussion."
+    )
+
+    # ---- Asset context ----
+    with st.container(border=True):
+        st.markdown("**Northwold asset context**")
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Charge rate", "4.2 MW")
+        c2.metric("Discharge rate", "7.5 MW")
+        c3.metric("Capacity", "8.4 MWh")
+        c4.metric("Effective duration", "~1.4 h",
+                  help="Geometric mean of charge/discharge: 8.4 MWh ÷ 5.85 MW. Most peer benchmarks assume 1h or 2h symmetric.")
+        st.caption(
+            "⚠ Asymmetric battery — £/MW/yr depends on which power rating you "
+            "normalise by. Page reports £/MW/yr using 4.2 MW (charge) for "
+            "consistency with the existing Benchmarks page, and £/MWh/yr "
+            "alongside as a duration-agnostic comparator. See pending TODO "
+            "on full normalisation."
+        )
+
+    # ---- Load Northwold monthly metrics ----
+    rows = []
+    for short, days, master_f, opt_f in BENCHMARK_COMPARISON_MONTHS:
+        m = _bd_load_month_metrics(short, days, master_f, opt_f)
+        if m:
+            rows.append(m)
+    if not rows:
+        st.error("No Northwold data files found in data/ — cannot render comparisons.")
+        return
+
+    data_through = rows[-1]['short']
+    st.caption(f"📅 Northwold data loaded through **{data_through}** ({len(rows)} months: {rows[0]['short']} → {data_through})")
+
+    st.markdown("---")
+
+    # ================================================================
+    # Lens A — Performance Gap
+    # ================================================================
+    st.header("Lens A — Performance Gap")
+    st.markdown(
+        "How close is Northwold to its theoretical revenue ceiling? "
+        "Smaller gap = better trading by the aggregator."
+    )
+
+    # Lens A data status
+    st.subheader("Available theoretical ceilings")
+    lens_a_status = pd.DataFrame([
+        {'Source': 'In-house LP optimiser (Multi-market)', 'Months covered': f'Sep 25 → {data_through}', 'Status': '✅ Available', 'Notes': 'Northwold-specific perfect-foresight LP across DA/IDA1/IDC/SFFR'},
+        {'Source': 'Modo TB-spread × 142% capture', 'Months covered': 'Static reference only', 'Status': '⚠ Partial', 'Notes': 'Need per-month TB2 spread — buildable from EPEX API (~2-3 hrs)'},
+        {'Source': 'Clean Horizon UK theoretical', 'Months covered': '—', 'Status': '🚫 N/A', 'Notes': 'Clean Horizon covers 14 EU countries — UK NOT included'},
+        {'Source': 'Aurora GB Battery Index (theoretical)', 'Months covered': '—', 'Status': '🔒 Gated', 'Notes': 'Paid subscription — methodology TBD via demo'},
+        {'Source': 'Regelleistung-equivalent UK', 'Months covered': '—', 'Status': '🚫 N/A', 'Notes': 'Regelleistung publishes DE only — no UK equivalent exists publicly'},
+    ])
+    st.dataframe(lens_a_status, use_container_width=True, hide_index=True)
+
+    st.subheader("Northwold actual vs in-house LP ceiling")
+    gap_rows = []
+    for r in rows:
+        opt = r['opt_per_mw_yr']
+        gap_pct = ((opt - r['actual_per_mw_yr']) / opt * 100) if opt else None
+        gap_rows.append({
+            'Month': r['short'],
+            'Actual £/MW/yr': f"£{round(r['actual_per_mw_yr']):,}",
+            'LP Ceiling £/MW/yr': f"£{round(opt):,}" if opt else '—',
+            'Gap (£/MW/yr)': f"£{round(opt - r['actual_per_mw_yr']):,}" if opt else '—',
+            'Gap %': f"{gap_pct:.1f}%" if gap_pct is not None else '—',
+            'Actual £/MWh/yr': f"£{round(r['actual_per_mwh_yr']):,}",
+            'LP Ceiling £/MWh/yr': f"£{round(r['opt_per_mwh_yr']):,}" if r['opt_per_mwh_yr'] else '—',
+        })
+    gap_df = pd.DataFrame(gap_rows)
+    st.dataframe(gap_df, use_container_width=True, hide_index=True)
+
+    # Lens A bar chart — actual vs ceiling per month
+    fig_a = go.Figure()
+    months_labels = [r['short'] for r in rows]
+    fig_a.add_bar(name='Northwold actual', x=months_labels,
+                  y=[r['actual_per_mw_yr'] for r in rows],
+                  marker_color='#1f77b4', text=[f"£{round(r['actual_per_mw_yr']/1000)}k" for r in rows], textposition='inside')
+    fig_a.add_bar(name='LP theoretical ceiling', x=months_labels,
+                  y=[(r['opt_per_mw_yr'] or 0) - r['actual_per_mw_yr'] for r in rows],
+                  marker_color='#aec7e8',
+                  text=[f"+£{round(((r['opt_per_mw_yr'] or 0) - r['actual_per_mw_yr'])/1000)}k headroom" if r['opt_per_mw_yr'] else '' for r in rows],
+                  textposition='inside')
+    fig_a.update_layout(barmode='stack', title='Lens A — Northwold actual vs in-house LP ceiling (£/MW/yr)',
+                        yaxis_title='£/MW/year', xaxis_title='Month',
+                        height=420, legend=dict(orientation='h', y=-0.2))
+    st.plotly_chart(fig_a, use_container_width=True)
+
+    st.markdown("---")
+
+    # ================================================================
+    # Lens B — Peer Comparison
+    # ================================================================
+    st.header("Lens B — Peer Comparison")
+    st.markdown(
+        "How does Northwold rank vs the UK BESS fleet? Higher than the fleet "
+        "average = top half of operators."
+    )
+
+    # Lens B data status
+    st.subheader("Available peer benchmarks")
+    lens_b_status = pd.DataFrame([
+        {'Source': 'Modo GB headline (£/MW/yr fleet aggregate)', 'Months covered': 'Sep 25 → Jan 26 (manual extract)', 'Status': '⚠ Partial', 'Notes': 'Feb 26 + Mar 26 missing — article URLs unstable'},
+        {'Source': 'Modo ME-BESS-GB (asset-level, FCA-regulated)', 'Months covered': '—', 'Status': '🔒 Gated', 'Notes': 'Requires Modo Professional GB Benchmarking subscription'},
+        {'Source': 'Aurora GB Battery Index (peer)', 'Months covered': '—', 'Status': '🔒 Gated', 'Notes': 'Aurora EOS subscription / sales demo'},
+        {'Source': 'Montel UK BESS Leaderboard', 'Months covered': '—', 'Status': '🔒 Gated', 'Notes': 'Paid Montel subscription'},
+    ])
+    st.dataframe(lens_b_status, use_container_width=True, hide_index=True)
+
+    st.subheader("Northwold vs Modo GB fleet headline")
+    peer_rows = []
+    for r in rows:
+        modo = MODO_HEADLINE.get(r['short'])
+        rank_pct = (r['actual_per_mw_yr'] / modo * 100) if modo else None
+        peer_rows.append({
+            'Month': r['short'],
+            'Northwold £/MW/yr': f"£{round(r['actual_per_mw_yr']):,}",
+            'Modo fleet £/MW/yr': f"£{modo:,}" if modo else '⚠ MISSING',
+            'Northwold ÷ Modo': f"{rank_pct:.0f}%" if rank_pct else '—',
+            'Verdict': (
+                ('🟢 Above fleet' if rank_pct >= 100 else '🟡 Below fleet')
+                if rank_pct else '—'
+            ),
+        })
+    peer_df = pd.DataFrame(peer_rows)
+    st.dataframe(peer_df, use_container_width=True, hide_index=True)
+
+    # Lens B line chart — Northwold vs Modo, with gaps for missing months
+    fig_b = go.Figure()
+    fig_b.add_scatter(name='Northwold actual', x=months_labels,
+                      y=[r['actual_per_mw_yr'] for r in rows],
+                      mode='lines+markers', line=dict(color='#1f77b4', width=3),
+                      marker=dict(size=10))
+    modo_values = [MODO_HEADLINE.get(r['short']) for r in rows]
+    fig_b.add_scatter(name='Modo GB fleet (manual)', x=months_labels,
+                      y=modo_values,
+                      mode='lines+markers', line=dict(color='#ff7f0e', width=3, dash='dot'),
+                      marker=dict(size=10),
+                      connectgaps=False)  # leaves a visible gap where None
+    # annotation for missing months
+    for r in rows:
+        if MODO_HEADLINE.get(r['short']) is None:
+            fig_b.add_annotation(x=r['short'], y=r['actual_per_mw_yr'] * 1.15,
+                                 text='⚠ Modo<br>missing',
+                                 showarrow=False, font=dict(size=10, color='#d62728'),
+                                 bgcolor='rgba(255,200,200,0.5)', borderwidth=0)
+    fig_b.update_layout(title='Lens B — Northwold vs Modo GB fleet headline (£/MW/yr)',
+                        yaxis_title='£/MW/year', xaxis_title='Month',
+                        height=420, legend=dict(orientation='h', y=-0.2))
+    st.plotly_chart(fig_b, use_container_width=True)
+
+    st.markdown("---")
+
+    # ================================================================
+    # Data availability + procurement case
+    # ================================================================
+    st.header("Data Availability & Procurement Case")
+    st.markdown(
+        "Single-pane view of which sources we have, which are missing, and "
+        "what each procurement decision would unlock. Use this as the "
+        "discussion artefact for subscription decisions."
+    )
+
+    status_emoji = {'available': '🟢', 'partial': '🟡', 'gated': '🔴'}
+    proc_rows = []
+    for src in BENCHMARK_DATA_AVAILABILITY:
+        proc_rows.append({
+            '': status_emoji.get(src['status'], '⚪'),
+            'Source': src['source'],
+            'Lens': src['lens'],
+            'Access model': src['access'],
+            'We have': src['months_have'],
+            'Missing': src['months_missing'],
+            'What procurement unlocks': src['procurement_unlock'],
+        })
+    proc_df = pd.DataFrame(proc_rows)
+    st.dataframe(proc_df, use_container_width=True, hide_index=True)
+
+    st.caption(
+        "🟢 Available  ·  🟡 Partial (manual extract or missing months)  ·  🔴 Gated (subscription required)"
+    )
+
+    with st.container(border=True):
+        st.markdown("**Procurement priorities (Ankit's discussion notes)**")
+        st.markdown("""
+1. **Modo Professional GB Benchmarking** — unlocks Modo Monthly Leaderboard
+   (Feb 26 + Mar 26 + all future months auto-refreshed), asset-level
+   ME-BESS-GB peer ranking, and duration-segmented benchmarks (1h/2h/4h).
+   Calendly: https://calendly.com/sean-modo/30min. Replaces manual extraction
+   pain immediately + adds the regulated asset-level peer rank we need for
+   Lens B.
+
+2. **Aurora EOS GB Battery Index** — independent UK second opinion. Useful
+   triangulation but lower priority than Modo since Modo already covers UK.
+   Worth a demo to compare methodology, but don't subscribe unless Modo
+   coverage gaps emerge.
+
+3. **Montel** — only worth procuring if AMPYR portfolio expansion to NL/BE/DE
+   is imminent (Lens C use case). For UK-only Northwold today, redundant
+   with Modo.
+
+4. **Build DIY TB2 spread from EPEX API** — already accessible via current
+   Modo Data token. ~2-3 hrs dev work. Gives an owned, transparent
+   theoretical ceiling for Lens A that doesn't require any further
+   procurement. Strong candidate to build before/instead of Aurora.
+        """)
+
+
 def main():
     """Main application with sidebar navigation"""
 
@@ -5192,6 +5550,8 @@ def main():
                                              on_click=_set_general_page, args=('benchmarks',))
     show_benchmark_sources_page = st.sidebar.button("🗂️ Benchmark Sources", use_container_width=True,
                                                      on_click=_set_general_page, args=('benchmark_sources',))
+    show_benchmark_dashboard_page = st.sidebar.button("🎯 Benchmark Comparison", use_container_width=True,
+                                                       on_click=_set_general_page, args=('benchmark_dashboard',))
     show_export_page = st.sidebar.button("📄 Export Reports", use_container_width=True,
                                           on_click=_set_general_page, args=('export_reports',))
     show_invoice_page = st.sidebar.button("🧾 Invoice Analysis", use_container_width=True,
@@ -5270,6 +5630,9 @@ def main():
         return
     if active == 'benchmark_sources':
         show_benchmark_sources()
+        return
+    if active == 'benchmark_dashboard':
+        show_benchmark_dashboard()
         return
     if active == 'export_reports':
         show_pdf_export_page(selected_month)
