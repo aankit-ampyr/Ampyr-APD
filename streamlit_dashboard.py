@@ -5184,12 +5184,21 @@ BENCHMARK_COMPARISON_MONTHS = [
     ('Mar 26', 31, 'Master_BESS_Analysis_Mar_2026.csv', 'Optimized_Results_Mar_2026.csv'),
 ]
 
-# Modo Energy GB BESS Index — manually extracted from monthly articles.
-# Feb 26 / Mar 26 = missing (article URLs unstable; gated dataset on the API).
-MODO_HEADLINE = {
-    'Sep 25': 70000, 'Oct 25': 77000, 'Nov 25': 59000,
-    'Dec 25': 47000, 'Jan 26': 88000,
-    'Feb 26': None, 'Mar 26': None,
+# Modo Energy ME-BESS-GB index — FCA-regulated GB BESS revenue benchmark.
+# Three duration cuts. Sourced from Ankit's Modo AI chat session, Apr 2026.
+# These supersede earlier manually-extracted monthly-article headlines (which
+# turned out to be inconsistently sourced — Jan 26 in particular was wrong).
+ME_BESS_GB_ALL = {
+    'Sep 25': 71188, 'Oct 25': 76205, 'Nov 25': 59049,
+    'Dec 25': 49655, 'Jan 26': 54279, 'Feb 26': 42525, 'Mar 26': 74258,
+}
+ME_BESS_GB_1H = {
+    'Sep 25': 56690, 'Oct 25': 60558, 'Nov 25': 46731,
+    'Dec 25': 37611, 'Jan 26': 40226, 'Feb 26': 31770, 'Mar 26': 49599,
+}
+ME_BESS_GB_2H = {
+    'Sep 25': 81137, 'Oct 25': 87922, 'Nov 25': 68675,
+    'Dec 25': 57615, 'Jan 26': 63064, 'Feb 26': 49157, 'Mar 26': 87919,
 }
 
 # Empirical capture rate from Modo TB-spread research: a well-traded 2h
@@ -5199,22 +5208,13 @@ MODO_TB2_CAPTURE_PCT = 142
 # Per-source availability status for the Data Availability matrix.
 BENCHMARK_DATA_AVAILABILITY = [
     {
-        'source': 'Modo GB headline (£/MW/yr)',
+        'source': 'Modo ME-BESS-GB index (all-duration, 1H, 2H)',
         'lens': 'B (Peer)',
-        'access': 'Manual extract from free articles',
-        'months_have': 'Sep 25 → Jan 26 (5 months)',
-        'months_missing': 'Feb 26, Mar 26 (article URLs unstable)',
-        'status': 'partial',
-        'procurement_unlock': 'Modo Professional GB Benchmarking subscription → auto-refresh via API + full history',
-    },
-    {
-        'source': 'Modo ME-BESS-GB (FCA-regulated, asset-level)',
-        'lens': 'B (Peer)',
-        'access': 'Paid subscription (Modo Professional GB Benchmarking)',
-        'months_have': 'None',
-        'months_missing': 'All months',
-        'status': 'gated',
-        'procurement_unlock': 'Asset-level peer ranking, duration-segmented benchmarks (1h/2h/4h), embeddable index values for financing docs',
+        'access': 'Via Modo AI chat (Ankit\'s account); equivalent dataset on Professional GB Benchmarking subscription',
+        'months_have': 'Sep 25 → Mar 26 (7 months) for all-duration, 1H, and 2H cuts',
+        'months_missing': 'None at current cadence',
+        'status': 'available',
+        'procurement_unlock': 'Paid Modo Professional subscription would automate the monthly refresh + add asset-level peer ranking (currently we must ask the AI chat each month)',
     },
     {
         'source': 'Modo TB-spread theoretical ceiling',
@@ -5389,9 +5389,10 @@ market prices. It's the most honest theoretical ceiling for *this asset*.
         {'name': '🔋 Northwold (actual)', 'group': 'Northwold', 'monthly_values': {r['short']: r['actual_per_mw_yr'] for r in rows}, 'is_northwold': True},
         {'name': '🔋 Northwold (in-house optimiser — theoretical ceiling)', 'group': 'Northwold', 'monthly_values': {r['short']: r['opt_per_mw_yr'] for r in rows}, 'is_northwold': True},
 
-        # UK peer benchmarks
-        {'name': 'Modo Energy — GB BESS Index (monthly articles)', 'group': 'UK Peer', 'monthly_values': {k: v for k, v in MODO_HEADLINE.items() if v is not None}, 'missing_icon': '⚠'},
-        {'name': 'Modo Energy — ME-BESS-GB (FCA-regulated, asset-level)', 'group': 'UK Peer', 'all_cells_status': '🔒'},
+        # UK peer benchmarks — Modo ME-BESS-GB with three duration cuts
+        {'name': '📊 Modo ME-BESS-GB — 1H assets (closest to Northwold ~1.4h)', 'group': 'UK Peer', 'monthly_values': ME_BESS_GB_1H},
+        {'name': '📊 Modo ME-BESS-GB — All durations (fleet aggregate)', 'group': 'UK Peer', 'monthly_values': ME_BESS_GB_ALL},
+        {'name': '📊 Modo ME-BESS-GB — 2H assets', 'group': 'UK Peer', 'monthly_values': ME_BESS_GB_2H},
         {'name': 'Aurora Energy Research — GB Battery Index', 'group': 'UK Peer', 'all_cells_status': '🔒'},
         {'name': 'Montel — UK BESS Leaderboard', 'group': 'UK Peer', 'all_cells_status': '🔒'},
 
@@ -5455,33 +5456,39 @@ market prices. It's the most honest theoretical ceiling for *this asset*.
     )
 
     fig_trend = go.Figure()
+    # Northwold series
     fig_trend.add_scatter(name='🔋 Northwold (actual)', x=months_labels,
                           y=[r['actual_per_mw_yr'] for r in rows],
-                          mode='lines+markers', line=dict(color='#1f77b4', width=3),
-                          marker=dict(size=11))
+                          mode='lines+markers', line=dict(color='#1f77b4', width=4),
+                          marker=dict(size=12))
     fig_trend.add_scatter(name='🔋 Northwold (in-house optimiser)', x=months_labels,
                           y=[r['opt_per_mw_yr'] for r in rows],
                           mode='lines+markers', line=dict(color='#2ca02c', width=3, dash='dash'),
-                          marker=dict(size=11))
-    fig_trend.add_scatter(name='Modo Energy — GB headline', x=months_labels,
-                          y=[MODO_HEADLINE.get(r['short']) for r in rows],
-                          mode='lines+markers', line=dict(color='#ff7f0e', width=3, dash='dot'),
-                          marker=dict(size=11), connectgaps=False)
-    for r in rows:
-        if MODO_HEADLINE.get(r['short']) is None:
-            fig_trend.add_annotation(x=r['short'], y=r['actual_per_mw_yr'] * 1.15,
-                                     text='⚠ Modo<br>missing',
-                                     showarrow=False, font=dict(size=10, color='#d62728'),
-                                     bgcolor='rgba(255,200,200,0.6)', borderwidth=0)
-    fig_trend.update_layout(title='Northwold vs benchmarks with data (£/MW/yr)',
+                          marker=dict(size=10))
+    # Modo ME-BESS-GB duration cuts
+    fig_trend.add_scatter(name='📊 ME-BESS-GB — 1H (closest peer to Northwold)', x=months_labels,
+                          y=[ME_BESS_GB_1H.get(r['short']) for r in rows],
+                          mode='lines+markers', line=dict(color='#ff7f0e', width=3),
+                          marker=dict(size=10))
+    fig_trend.add_scatter(name='📊 ME-BESS-GB — All durations (fleet)', x=months_labels,
+                          y=[ME_BESS_GB_ALL.get(r['short']) for r in rows],
+                          mode='lines+markers', line=dict(color='#ff7f0e', width=2, dash='dot'),
+                          marker=dict(size=8), opacity=0.6)
+    fig_trend.add_scatter(name='📊 ME-BESS-GB — 2H', x=months_labels,
+                          y=[ME_BESS_GB_2H.get(r['short']) for r in rows],
+                          mode='lines+markers', line=dict(color='#d62728', width=2, dash='dot'),
+                          marker=dict(size=8), opacity=0.6)
+    fig_trend.update_layout(title='Northwold vs Modo ME-BESS-GB peer benchmarks (£/MW/yr)',
                             yaxis_title='£/MW/year', xaxis_title='Month',
-                            height=440, legend=dict(orientation='h', y=-0.2))
+                            height=480, legend=dict(orientation='h', y=-0.25))
     st.plotly_chart(fig_trend, use_container_width=True)
 
     st.info(
-        "Once we procure the gated benchmarks (ME-BESS-GB, Aurora, Montel), each will "
-        "add another line to this chart. The dotted/dashed Northwold-optimiser line is "
-        "the ceiling — gap to it = trading inefficiency + price-foresight cost."
+        "**ME-BESS-GB duration cuts** (sourced via Ankit's Modo AI chat, Apr 2026): "
+        "the 1H index is the closest peer to Northwold (~1.2–1.4h effective duration). "
+        "Modo's all-duration fleet average sits at ~1.62h — biased above Northwold. "
+        "The 2H index shows the duration premium for energy-capacity-heavy assets. "
+        "Northwold should track between the 1H and All-duration lines."
     )
 
     st.markdown("---")
@@ -5513,30 +5520,57 @@ market prices. It's the most honest theoretical ceiling for *this asset*.
     st.markdown("---")
 
     # ================================================================
-    # SECTION 4 — Detail: Modo peer rank
+    # SECTION 4 — Detail: Modo ME-BESS-GB peer rank (duration-aware)
     # ================================================================
-    st.header("4. Peer rank vs Modo GB fleet")
+    st.header("4. Peer rank vs Modo ME-BESS-GB (duration-aware)")
     st.markdown(
-        "Northwold's £/MW/year as a percentage of the Modo GB fleet headline. "
-        "Above 100% = top half of operators. **Feb 26 + Mar 26 missing** — "
-        "Modo Professional subscription would close this gap automatically."
+        "Northwold's £/MW/year compared against all three duration cuts of the "
+        "Modo ME-BESS-GB index. Because Northwold is asymmetric (1.2h on discharge, "
+        "2h on charge, ~1.4h effective), the **1H index is the closest peer** — but "
+        "we also show 2H and the fleet average for context."
     )
 
     peer_rows = []
     for r in rows:
-        modo = MODO_HEADLINE.get(r['short'])
-        rank_pct = (r['actual_per_mw_yr'] / modo * 100) if modo else None
+        m_1h = ME_BESS_GB_1H.get(r['short'])
+        m_all = ME_BESS_GB_ALL.get(r['short'])
+        m_2h = ME_BESS_GB_2H.get(r['short'])
+        actual = r['actual_per_mw_yr']
         peer_rows.append({
             'Month': r['short'],
-            'Northwold £/MW/yr': f"£{round(r['actual_per_mw_yr']):,}",
-            'Modo fleet £/MW/yr': f"£{modo:,}" if modo else '⚠ MISSING',
-            'Northwold ÷ Modo': f"{rank_pct:.0f}%" if rank_pct else '—',
-            'Verdict': (
-                ('🟢 Above fleet' if rank_pct >= 100 else '🟡 Below fleet')
-                if rank_pct else '—'
+            'Northwold': f"£{round(actual):,}",
+            'ME-BESS 1H': f"£{m_1h:,}" if m_1h else '—',
+            'ME-BESS All': f"£{m_all:,}" if m_all else '—',
+            'ME-BESS 2H': f"£{m_2h:,}" if m_2h else '—',
+            'NW ÷ 1H': f"{actual/m_1h*100:.0f}%" if m_1h else '—',
+            'NW ÷ All': f"{actual/m_all*100:.0f}%" if m_all else '—',
+            'Verdict (vs 1H peer)': (
+                ('🟢 Above 1H peer' if actual >= m_1h else '🟡 Below 1H peer') if m_1h else '—'
             ),
         })
+    # Add average row
+    avg_actual = sum(r['actual_per_mw_yr'] for r in rows) / len(rows)
+    avg_1h = sum(ME_BESS_GB_1H.values()) / len(ME_BESS_GB_1H)
+    avg_all = sum(ME_BESS_GB_ALL.values()) / len(ME_BESS_GB_ALL)
+    avg_2h = sum(ME_BESS_GB_2H.values()) / len(ME_BESS_GB_2H)
+    peer_rows.append({
+        'Month': '**7-mo avg**',
+        'Northwold': f"**£{round(avg_actual):,}**",
+        'ME-BESS 1H': f"**£{round(avg_1h):,}**",
+        'ME-BESS All': f"**£{round(avg_all):,}**",
+        'ME-BESS 2H': f"**£{round(avg_2h):,}**",
+        'NW ÷ 1H': f"**{avg_actual/avg_1h*100:.0f}%**",
+        'NW ÷ All': f"**{avg_actual/avg_all*100:.0f}%**",
+        'Verdict (vs 1H peer)': '—',
+    })
     st.dataframe(pd.DataFrame(peer_rows), use_container_width=True, hide_index=True)
+
+    st.caption(
+        "📌 **Duration insight**: Modo's all-duration index is volume-weighted around "
+        "1.62h fleet average. Northwold's ~1.4h effective duration sits between the 1H "
+        "and All-duration figures — so '1H peer' is the strictest fair comparison, "
+        "'All-duration' is a fairer-but-loose comparison."
+    )
 
     st.markdown("---")
 
