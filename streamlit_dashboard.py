@@ -5308,13 +5308,21 @@ def _bd_load_month_metrics(short, days, master_f, opt_f, capacity_mw=4.2, capaci
     }
 
 
+def _fmt_pmw(val):
+    """Format £/MW/yr value as e.g. '£77k'. Returns '' for None."""
+    if val is None or pd.isna(val):
+        return ''
+    return f"£{round(val / 1000)}k"
+
+
 def show_benchmark_dashboard():
-    """Cross-benchmark comparison page — Lens A (gap) + Lens B (peer)."""
+    """Cross-benchmark comparison page — all catalogued benchmarks vs Northwold."""
     st.title("🎯 Benchmark Comparison")
     st.markdown(
-        "Northwold performance against UK BESS benchmarks. Two analytical lenses: "
-        "**Lens A** — gap to theoretical ceiling. **Lens B** — peer comparison "
-        "vs UK fleet. Gated sources are flagged for procurement discussion."
+        "Northwold performance against every catalogued BESS benchmark. "
+        "Each row in the matrix below is one benchmark — cells show the £/MW/year value "
+        "where data is available, or a status icon where it isn't. Use the procurement "
+        "section at the bottom to see what each missing source would unlock."
     )
 
     # ---- Asset context ----
@@ -5329,10 +5337,25 @@ def show_benchmark_dashboard():
         st.caption(
             "⚠ Asymmetric battery — £/MW/yr depends on which power rating you "
             "normalise by. Page reports £/MW/yr using 4.2 MW (charge) for "
-            "consistency with the existing Benchmarks page, and £/MWh/yr "
-            "alongside as a duration-agnostic comparator. See pending TODO "
-            "on full normalisation."
+            "consistency with the existing Benchmarks page. See pending TODO on full normalisation."
         )
+
+    # ---- Explainer for in-house optimiser ----
+    with st.expander("ℹ️ What is the 'In-house Optimiser' benchmark?", expanded=False):
+        st.markdown("""
+The **in-house optimiser** is Northwold's own theoretical ceiling — not a third-party
+benchmark. It comes from `src/phase3_multimarket.py`, which runs a Linear Programming
+(LP) solver to compute the best possible dispatch across EPEX DA, IDA1, IDC, and SFFR
+*given perfect foresight* of every market price.
+
+The output lives in `data/Optimized_Results_*.csv` (`Optimised_Revenue_Multi` column).
+It represents "what Northwold could have earned if traded perfectly." The gap between
+Northwold actual and this ceiling = aggregator inefficiency + the cost of not knowing
+prices in advance.
+
+We treat it as a benchmark because it's Northwold-specific, free, and uses real
+market prices. It's the most honest theoretical ceiling for *this asset*.
+        """)
 
     # ---- Load Northwold monthly metrics ----
     rows = []
@@ -5345,31 +5368,133 @@ def show_benchmark_dashboard():
         return
 
     data_through = rows[-1]['short']
+    months_labels = [r['short'] for r in rows]
     st.caption(f"📅 Northwold data loaded through **{data_through}** ({len(rows)} months: {rows[0]['short']} → {data_through})")
 
     st.markdown("---")
 
     # ================================================================
-    # Lens A — Performance Gap
+    # SECTION 1 — All Benchmarks at a Glance (the wide matrix)
     # ================================================================
-    st.header("Lens A — Performance Gap")
+    st.header("1. All Benchmarks at a Glance")
     st.markdown(
-        "How close is Northwold to its theoretical revenue ceiling? "
-        "Smaller gap = better trading by the aggregator."
+        "Every catalogued benchmark, side by side. **£ values where we have data; "
+        "status icons where we don't.** This is the procurement discussion artefact."
     )
 
-    # Lens A data status
-    st.subheader("Available theoretical ceilings")
-    lens_a_status = pd.DataFrame([
-        {'Source': 'In-house LP optimiser (Multi-market)', 'Months covered': f'Sep 25 → {data_through}', 'Status': '✅ Available', 'Notes': 'Northwold-specific perfect-foresight LP across DA/IDA1/IDC/SFFR'},
-        {'Source': 'Modo TB-spread × 142% capture', 'Months covered': 'Static reference only', 'Status': '⚠ Partial', 'Notes': 'Need per-month TB2 spread — buildable from EPEX API (~2-3 hrs)'},
-        {'Source': 'Clean Horizon UK theoretical', 'Months covered': '—', 'Status': '🚫 N/A', 'Notes': 'Clean Horizon covers 14 EU countries — UK NOT included'},
-        {'Source': 'Aurora GB Battery Index (theoretical)', 'Months covered': '—', 'Status': '🔒 Gated', 'Notes': 'Paid subscription — methodology TBD via demo'},
-        {'Source': 'Regelleistung-equivalent UK', 'Months covered': '—', 'Status': '🚫 N/A', 'Notes': 'Regelleistung publishes DE only — no UK equivalent exists publicly'},
-    ])
-    st.dataframe(lens_a_status, use_container_width=True, hide_index=True)
+    # Define every row of the matrix. Each row is one benchmark or Northwold series.
+    # 'monthly_values': dict of {month_short: numeric_value} where data exists.
+    # 'all_cells_status': override string shown in every month cell when no data.
+    matrix_def = [
+        {'name': '🔋 Northwold (actual)', 'group': 'Northwold', 'monthly_values': {r['short']: r['actual_per_mw_yr'] for r in rows}, 'is_northwold': True},
+        {'name': '🔋 Northwold (in-house optimiser — theoretical ceiling)', 'group': 'Northwold', 'monthly_values': {r['short']: r['opt_per_mw_yr'] for r in rows}, 'is_northwold': True},
 
-    st.subheader("Northwold actual vs in-house LP ceiling")
+        # UK peer benchmarks
+        {'name': 'Modo Energy — GB BESS Index (monthly articles)', 'group': 'UK Peer', 'monthly_values': {k: v for k, v in MODO_HEADLINE.items() if v is not None}, 'missing_icon': '⚠'},
+        {'name': 'Modo Energy — ME-BESS-GB (FCA-regulated, asset-level)', 'group': 'UK Peer', 'all_cells_status': '🔒'},
+        {'name': 'Aurora Energy Research — GB Battery Index', 'group': 'UK Peer', 'all_cells_status': '🔒'},
+        {'name': 'Montel — UK BESS Leaderboard', 'group': 'UK Peer', 'all_cells_status': '🔒'},
+
+        # UK theoretical benchmarks
+        {'name': 'Modo TB-spread × 142% capture (static reference)', 'group': 'UK Theoretical', 'all_cells_status': '⚠'},
+
+        # EU benchmarks not applicable to UK
+        {'name': 'Clean Horizon — Storage Index (14 EU countries, no UK)', 'group': 'EU (not UK)', 'all_cells_status': '🚫'},
+        {'name': 'Kyos — BESS Benchmark Report (DE & NL)', 'group': 'EU (not UK)', 'all_cells_status': '🚫'},
+        {'name': 'Regelleistung — German Energy Storage Revenue Index 2h', 'group': 'EU (not UK)', 'all_cells_status': '🚫'},
+        {'name': 'enspired — Battery Index (DE, pre-launch)', 'group': 'EU (not UK)', 'all_cells_status': '🔵'},
+        {'name': 'enervis — BESS Index (DE, form-gated)', 'group': 'EU (not UK)', 'all_cells_status': '🔒'},
+    ]
+
+    # Build the wide DataFrame
+    matrix_rows_out = []
+    for entry in matrix_def:
+        row_dict = {'Source': entry['name'], 'Group': entry['group']}
+        for m_label in months_labels:
+            if 'all_cells_status' in entry:
+                row_dict[m_label] = entry['all_cells_status']
+            else:
+                val = entry.get('monthly_values', {}).get(m_label)
+                if val is None:
+                    row_dict[m_label] = entry.get('missing_icon', '—')
+                else:
+                    row_dict[m_label] = _fmt_pmw(val)
+        matrix_rows_out.append(row_dict)
+    matrix_df = pd.DataFrame(matrix_rows_out)
+
+    # Highlight Northwold rows
+    def _highlight_group(row):
+        if row['Group'] == 'Northwold':
+            return ['background-color: #fff4cc; font-weight: bold'] * len(row)
+        elif row['Group'] == 'UK Peer':
+            return ['background-color: #f0f8ff'] * len(row)
+        elif row['Group'] == 'UK Theoretical':
+            return ['background-color: #f5f0ff'] * len(row)
+        else:
+            return ['background-color: #fafafa; color: #888'] * len(row)
+
+    styled_matrix = matrix_df.style.apply(_highlight_group, axis=1)
+    st.dataframe(styled_matrix, use_container_width=True, hide_index=True, height=480)
+
+    st.caption(
+        "**Legend** — £value: data available · ⚠ Missing (extractable) · 🔒 Subscription required · "
+        "🚫 Geography not covered (DE/NL/etc.) · 🔵 Pre-launch · "
+        "**Yellow row**: Northwold · **Blue**: UK peer · **Purple**: UK theoretical · **Grey**: non-UK"
+    )
+
+    st.markdown("---")
+
+    # ================================================================
+    # SECTION 2 — Trend over time
+    # ================================================================
+    st.header("2. Trend over time — series with data")
+    st.markdown(
+        "Multi-line view of every benchmark that has actual numeric data: "
+        "Northwold actual, in-house optimiser, and Modo headline (where available). "
+        "Missing months show as visible gaps."
+    )
+
+    fig_trend = go.Figure()
+    fig_trend.add_scatter(name='🔋 Northwold (actual)', x=months_labels,
+                          y=[r['actual_per_mw_yr'] for r in rows],
+                          mode='lines+markers', line=dict(color='#1f77b4', width=3),
+                          marker=dict(size=11))
+    fig_trend.add_scatter(name='🔋 Northwold (in-house optimiser)', x=months_labels,
+                          y=[r['opt_per_mw_yr'] for r in rows],
+                          mode='lines+markers', line=dict(color='#2ca02c', width=3, dash='dash'),
+                          marker=dict(size=11))
+    fig_trend.add_scatter(name='Modo Energy — GB headline', x=months_labels,
+                          y=[MODO_HEADLINE.get(r['short']) for r in rows],
+                          mode='lines+markers', line=dict(color='#ff7f0e', width=3, dash='dot'),
+                          marker=dict(size=11), connectgaps=False)
+    for r in rows:
+        if MODO_HEADLINE.get(r['short']) is None:
+            fig_trend.add_annotation(x=r['short'], y=r['actual_per_mw_yr'] * 1.15,
+                                     text='⚠ Modo<br>missing',
+                                     showarrow=False, font=dict(size=10, color='#d62728'),
+                                     bgcolor='rgba(255,200,200,0.6)', borderwidth=0)
+    fig_trend.update_layout(title='Northwold vs benchmarks with data (£/MW/yr)',
+                            yaxis_title='£/MW/year', xaxis_title='Month',
+                            height=440, legend=dict(orientation='h', y=-0.2))
+    st.plotly_chart(fig_trend, use_container_width=True)
+
+    st.info(
+        "Once we procure the gated benchmarks (ME-BESS-GB, Aurora, Montel), each will "
+        "add another line to this chart. The dotted/dashed Northwold-optimiser line is "
+        "the ceiling — gap to it = trading inefficiency + price-foresight cost."
+    )
+
+    st.markdown("---")
+
+    # ================================================================
+    # SECTION 3 — Detail: gap to in-house optimiser
+    # ================================================================
+    st.header("3. Gap to in-house optimiser (theoretical ceiling)")
+    st.markdown(
+        "Per-month detail: how much money did we leave on the table relative to "
+        "what perfect trading would have earned?"
+    )
+
     gap_rows = []
     for r in rows:
         opt = r['opt_per_mw_yr']
@@ -5377,53 +5502,26 @@ def show_benchmark_dashboard():
         gap_rows.append({
             'Month': r['short'],
             'Actual £/MW/yr': f"£{round(r['actual_per_mw_yr']):,}",
-            'LP Ceiling £/MW/yr': f"£{round(opt):,}" if opt else '—',
+            'Optimiser ceiling £/MW/yr': f"£{round(opt):,}" if opt else '—',
             'Gap (£/MW/yr)': f"£{round(opt - r['actual_per_mw_yr']):,}" if opt else '—',
             'Gap %': f"{gap_pct:.1f}%" if gap_pct is not None else '—',
             'Actual £/MWh/yr': f"£{round(r['actual_per_mwh_yr']):,}",
-            'LP Ceiling £/MWh/yr': f"£{round(r['opt_per_mwh_yr']):,}" if r['opt_per_mwh_yr'] else '—',
+            'Optimiser £/MWh/yr': f"£{round(r['opt_per_mwh_yr']):,}" if r['opt_per_mwh_yr'] else '—',
         })
-    gap_df = pd.DataFrame(gap_rows)
-    st.dataframe(gap_df, use_container_width=True, hide_index=True)
-
-    # Lens A bar chart — actual vs ceiling per month
-    fig_a = go.Figure()
-    months_labels = [r['short'] for r in rows]
-    fig_a.add_bar(name='Northwold actual', x=months_labels,
-                  y=[r['actual_per_mw_yr'] for r in rows],
-                  marker_color='#1f77b4', text=[f"£{round(r['actual_per_mw_yr']/1000)}k" for r in rows], textposition='inside')
-    fig_a.add_bar(name='LP theoretical ceiling', x=months_labels,
-                  y=[(r['opt_per_mw_yr'] or 0) - r['actual_per_mw_yr'] for r in rows],
-                  marker_color='#aec7e8',
-                  text=[f"+£{round(((r['opt_per_mw_yr'] or 0) - r['actual_per_mw_yr'])/1000)}k headroom" if r['opt_per_mw_yr'] else '' for r in rows],
-                  textposition='inside')
-    fig_a.update_layout(barmode='stack', title='Lens A — Northwold actual vs in-house LP ceiling (£/MW/yr)',
-                        yaxis_title='£/MW/year', xaxis_title='Month',
-                        height=420, legend=dict(orientation='h', y=-0.2))
-    st.plotly_chart(fig_a, use_container_width=True)
+    st.dataframe(pd.DataFrame(gap_rows), use_container_width=True, hide_index=True)
 
     st.markdown("---")
 
     # ================================================================
-    # Lens B — Peer Comparison
+    # SECTION 4 — Detail: Modo peer rank
     # ================================================================
-    st.header("Lens B — Peer Comparison")
+    st.header("4. Peer rank vs Modo GB fleet")
     st.markdown(
-        "How does Northwold rank vs the UK BESS fleet? Higher than the fleet "
-        "average = top half of operators."
+        "Northwold's £/MW/year as a percentage of the Modo GB fleet headline. "
+        "Above 100% = top half of operators. **Feb 26 + Mar 26 missing** — "
+        "Modo Professional subscription would close this gap automatically."
     )
 
-    # Lens B data status
-    st.subheader("Available peer benchmarks")
-    lens_b_status = pd.DataFrame([
-        {'Source': 'Modo GB headline (£/MW/yr fleet aggregate)', 'Months covered': 'Sep 25 → Jan 26 (manual extract)', 'Status': '⚠ Partial', 'Notes': 'Feb 26 + Mar 26 missing — article URLs unstable'},
-        {'Source': 'Modo ME-BESS-GB (asset-level, FCA-regulated)', 'Months covered': '—', 'Status': '🔒 Gated', 'Notes': 'Requires Modo Professional GB Benchmarking subscription'},
-        {'Source': 'Aurora GB Battery Index (peer)', 'Months covered': '—', 'Status': '🔒 Gated', 'Notes': 'Aurora EOS subscription / sales demo'},
-        {'Source': 'Montel UK BESS Leaderboard', 'Months covered': '—', 'Status': '🔒 Gated', 'Notes': 'Paid Montel subscription'},
-    ])
-    st.dataframe(lens_b_status, use_container_width=True, hide_index=True)
-
-    st.subheader("Northwold vs Modo GB fleet headline")
     peer_rows = []
     for r in rows:
         modo = MODO_HEADLINE.get(r['short'])
@@ -5438,39 +5536,14 @@ def show_benchmark_dashboard():
                 if rank_pct else '—'
             ),
         })
-    peer_df = pd.DataFrame(peer_rows)
-    st.dataframe(peer_df, use_container_width=True, hide_index=True)
-
-    # Lens B line chart — Northwold vs Modo, with gaps for missing months
-    fig_b = go.Figure()
-    fig_b.add_scatter(name='Northwold actual', x=months_labels,
-                      y=[r['actual_per_mw_yr'] for r in rows],
-                      mode='lines+markers', line=dict(color='#1f77b4', width=3),
-                      marker=dict(size=10))
-    modo_values = [MODO_HEADLINE.get(r['short']) for r in rows]
-    fig_b.add_scatter(name='Modo GB fleet (manual)', x=months_labels,
-                      y=modo_values,
-                      mode='lines+markers', line=dict(color='#ff7f0e', width=3, dash='dot'),
-                      marker=dict(size=10),
-                      connectgaps=False)  # leaves a visible gap where None
-    # annotation for missing months
-    for r in rows:
-        if MODO_HEADLINE.get(r['short']) is None:
-            fig_b.add_annotation(x=r['short'], y=r['actual_per_mw_yr'] * 1.15,
-                                 text='⚠ Modo<br>missing',
-                                 showarrow=False, font=dict(size=10, color='#d62728'),
-                                 bgcolor='rgba(255,200,200,0.5)', borderwidth=0)
-    fig_b.update_layout(title='Lens B — Northwold vs Modo GB fleet headline (£/MW/yr)',
-                        yaxis_title='£/MW/year', xaxis_title='Month',
-                        height=420, legend=dict(orientation='h', y=-0.2))
-    st.plotly_chart(fig_b, use_container_width=True)
+    st.dataframe(pd.DataFrame(peer_rows), use_container_width=True, hide_index=True)
 
     st.markdown("---")
 
     # ================================================================
-    # Data availability + procurement case
+    # SECTION 5 — Data availability + procurement case
     # ================================================================
-    st.header("Data Availability & Procurement Case")
+    st.header("5. Data Availability & Procurement Case")
     st.markdown(
         "Single-pane view of which sources we have, which are missing, and "
         "what each procurement decision would unlock. Use this as the "
