@@ -5266,7 +5266,7 @@ BENCHMARK_DATA_AVAILABILITY = [
         'months_have': 'None',
         'months_missing': 'All months',
         'status': 'gated',
-        'procurement_unlock': 'Asset-level UK ranking + pan-EU comparability across AMPYR portfolio (NL/BE/DE coverage in one vendor)',
+        'procurement_unlock': 'Independent UK asset-level ranking — second opinion to Modo ME-BESS-GB',
     },
     {
         'source': 'In-house LP optimised ceiling (Northwold-specific)',
@@ -5762,26 +5762,23 @@ market prices. It's the most honest theoretical ceiling for *this asset*.
     with st.container(border=True):
         st.markdown("**Procurement priorities (Ankit's discussion notes)**")
         st.markdown("""
-1. **Modo Professional GB Benchmarking** — unlocks Modo Monthly Leaderboard
-   (Feb 26 + Mar 26 + all future months auto-refreshed), asset-level
-   ME-BESS-GB peer ranking, and duration-segmented benchmarks (1h/2h/4h).
-   Calendly: https://calendly.com/sean-modo/30min. Replaces manual extraction
-   pain immediately + adds the regulated asset-level peer rank we need for
-   Lens B.
+1. **Modo Professional GB Benchmarking** — unlocks the Monthly Leaderboard
+   API (auto-refresh of headline + 1H + 2H indices + regional cuts +
+   TB-spread benchmarks, replacing the manual Excel extract). Also adds
+   programmatic asset-level peer ranking. Calendly:
+   https://calendly.com/sean-modo/30min.
 
 2. **Aurora EOS GB Battery Index** — independent UK second opinion. Useful
    triangulation but lower priority than Modo since Modo already covers UK.
    Worth a demo to compare methodology, but don't subscribe unless Modo
    coverage gaps emerge.
 
-3. **Montel** — only worth procuring if AMPYR portfolio expansion to NL/BE/DE
-   is imminent (Lens C use case). For UK-only Northwold today, redundant
-   with Modo.
+3. **Montel** — redundant with Modo for UK-only assets. Skip.
 
 4. **Build DIY TB2 spread from EPEX API** — already accessible via current
-   Modo Data token. ~2-3 hrs dev work. Gives an owned, transparent
-   theoretical ceiling for Lens A that doesn't require any further
-   procurement. Strong candidate to build before/instead of Aurora.
+   Modo Data token. The Modo Terminal extract already gives us TB1–TB4 GB
+   values across 30d / 90d / 1y windows — only justify this build if we
+   need monthly cadence rather than the rolling windows in the extract.
         """)
 
 
