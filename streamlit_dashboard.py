@@ -5389,10 +5389,12 @@ market prices. It's the most honest theoretical ceiling for *this asset*.
         {'name': '🔋 Northwold (actual)', 'group': 'Northwold', 'monthly_values': {r['short']: r['actual_per_mw_yr'] for r in rows}, 'is_northwold': True},
         {'name': '🔋 Northwold (in-house optimiser — theoretical ceiling)', 'group': 'Northwold', 'monthly_values': {r['short']: r['opt_per_mw_yr'] for r in rows}, 'is_northwold': True},
 
-        # UK peer benchmarks — Modo ME-BESS-GB with three duration cuts
-        {'name': '📊 Modo ME-BESS-GB — 1H assets (closest to Northwold ~1.4h)', 'group': 'UK Peer', 'monthly_values': ME_BESS_GB_1H},
-        {'name': '📊 Modo ME-BESS-GB — All durations (fleet aggregate)', 'group': 'UK Peer', 'monthly_values': ME_BESS_GB_ALL},
-        {'name': '📊 Modo ME-BESS-GB — 2H assets', 'group': 'UK Peer', 'monthly_values': ME_BESS_GB_2H},
+        # UK peer benchmarks — Modo ME-BESS-GB with three duration cuts.
+        # Modo's official bracket cutoffs: 1H = duration <1.5h; 2H = 1.5h–2.5h.
+        # Northwold (~1.4h effective) is in the 1H bracket — exact peer match.
+        {'name': '📊 Modo ME-BESS-GB — 1H (<1.5h) — NORTHWOLD\'S BRACKET', 'group': 'UK Peer', 'monthly_values': ME_BESS_GB_1H},
+        {'name': '📊 Modo ME-BESS-GB — All durations (headline, volume-weighted)', 'group': 'UK Peer', 'monthly_values': ME_BESS_GB_ALL},
+        {'name': '📊 Modo ME-BESS-GB — 2H (1.5h–2.5h)', 'group': 'UK Peer', 'monthly_values': ME_BESS_GB_2H},
         {'name': 'Aurora Energy Research — GB Battery Index', 'group': 'UK Peer', 'all_cells_status': '🔒'},
         {'name': 'Montel — UK BESS Leaderboard', 'group': 'UK Peer', 'all_cells_status': '🔒'},
 
@@ -5484,11 +5486,15 @@ market prices. It's the most honest theoretical ceiling for *this asset*.
     st.plotly_chart(fig_trend, use_container_width=True)
 
     st.info(
-        "**ME-BESS-GB duration cuts** (sourced via Ankit's Modo AI chat, Apr 2026): "
-        "the 1H index is the closest peer to Northwold (~1.2–1.4h effective duration). "
-        "Modo's all-duration fleet average sits at ~1.62h — biased above Northwold. "
-        "The 2H index shows the duration premium for energy-capacity-heavy assets. "
-        "Northwold should track between the 1H and All-duration lines."
+        "**ME-BESS-GB duration cuts** (sourced via Ankit's Modo AI chat, Apr 2026):\n\n"
+        "Modo classifies assets by hard duration brackets — **1H = <1.5h, "
+        "2H = 1.5h–2.5h**. Northwold's ~1.4h effective duration places it "
+        "unambiguously in the **1H bracket**, so the orange line is the exact peer "
+        "for like-for-like comparison.\n\n"
+        "The All-duration headline is **volume-weighted by MW capacity** (not a "
+        "simple average) — larger and longer-duration assets contribute more, "
+        "which biases the headline above what a small 1H asset like Northwold "
+        "should target. Methodology v2.1 (Jul 2024) refined this weighting."
     )
 
     st.markdown("---")
@@ -5566,10 +5572,12 @@ market prices. It's the most honest theoretical ceiling for *this asset*.
     st.dataframe(pd.DataFrame(peer_rows), use_container_width=True, hide_index=True)
 
     st.caption(
-        "📌 **Duration insight**: Modo's all-duration index is volume-weighted around "
-        "1.62h fleet average. Northwold's ~1.4h effective duration sits between the 1H "
-        "and All-duration figures — so '1H peer' is the strictest fair comparison, "
-        "'All-duration' is a fairer-but-loose comparison."
+        "📌 **Duration insight**: Modo's published bracket cutoffs are **1H < 1.5h** and "
+        "**2H = 1.5h–2.5h**. Northwold's ~1.4h effective duration sits in the 1H bracket, "
+        "so **NW ÷ 1H is the exact like-for-like comparison**. The All-duration headline "
+        "is volume-weighted by MW capacity (refined in v2.1, July 2024) — it skews above "
+        "Northwold because longer-duration 2H+ assets dominate by capacity. NW ÷ All is "
+        "useful for fleet context but not a fair performance ranking."
     )
 
     st.markdown("---")
