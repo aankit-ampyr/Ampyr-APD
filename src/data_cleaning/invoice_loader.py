@@ -468,8 +468,27 @@ def extract_pdf_invoice(filepath: str) -> Optional[Dict]:
             pdf_type = 'Hartree Auxiliary'
         else:
             pdf_type = 'Hartree BESS Power'
-    elif fname.startswith('NORTHWO') and fname.endswith('.PDF'):
+    elif fname.startswith('NORTHWO_') and fname.endswith('.PDF'):
         pdf_type = 'EMR'
+    elif fname.startswith('NORTHWOLD '):
+        # Natural-language Hartree invoices, e.g.:
+        #   "Northwold BESS Gen April 26 II.pdf"
+        #   "Northwold BESS Supply April 26 II.pdf"
+        #   "Northwold Solar Auxiliary Supply April 26 II.pdf"
+        #   "Northwold Solar Supply April 26 II.pdf"
+        #   "Northwold Solar Gen ... .pdf" (future)
+        if 'AUX' in fname_spaced:
+            pdf_type = 'Hartree Auxiliary'
+        elif 'BESS' in fname_spaced and 'GEN' in fname_spaced:
+            pdf_type = 'Hartree BESS'
+        elif 'BESS' in fname_spaced and 'SUPPLY' in fname_spaced:
+            pdf_type = 'Hartree BESS Power'
+        elif 'SOLAR' in fname_spaced and 'GEN' in fname_spaced:
+            pdf_type = 'Hartree PV'
+        elif 'SOLAR' in fname_spaced and 'SUPPLY' in fname_spaced:
+            pdf_type = 'Hartree Solar Power'
+        else:
+            pdf_type = 'Hartree Other'
     elif 'HARTREE' in fname_spaced or fname.startswith('NWOSFL'):
         pdf_type = 'Hartree Other'
     else:

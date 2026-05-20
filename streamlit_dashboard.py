@@ -140,6 +140,13 @@ AVAILABLE_MONTHS = {
         "optimization_file": "Optimized_Results_Mar_2026.csv",
         "use_master": True,
     },
+    "April 2026": {
+        "bess_file": None,
+        "northwold_file": None,
+        "master_file": "Master_BESS_Analysis_Apr_2026.csv",
+        "optimization_file": "Optimized_Results_Apr_2026.csv",
+        "use_master": True,
+    },
 }
 
 @st.cache_data
@@ -2064,6 +2071,7 @@ def show_executive_comparison():
         ('Jan 26', 'January', 31, 'Master_BESS_Analysis_Jan_2026.csv', 'Optimized_Results_Jan_2026.csv'),
         ('Feb 26', 'February', 28, 'Master_BESS_Analysis_Feb_2026.csv', 'Optimized_Results_Feb_2026.csv'),
         ('Mar 26', 'March', 31, 'Master_BESS_Analysis_Mar_2026.csv', 'Optimized_Results_Mar_2026.csv'),
+        ('Apr 26', 'April', 30, 'Master_BESS_Analysis_Apr_2026.csv', 'Optimized_Results_Apr_2026.csv'),
     ]
 
     # Capacity Market & DUoS actuals (same data as in Benchmarks)
@@ -3233,6 +3241,7 @@ def show_pdf_export_page(month: str = "September 2025"):
                     ('Jan 26', 'Master_BESS_Analysis_Jan_2026.csv', 'Optimized_Results_Jan_2026.csv'),
                     ('Feb 26', 'Master_BESS_Analysis_Feb_2026.csv', 'Optimized_Results_Feb_2026.csv'),
                     ('Mar 26', 'Master_BESS_Analysis_Mar_2026.csv', 'Optimized_Results_Mar_2026.csv'),
+                    ('Apr 26', 'Master_BESS_Analysis_Apr_2026.csv', 'Optimized_Results_Apr_2026.csv'),
                 ]
 
                 CM_EXPORT = {'Oct 25': 1704.17, 'Nov 25': 1884.42, 'Dec 25': 1994.84, 'Jan 26': 2113.87, 'Feb 26': 1829.35}
@@ -3342,22 +3351,19 @@ def show_benchmark_comparison():
         ('Jan 26', 31, 'Master_BESS_Analysis_Jan_2026.csv', 'Optimized_Results_Jan_2026.csv'),
         ('Feb 26', 28, 'Master_BESS_Analysis_Feb_2026.csv', 'Optimized_Results_Feb_2026.csv'),
         ('Mar 26', 31, 'Master_BESS_Analysis_Mar_2026.csv', 'Optimized_Results_Mar_2026.csv'),
+        ('Apr 26', 30, 'Master_BESS_Analysis_Apr_2026.csv', 'Optimized_Results_Apr_2026.csv'),
     ]
 
     # Modo Energy monthly benchmark (£/MW/year) — source: Modo Energy ME BESS GB Index.
-    # Sep 25–Feb 26: headline value from each month's benchmark article on modoenergy.com.
-    # Mar 26: API-derived (monthly-index-live endpoint, market=total, duration=*) since the
-    #   March benchmark article is not yet published. Expect to reconcile once it lands.
+    # Sep 25–Apr 26: headline value from each month's benchmark article on modoenergy.com.
     MODO_BENCHMARKS = {
         'Sep 25': 70000, 'Oct 25': 77000, 'Nov 25': 59000,
         'Dec 25': 47000, 'Jan 26': 52000, 'Feb 26': 41000,
-        'Mar 26': 65000,
+        'Mar 26': 70000, 'Apr 26': 69000,
     }
 
     # Source article URLs per month — shown in the "Source articles" expander
     # at the bottom of this page so users can verify each headline figure.
-    # Mar 26 points at the Modo API developer reference because no article is
-    # published yet.
     MODO_SOURCE_LINKS = {
         'Sep 25': 'https://modoenergy.com/research/en/battery-energy-storage-revenues-gb-september-2025-balancing-mechanism-frequency-response',
         'Oct 25': 'https://modoenergy.com/research/en/battery-energy-storage-revenues-gb-october-2025-record-balancing-mechanism-dispatch-rates',
@@ -3365,7 +3371,8 @@ def show_benchmark_comparison():
         'Dec 25': 'https://modoenergy.com/research/en/me-bess-gb-battery-energy-storage-revenues-december-2025-low-demand-christmas',
         'Jan 26': 'https://modoenergy.com/research/en/me-bess-gb-revenues-january-2026-balancing-mechanism-wholesale-prices-gas-carbon',
         'Feb 26': 'https://modoenergy.com/research/en/me-bess-gb-revenues-february-2026-wholesale-battery-energy-storage-balancing-mechanism',
-        'Mar 26': 'https://developers.modoenergy.com/reference/monthly-me-bess-gb',
+        'Mar 26': 'https://modoenergy.com/research/en/me-bess-gb-revenues-rise-march-2026-balancing-mechanism-record-gas-prices-',
+        'Apr 26': 'https://modoenergy.com/research',  # April monthly article — slug TBC; £69k figure confirmed via Modo research summaries
     }
 
     # Capacity Market payments (£) — source: EMR Settlement T062 CSVs
@@ -3373,7 +3380,7 @@ def show_benchmark_comparison():
     CM_ACTUALS = {
         'Oct 25': 1704.17, 'Nov 25': 1884.42,
         'Dec 25': 1994.84, 'Jan 26': 2113.87,
-        'Feb 26': 1829.35,
+        'Feb 26': 1829.35, 'Mar 26': 1859.19,
     }
 
     # DUoS actuals (£ net ex-VAT) — source: Hartree Partners Gen_Inv PDFs
@@ -3385,6 +3392,8 @@ def show_benchmark_comparison():
                    'fixed': 3.70, 'net_credit': 5807.68},
         'Nov 25': {'red': -5379.73, 'amber': -106.41, 'green': -42.54,
                    'fixed': 3.58, 'net_credit': 5525.10},
+        'Apr 26': {'red': -5974.31, 'amber': -572.72, 'green': -37.22,
+                   'fixed': 3.86, 'net_credit': 6580.39},
     }
 
     # Load and calculate Northwold metrics first
@@ -5182,6 +5191,7 @@ BENCHMARK_COMPARISON_MONTHS = [
     ('Jan 26', 31, 'Master_BESS_Analysis_Jan_2026.csv', 'Optimized_Results_Jan_2026.csv'),
     ('Feb 26', 28, 'Master_BESS_Analysis_Feb_2026.csv', 'Optimized_Results_Feb_2026.csv'),
     ('Mar 26', 31, 'Master_BESS_Analysis_Mar_2026.csv', 'Optimized_Results_Mar_2026.csv'),
+    ('Apr 26', 30, 'Master_BESS_Analysis_Apr_2026.csv', 'Optimized_Results_Apr_2026.csv'),
 ]
 
 # Modo Energy ME-BESS-GB index — FCA-regulated GB BESS revenue benchmark.
@@ -5191,6 +5201,7 @@ BENCHMARK_COMPARISON_MONTHS = [
 ME_BESS_GB_ALL = {
     'Sep 25': 71188, 'Oct 25': 76205, 'Nov 25': 59049,
     'Dec 25': 49655, 'Jan 26': 54279, 'Feb 26': 42525, 'Mar 26': 74258,
+    'Apr 26': 69000,  # Article-derived (AI-chat refresh pending); 1H/2H breakdown not yet available
 }
 ME_BESS_GB_1H = {
     'Sep 25': 56690, 'Oct 25': 60558, 'Nov 25': 46731,
