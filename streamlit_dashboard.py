@@ -3354,16 +3354,22 @@ def show_benchmark_comparison():
         ('Apr 26', 30, 'Master_BESS_Analysis_Apr_2026.csv', 'Optimized_Results_Apr_2026.csv'),
     ]
 
-    # Modo Energy monthly benchmark (£/MW/year) — source: Modo Energy ME BESS GB Index.
-    # Sep 25–Apr 26: headline value from each month's benchmark article on modoenergy.com.
+    # Modo Energy monthly benchmark (£/MW/year) — sourced from Modo Energy's
+    # ME-BESS-GB monthly-index-live API (market=total × 12), refreshed
+    # 2026-05-20. Refresh anytime via:
+    #   python -m src.data_cleaning.modo_client --from 2025-09 --to <YYYY-MM>
+    # Historical months differ from prior article-headline values (which appear
+    # to use a different aggregation); API values are the FCA-regulated
+    # ME-BESS-GB index used by Modo and are the authoritative source going forward.
     MODO_BENCHMARKS = {
-        'Sep 25': 70000, 'Oct 25': 77000, 'Nov 25': 59000,
-        'Dec 25': 47000, 'Jan 26': 52000, 'Feb 26': 41000,
-        'Mar 26': 70000, 'Apr 26': 69000,
+        'Sep 25': 64000, 'Oct 25': 69000, 'Nov 25': 49000,
+        'Dec 25': 41000, 'Jan 26': 45000, 'Feb 26': 30000,
+        'Mar 26': 66000, 'Apr 26': 61000,
     }
 
-    # Source article URLs per month — shown in the "Source articles" expander
-    # at the bottom of this page so users can verify each headline figure.
+    # Source links per month. Now that everything comes from the API the
+    # individual monthly articles are kept only for narrative context — they
+    # often round and may use a slightly different aggregation.
     MODO_SOURCE_LINKS = {
         'Sep 25': 'https://modoenergy.com/research/en/battery-energy-storage-revenues-gb-september-2025-balancing-mechanism-frequency-response',
         'Oct 25': 'https://modoenergy.com/research/en/battery-energy-storage-revenues-gb-october-2025-record-balancing-mechanism-dispatch-rates',
@@ -3372,7 +3378,7 @@ def show_benchmark_comparison():
         'Jan 26': 'https://modoenergy.com/research/en/me-bess-gb-revenues-january-2026-balancing-mechanism-wholesale-prices-gas-carbon',
         'Feb 26': 'https://modoenergy.com/research/en/me-bess-gb-revenues-february-2026-wholesale-battery-energy-storage-balancing-mechanism',
         'Mar 26': 'https://modoenergy.com/research/en/me-bess-gb-revenues-rise-march-2026-balancing-mechanism-record-gas-prices-',
-        'Apr 26': 'https://modoenergy.com/research',  # April monthly article — slug TBC; £69k figure confirmed via Modo research summaries
+        'Apr 26': 'https://developers.modoenergy.com/reference/monthly-me-bess-gb',
     }
 
     # Capacity Market payments (£) — source: EMR Settlement T062 CSVs
@@ -5195,21 +5201,25 @@ BENCHMARK_COMPARISON_MONTHS = [
 ]
 
 # Modo Energy ME-BESS-GB index — FCA-regulated GB BESS revenue benchmark.
-# Three duration cuts. Sourced from Ankit's Modo AI chat session, Apr 2026.
-# These supersede earlier manually-extracted monthly-article headlines (which
-# turned out to be inconsistently sourced — Jan 26 in particular was wrong).
+# Three duration cuts sourced from the live API (monthly-index-live endpoint,
+# market=total × 12), refreshed 2026-05-20. Re-pull anytime via:
+#   python -m src.data_cleaning.modo_client --from 2025-09 --to <YYYY-MM>
+# These values supersede the earlier AI-chat snapshot — the API is the
+# authoritative source for the FCA-regulated index.
 ME_BESS_GB_ALL = {
-    'Sep 25': 71188, 'Oct 25': 76205, 'Nov 25': 59049,
-    'Dec 25': 49655, 'Jan 26': 54279, 'Feb 26': 42525, 'Mar 26': 74258,
-    'Apr 26': 69000,  # Article-derived (AI-chat refresh pending); 1H/2H breakdown not yet available
+    'Sep 25': 64374, 'Oct 25': 69371, 'Nov 25': 48893,
+    'Dec 25': 40753, 'Jan 26': 45402, 'Feb 26': 30430,
+    'Mar 26': 66453, 'Apr 26': 61129,
 }
 ME_BESS_GB_1H = {
-    'Sep 25': 56690, 'Oct 25': 60558, 'Nov 25': 46731,
-    'Dec 25': 37611, 'Jan 26': 40226, 'Feb 26': 31770, 'Mar 26': 49599,
+    'Sep 25': 49259, 'Oct 25': 52574, 'Nov 25': 36021,
+    'Dec 25': 27935, 'Jan 26': 30366, 'Feb 26': 19981,
+    'Mar 26': 41339, 'Apr 26': 42714,
 }
 ME_BESS_GB_2H = {
-    'Sep 25': 81137, 'Oct 25': 87922, 'Nov 25': 68675,
-    'Dec 25': 57615, 'Jan 26': 63064, 'Feb 26': 49157, 'Mar 26': 87919,
+    'Sep 25': 74655, 'Oct 25': 82041, 'Nov 25': 58849,
+    'Dec 25': 49132, 'Jan 26': 54780, 'Feb 26': 36932,
+    'Mar 26': 80455, 'Apr 26': 72504,
 }
 
 # Modo Terminal extract (Excel scrape, 12 May 2026) — 40 indices with P10/P50/
