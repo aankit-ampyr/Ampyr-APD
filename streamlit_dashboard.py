@@ -3308,14 +3308,28 @@ def show_pdf_export_page(month: str = "September 2025"):
                 st.error(f"Error generating comparison: {str(e)}")
 
 
+def _iar_col_map(ws):
+    """Read row 3 datetime headers and return {col_idx: 'Mon YY'} for every
+    populated month. The IAR Excel has month headers in row 3 starting at
+    col 5 (Mar 25) and running to col 244 (Feb 45). Dashboard only reads
+    months it has actuals for — extra columns are harmless."""
+    import datetime as _dt
+    col_map = {}
+    for col_idx in range(5, ws.max_column + 1):
+        val = ws.cell(row=3, column=col_idx).value
+        if isinstance(val, _dt.datetime):
+            col_map[col_idx] = val.strftime('%b %y')
+    return col_map
+
+
 @st.cache_data
 def _load_iar_monthly_per_mw():
     """Return {short_month: monthly £/MW total} from the IAR Excel.
 
-    Excel stores £/MW per month per stream in columns 11..17 (Sep 25 → Mar 26),
-    rows 4..11 (8 revenue streams). Sum the 8 stream rows per month to get
-    total monthly £/MW. Section 1's 3-way bar chart uses this directly
-    (Monthly £/MW view) and annualises via × 365/days for the annualised view.
+    Row 3 has datetime headers (col 5 = Mar 25 onwards); rows 4..11 are the
+    8 revenue streams. Sum the 8 stream rows per month to get total monthly
+    £/MW. Section 1's 3-way bar chart uses this directly (Monthly £/MW view)
+    and annualises via × 365/days for the annualised view.
     Returns {} on read failure.
     """
     iar_file = os.path.join(os.path.dirname(__file__), 'extra', 'Northwold BESS Revenue_IAR.xlsx')
@@ -3323,8 +3337,7 @@ def _load_iar_monthly_per_mw():
         import openpyxl
         wb = openpyxl.load_workbook(iar_file, data_only=True)
         ws = wb['Sheet1']
-        col_map = {11: 'Sep 25', 12: 'Oct 25', 13: 'Nov 25', 14: 'Dec 25',
-                   15: 'Jan 26', 16: 'Feb 26', 17: 'Mar 26'}
+        col_map = _iar_col_map(ws)
         stream_rows = [4, 5, 6, 7, 8, 9, 10, 11]
         result = {}
         for col_idx, short in col_map.items():
@@ -3787,9 +3800,10 @@ battery cells, and thermal management.
         iar_ws = iar_wb['Sheet1']
         iar_mw = 4.2  # MW assumed in IAR model
 
-        # Column mapping: Excel column index -> month short label
-        # Row 3 has datetime headers; E(5)=Mar25, K(11)=Sep25, L(12)=Oct25, etc.
-        iar_col_map = {11: 'Sep 25', 12: 'Oct 25', 13: 'Nov 25', 14: 'Dec 25', 15: 'Jan 26'}
+        # Column mapping derived from row 3 datetime headers (col 5 = Mar 25
+        # onwards, runs to col 244 = Feb 45). Extra months past current
+        # actuals are harmless — the table just won't display them.
+        iar_col_map = _iar_col_map(iar_ws)
         # Row mapping: rows 4-11 = DA, ID, BM, FR, CM, DUoS, DUoS_Fixed, TNUoS
         iar_stream_rows = [4, 5, 6, 7, 8, 9, 10, 11]
 
