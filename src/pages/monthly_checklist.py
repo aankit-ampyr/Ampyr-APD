@@ -56,20 +56,24 @@ MONTH_CONFIG = [
     ('Jan 26', 'January 2026', 31, 'Master_BESS_Analysis_Jan_2026.csv', 'Optimized_Results_Jan_2026.csv'),
     ('Feb 26', 'February 2026', 28, 'Master_BESS_Analysis_Feb_2026.csv', 'Optimized_Results_Feb_2026.csv'),
     ('Mar 26', 'March 2026', 31, 'Master_BESS_Analysis_Mar_2026.csv', 'Optimized_Results_Mar_2026.csv'),
+    ('Apr 26', 'April 2026', 30, 'Master_BESS_Analysis_Apr_2026.csv', 'Optimized_Results_Apr_2026.csv'),
+    ('May 26', 'May 2026', 31, 'Master_BESS_Analysis_May_2026.csv', 'Optimized_Results_May_2026.csv'),
 ]
 
-# Modo Energy monthly benchmark (£/MW/year)
+# Modo Energy monthly benchmark (£/MW/year) — FCA-regulated ME-BESS-GB
+# monthly-index-live API (market=total × 12), refreshed 2026-06-24 to match
+# the main dashboard's authoritative values.
 MODO_BENCHMARKS = {
-    'Sep 25': 70000, 'Oct 25': 77000, 'Nov 25': 59000,
-    'Dec 25': 47000, 'Jan 26': 52000, 'Feb 26': 41000,
-    'Mar 26': 65000,
+    'Sep 25': 64000, 'Oct 25': 70000, 'Nov 25': 49000,
+    'Dec 25': 41000, 'Jan 26': 46000, 'Feb 26': 31000,
+    'Mar 26': 66000, 'Apr 26': 61000, 'May 26': 39000,
 }
 
 # CM actuals from EMR Settlement
 CM_ACTUALS = {
     'Oct 25': 1704.17, 'Nov 25': 1884.42,
     'Dec 25': 1994.84, 'Jan 26': 2113.87,
-    'Feb 26': 1829.35,
+    'Feb 26': 1829.35, 'Mar 26': 1859.19,
 }
 
 # DUoS actuals from Hartree Partners invoices
@@ -80,6 +84,8 @@ DUOS_ACTUALS = {
                'fixed': 3.70, 'net_credit': 5807.68},
     'Nov 25': {'red': -5379.73, 'amber': -106.41, 'green': -42.54,
                'fixed': 3.58, 'net_credit': 5525.10},
+    'Apr 26': {'red': -5974.31, 'amber': -572.72, 'green': -37.22,
+               'fixed': 3.86, 'net_credit': 6580.39},
 }
 
 # IAR stream names
@@ -125,7 +131,7 @@ def _load_iar_projections():
         ws = wb['Sheet1']
         iar_mw = 4.2
 
-        col_map = {11: 'Sep 25', 12: 'Oct 25', 13: 'Nov 25', 14: 'Dec 25', 15: 'Jan 26', 16: 'Feb 26', 17: 'Mar 26'}
+        col_map = {11: 'Sep 25', 12: 'Oct 25', 13: 'Nov 25', 14: 'Dec 25', 15: 'Jan 26', 16: 'Feb 26', 17: 'Mar 26', 18: 'Apr 26', 19: 'May 26'}
         stream_rows = [4, 5, 6, 7, 8, 9, 10, 11]
 
         result = {}

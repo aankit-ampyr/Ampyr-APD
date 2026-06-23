@@ -147,6 +147,13 @@ AVAILABLE_MONTHS = {
         "optimization_file": "Optimized_Results_Apr_2026.csv",
         "use_master": True,
     },
+    "May 2026": {
+        "bess_file": None,
+        "northwold_file": None,
+        "master_file": "Master_BESS_Analysis_May_2026.csv",
+        "optimization_file": "Optimized_Results_May_2026.csv",
+        "use_master": True,
+    },
 }
 
 @st.cache_data
@@ -2072,6 +2079,7 @@ def show_executive_comparison():
         ('Feb 26', 'February', 28, 'Master_BESS_Analysis_Feb_2026.csv', 'Optimized_Results_Feb_2026.csv'),
         ('Mar 26', 'March', 31, 'Master_BESS_Analysis_Mar_2026.csv', 'Optimized_Results_Mar_2026.csv'),
         ('Apr 26', 'April', 30, 'Master_BESS_Analysis_Apr_2026.csv', 'Optimized_Results_Apr_2026.csv'),
+        ('May 26', 'May', 31, 'Master_BESS_Analysis_May_2026.csv', 'Optimized_Results_May_2026.csv'),
     ]
 
     # Capacity Market & DUoS actuals (same data as in Benchmarks)
@@ -3242,6 +3250,7 @@ def show_pdf_export_page(month: str = "September 2025"):
                     ('Feb 26', 'Master_BESS_Analysis_Feb_2026.csv', 'Optimized_Results_Feb_2026.csv'),
                     ('Mar 26', 'Master_BESS_Analysis_Mar_2026.csv', 'Optimized_Results_Mar_2026.csv'),
                     ('Apr 26', 'Master_BESS_Analysis_Apr_2026.csv', 'Optimized_Results_Apr_2026.csv'),
+                    ('May 26', 'Master_BESS_Analysis_May_2026.csv', 'Optimized_Results_May_2026.csv'),
                 ]
 
                 CM_EXPORT = {'Oct 25': 1704.17, 'Nov 25': 1884.42, 'Dec 25': 1994.84, 'Jan 26': 2113.87, 'Feb 26': 1829.35}
@@ -3365,19 +3374,20 @@ def show_benchmark_comparison():
         ('Feb 26', 28, 'Master_BESS_Analysis_Feb_2026.csv', 'Optimized_Results_Feb_2026.csv'),
         ('Mar 26', 31, 'Master_BESS_Analysis_Mar_2026.csv', 'Optimized_Results_Mar_2026.csv'),
         ('Apr 26', 30, 'Master_BESS_Analysis_Apr_2026.csv', 'Optimized_Results_Apr_2026.csv'),
+        ('May 26', 31, 'Master_BESS_Analysis_May_2026.csv', 'Optimized_Results_May_2026.csv'),
     ]
 
     # Modo Energy monthly benchmark (£/MW/year) — sourced from Modo Energy's
     # ME-BESS-GB monthly-index-live API (market=total × 12), refreshed
-    # 2026-05-20. Refresh anytime via:
+    # 2026-06-24. Refresh anytime via:
     #   python -m src.data_cleaning.modo_client --from 2025-09 --to <YYYY-MM>
     # Historical months differ from prior article-headline values (which appear
     # to use a different aggregation); API values are the FCA-regulated
     # ME-BESS-GB index used by Modo and are the authoritative source going forward.
     MODO_BENCHMARKS = {
-        'Sep 25': 64000, 'Oct 25': 69000, 'Nov 25': 49000,
-        'Dec 25': 41000, 'Jan 26': 45000, 'Feb 26': 30000,
-        'Mar 26': 66000, 'Apr 26': 61000,
+        'Sep 25': 64000, 'Oct 25': 70000, 'Nov 25': 49000,
+        'Dec 25': 41000, 'Jan 26': 46000, 'Feb 26': 31000,
+        'Mar 26': 66000, 'Apr 26': 61000, 'May 26': 39000,
     }
 
     # Source links per month. Now that everything comes from the API the
@@ -3392,6 +3402,7 @@ def show_benchmark_comparison():
         'Feb 26': 'https://modoenergy.com/research/en/me-bess-gb-revenues-february-2026-wholesale-battery-energy-storage-balancing-mechanism',
         'Mar 26': 'https://modoenergy.com/research/en/me-bess-gb-revenues-rise-march-2026-balancing-mechanism-record-gas-prices-',
         'Apr 26': 'https://developers.modoenergy.com/reference/monthly-me-bess-gb',
+        'May 26': 'https://developers.modoenergy.com/reference/monthly-me-bess-gb',
     }
 
     # Capacity Market payments (£) — source: EMR Settlement T062 CSVs
@@ -5212,28 +5223,29 @@ BENCHMARK_COMPARISON_MONTHS = [
     ('Feb 26', 28, 'Master_BESS_Analysis_Feb_2026.csv', 'Optimized_Results_Feb_2026.csv'),
     ('Mar 26', 31, 'Master_BESS_Analysis_Mar_2026.csv', 'Optimized_Results_Mar_2026.csv'),
     ('Apr 26', 30, 'Master_BESS_Analysis_Apr_2026.csv', 'Optimized_Results_Apr_2026.csv'),
+    ('May 26', 31, 'Master_BESS_Analysis_May_2026.csv', 'Optimized_Results_May_2026.csv'),
 ]
 
 # Modo Energy ME-BESS-GB index — FCA-regulated GB BESS revenue benchmark.
 # Three duration cuts sourced from the live API (monthly-index-live endpoint,
-# market=total × 12), refreshed 2026-05-20. Re-pull anytime via:
+# market=total × 12), refreshed 2026-06-24. Re-pull anytime via:
 #   python -m src.data_cleaning.modo_client --from 2025-09 --to <YYYY-MM>
 # These values supersede the earlier AI-chat snapshot — the API is the
 # authoritative source for the FCA-regulated index.
 ME_BESS_GB_ALL = {
-    'Sep 25': 64374, 'Oct 25': 69371, 'Nov 25': 48893,
-    'Dec 25': 40753, 'Jan 26': 45402, 'Feb 26': 30430,
-    'Mar 26': 66453, 'Apr 26': 61129,
+    'Sep 25': 64372, 'Oct 25': 69597, 'Nov 25': 48893,
+    'Dec 25': 40774, 'Jan 26': 45557, 'Feb 26': 30552,
+    'Mar 26': 66050, 'Apr 26': 60930, 'May 26': 39023,
 }
 ME_BESS_GB_1H = {
-    'Sep 25': 49259, 'Oct 25': 52574, 'Nov 25': 36021,
-    'Dec 25': 27935, 'Jan 26': 30366, 'Feb 26': 19981,
-    'Mar 26': 41339, 'Apr 26': 42714,
+    'Sep 25': 49250, 'Oct 25': 52636, 'Nov 25': 36021,
+    'Dec 25': 27935, 'Jan 26': 30560, 'Feb 26': 19932,
+    'Mar 26': 40830, 'Apr 26': 42102, 'May 26': 28168,
 }
 ME_BESS_GB_2H = {
-    'Sep 25': 74655, 'Oct 25': 82041, 'Nov 25': 58849,
-    'Dec 25': 49132, 'Jan 26': 54780, 'Feb 26': 36932,
-    'Mar 26': 80455, 'Apr 26': 72504,
+    'Sep 25': 74658, 'Oct 25': 82417, 'Nov 25': 58848,
+    'Dec 25': 49158, 'Jan 26': 54916, 'Feb 26': 37201,
+    'Mar 26': 80403, 'Apr 26': 72511, 'May 26': 45126,
 }
 
 # Modo Terminal extract (Excel scrape, 12 May 2026) — 40 indices with P10/P50/
