@@ -1,0 +1,87 @@
+{
+  "asset": "Ampyr Tinte",
+  "type": "Solar PV",
+  "country": "Netherlands",
+  "capacity_ac_mw": 9.8,
+  "capacity_dc_kwp": 12600.0,
+  "n_inverters": 39,
+  "period_start": "2026-04-01",
+  "period_end": "2026-04-30",
+  "n_days": 30,
+  "total_energy_mwh": 1343.3,
+  "total_insolation_kwh_m2": 160.5,
+  "specific_yield_month_kwh_kwp": 106.6,
+  "avg_pr": 0.676,
+  "peak_mw": 7.47,
+  "avg_module_temp_c": 13.1,
+  "curtailment_intervals": 122,
+  "report": {
+    "month": "April 2026",
+    "actual_gen_mwh": 1343,
+    "budget_gen_mwh": 1410,
+    "budget_max_theoretical_mwh": 1801,
+    "pct_of_budget": 95.2,
+    "actual_radiation_kwh_m2": 161,
+    "budget_radiation_kwh_m2": 143,
+    "energy_waterfall": [
+      [
+        "Theoretical max",
+        2029
+      ],
+      [
+        "Temperature",
+        73
+      ],
+      [
+        "Array loss",
+        -473
+      ],
+      [
+        "Inverter loss",
+        -18
+      ],
+      [
+        "AC loss",
+        -30
+      ],
+      [
+        "Plant breakdown",
+        -90
+      ],
+      [
+        "Grid + curtailment",
+        -148
+      ]
+    ],
+    "strings": {
+      "total": 935,
+      "normal": 774,
+      "underperforming": 143,
+      "faulty": 17,
+      "severe": 1
+    },
+    "worst_strings": [
+      [
+        "1.18.DC4",
+        -21.5
+      ],
+      [
+        "1.17.DC12",
+        -13.7
+      ],
+      [
+        "1.15.DC14",
+        -12.9
+      ],
+      [
+        "1.16.DC18",
+        -12.4
+      ],
+      [
+        "1.15.DC13",
+        -11.5
+      ]
+    ],
+    "note": "Grid and curtailment losses are combined and 'tentative' per the report; PR%, availability%, specific yield and degradation are not reported."
+  }
+}

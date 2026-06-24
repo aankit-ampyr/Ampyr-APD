@@ -24,6 +24,7 @@ from config import (
 from pages.data_quality import show_data_quality_page
 from pages.invoice_analysis import show_invoice_analysis
 from pages.monthly_checklist import show_monthly_checklist
+from pages.tinte_solar_dashboard import show_tinte_solar_dashboard
 
 # =============================================================================
 # GLOBAL COLOR PALETTE — Colorblind-friendly, consistent across all charts
@@ -5865,6 +5866,8 @@ def main():
                                            on_click=_set_general_page, args=('invoice_analysis',))
     show_checklist_page = st.sidebar.button("📋 Monthly Checklist", use_container_width=True,
                                              on_click=_set_general_page, args=('monthly_checklist',))
+    show_tinte_page = st.sidebar.button("🌅 Tinte Solar Dashboard", use_container_width=True,
+                                         on_click=_set_general_page, args=('tinte_solar',))
 
     st.sidebar.markdown("---")
 
@@ -5949,6 +5952,9 @@ def main():
         return
     if active == 'monthly_checklist':
         show_monthly_checklist()
+        return
+    if active == 'tinte_solar':
+        show_tinte_solar_dashboard()
         return
 
     # Display selected monthly page
