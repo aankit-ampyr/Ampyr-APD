@@ -241,9 +241,9 @@ def _show_overview_tab():
     fig.update_layout(
         yaxis=dict(title='Monthly Payment (£)', side='left'),
         yaxis2=dict(title='Cumulative (£)', overlaying='y', side='right'),
-        height=400,
-        margin=dict(t=20),
-        legend=dict(orientation='h', yanchor='bottom', y=1.02),
+        height=430,
+        margin=dict(t=20, b=10),
+        legend=dict(orientation='h', yanchor='top', y=-0.18),
     )
     st.plotly_chart(fig, use_container_width=True)
 
@@ -372,9 +372,11 @@ def _show_energy_tab():
             title=f'BESS Energy Volumes — {selected_month}',
             yaxis_title='Energy (MWh)',
             barmode='group',
-            height=400,
-            margin=dict(t=40),
-            legend=dict(orientation='h', yanchor='bottom', y=1.02),
+            height=430,
+            # Title and legend both sat at the top (legend y=1.02 with only
+            # 40px of margin), so they overlapped. Legend moved below the plot.
+            margin=dict(t=50, b=10),
+            legend=dict(orientation='h', yanchor='top', y=-0.18),
         )
         st.plotly_chart(fig, use_container_width=True)
 
@@ -424,8 +426,9 @@ def _show_energy_tab():
         fig.update_layout(
             title='Under/(Over) Invoiced by Month (MWh)',
             yaxis_title='MWh (positive = under-invoiced)',
-            height=350,
-            margin=dict(t=40),
+            height=370,
+            # Bars carry outside labels; 40px left them clipping into the title.
+            margin=dict(t=55),
         )
         fig.add_hline(y=0, line_dash='dash', line_color='gray')
         st.plotly_chart(fig, use_container_width=True)
@@ -572,10 +575,10 @@ def _show_revenue_tab():
     ))
     fig.update_layout(
         barmode='group',
-        height=400,
-        margin=dict(t=20),
+        height=430,
+        margin=dict(t=20, b=10),
         yaxis_title='Revenue (£)',
-        legend=dict(orientation='h', yanchor='bottom', y=1.02),
+        legend=dict(orientation='h', yanchor='top', y=-0.18),
     )
     st.plotly_chart(fig, use_container_width=True)
 
