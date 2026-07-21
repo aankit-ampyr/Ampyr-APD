@@ -18,6 +18,8 @@ import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
 from pathlib import Path
+from datetime import datetime
+import glob
 import os
 import sys
 
@@ -116,25 +118,59 @@ def _load_pdfs():
     return read_pdf_invoices()
 
 
+def _data_dir() -> str:
+    return os.path.join(os.path.dirname(__file__), '..', '..', 'data')
+
+
+def _master_path_for(month: str):
+    """Resolve 'June 2026' -> data/Master_BESS_Analysis_Jun_2026.csv.
+
+    Derived rather than looked up. The previous hardcoded month_map stopped at
+    March 2026 and returned None for anything unlisted, so months whose data
+    existed on disk were silently unavailable. It also mapped September to
+    'Sep_2025' when the file is actually 'Sept_2025' — a latent bug that was
+    masked only because September was never offered in the selector.
+    """
+    try:
+        dt = datetime.strptime(month, '%B %Y')
+    except ValueError:
+        return None
+    # Files use the 3-letter abbreviation, except September which is 'Sept'.
+    for abbr in (dt.strftime('%b'), 'Sept' if dt.month == 9 else None):
+        if not abbr:
+            continue
+        path = os.path.join(_data_dir(), f'Master_BESS_Analysis_{abbr}_{dt.year}.csv')
+        if os.path.exists(path):
+            return path
+    return None
+
+
+@st.cache_data
+def _available_master_months() -> list:
+    """Every month with a Master CSV on disk, oldest first.
+
+    Globbing keeps this page in step with the data automatically — adding a
+    month no longer requires editing a list here as well as in
+    streamlit_dashboard.AVAILABLE_MONTHS.
+    """
+    found = []
+    for path in glob.glob(os.path.join(_data_dir(), 'Master_BESS_Analysis_*.csv')):
+        stem = os.path.basename(path)[len('Master_BESS_Analysis_'):-len('.csv')]
+        abbr, _, year = stem.rpartition('_')
+        for fmt in ('%b %Y', '%B %Y'):
+            try:
+                found.append(datetime.strptime(f'{abbr[:3]} {year}', fmt))
+                break
+            except ValueError:
+                continue
+    return [d.strftime('%B %Y') for d in sorted(set(found))]
+
+
 @st.cache_data
 def _load_month_master(month: str):
     """Load Master CSV data for a given month directly."""
-    data_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'data')
-    # Map month names to file patterns
-    month_map = {
-        'September 2025': 'Master_BESS_Analysis_Sep_2025.csv',
-        'October 2025': 'Master_BESS_Analysis_Oct_2025.csv',
-        'November 2025': 'Master_BESS_Analysis_Nov_2025.csv',
-        'December 2025': 'Master_BESS_Analysis_Dec_2025.csv',
-        'January 2026': 'Master_BESS_Analysis_Jan_2026.csv',
-        'February 2026': 'Master_BESS_Analysis_Feb_2026.csv',
-        'March 2026': 'Master_BESS_Analysis_Mar_2026.csv',
-    }
-    filename = month_map.get(month)
-    if not filename:
-        return None
-    filepath = os.path.join(data_dir, filename)
-    if not os.path.exists(filepath):
+    filepath = _master_path_for(month)
+    if not filepath:
         return None
     try:
         return pd.read_csv(filepath)
@@ -313,9 +349,16 @@ def _show_energy_tab():
     """BESS and Solar PV energy volume reconciliation."""
     st.subheader("BESS Energy Volume Reconciliation")
 
-    # Month selector
-    available_months = ['November 2025', 'December 2025', 'January 2026']
-    selected_month = st.selectbox("Select Month", available_months, key='energy_month')
+    # Month selector — derived from the Master CSVs actually present on disk.
+    available_months = _available_master_months()
+    if not available_months:
+        st.warning("No Master CSV files found in data/ — nothing to reconcile.")
+        return
+    selected_month = st.selectbox(
+        "Select Month", available_months,
+        index=len(available_months) - 1,  # newest month by default
+        key='energy_month',
+    )
 
     # Load all sources
     hartree_bess = _load_hartree_bess()

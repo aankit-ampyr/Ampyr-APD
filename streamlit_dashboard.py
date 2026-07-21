@@ -3437,10 +3437,10 @@ def show_benchmark_comparison():
     # to use a different aggregation); API values are the FCA-regulated
     # ME-BESS-GB index used by Modo and are the authoritative source going forward.
     MODO_BENCHMARKS = {
-        'Sep 25': 64000, 'Oct 25': 70000, 'Nov 25': 49000,
-        'Dec 25': 41000, 'Jan 26': 46000, 'Feb 26': 31000,
-        'Mar 26': 66000, 'Apr 26': 61000, 'May 26': 39000,
-        'Jun 26': 63000,
+        'Sep 25': 71000, 'Oct 25': 77000, 'Nov 25': 59000,
+        'Dec 25': 50000, 'Jan 26': 55000, 'Feb 26': 43000,
+        'Mar 26': 73000, 'Apr 26': 69000, 'May 26': 45000,
+        'Jun 26': 70000,
     }
 
     # Source links per month. Now that everything comes from the API the
@@ -5290,27 +5290,30 @@ BENCHMARK_COMPARISON_MONTHS = [
 
 # Modo Energy ME-BESS-GB index — FCA-regulated GB BESS revenue benchmark.
 # Three duration cuts sourced from the live API (monthly-index-live endpoint,
-# market=total × 12), refreshed 2026-07-21. Re-pull anytime via:
+# sum of all six market streams, annualised ×365/days-in-month), refreshed
+# 2026-07-21. Earlier pulls used market='total' × 12, which omitted Capacity
+# Market and under-annualised — understating every month by £5k-£12k/MW/yr.
+# Re-pull anytime via:
 #   python -m src.data_cleaning.modo_client --from 2025-09 --to <YYYY-MM>
 # These values supersede the earlier AI-chat snapshot — the API is the
 # authoritative source for the FCA-regulated index.
 ME_BESS_GB_ALL = {
-    'Sep 25': 64372, 'Oct 25': 69597, 'Nov 25': 48893,
-    'Dec 25': 40774, 'Jan 26': 45557, 'Feb 26': 30527,
-    'Mar 26': 65749, 'Apr 26': 60924, 'May 26': 38839,
-    'Jun 26': 62862,
+    'Sep 25': 71188, 'Oct 25': 76603, 'Nov 25': 58979,
+    'Dec 25': 49626, 'Jan 26': 54648, 'Feb 26': 42599,
+    'Mar 26': 73029, 'Apr 26': 69150, 'May 26': 44809,
+    'Jun 26': 70287,
 }
 ME_BESS_GB_1H = {
-    'Sep 25': 49250, 'Oct 25': 52636, 'Nov 25': 36021,
-    'Dec 25': 27935, 'Jan 26': 30560, 'Feb 26': 19958,
-    'Mar 26': 40881, 'Apr 26': 42102, 'May 26': 28182,
-    'Jun 26': 46302,
+    'Sep 25': 56696, 'Oct 25': 60704, 'Nov 25': 46749,
+    'Dec 25': 37628, 'Jan 26': 40719, 'Feb 26': 31800,
+    'Mar 26': 49308, 'Apr 26': 50846, 'May 26': 35145,
+    'Jun 26': 54302,
 }
 ME_BESS_GB_2H = {
-    'Sep 25': 74658, 'Oct 25': 82417, 'Nov 25': 58848,
-    'Dec 25': 49158, 'Jan 26': 54916, 'Feb 26': 37140,
-    'Mar 26': 79860, 'Apr 26': 72505, 'May 26': 44809,
-    'Jun 26': 71379,
+    'Sep 25': 81121, 'Oct 25': 88541, 'Nov 25': 68489,
+    'Dec 25': 57503, 'Jan 26': 63369, 'Feb 26': 49296,
+    'Mar 26': 86352, 'Apr 26': 80317, 'May 26': 50100,
+    'Jun 26': 78350,
 }
 # Months absent from these dicts must plot as None, never 0 — a missing
 # benchmark is "not published", not "earned nothing".

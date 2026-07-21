@@ -30,6 +30,7 @@ import tomllib
 import urllib.error
 import urllib.parse
 import urllib.request
+from calendar import monthrange
 from datetime import datetime
 from pathlib import Path
 from typing import Dict
@@ -80,15 +81,38 @@ def fetch_monthly_index(
 
     Returns:
         {month_iso (YYYY-MM-01): annualised_revenue_per_mw_int}
-        Annualised = revenue_permw (monthly £/MW for market='total') × 12.
+
+    Methodology — must match what Modo publishes on the web UI:
+
+    1. SUM ALL SIX STREAMS, don't use market='total'. The API's 'total' row
+       is the sum of the five NON-capacity-market streams only; it silently
+       omits 'cm'. Verified as an exact identity (total == sum of bm,
+       frequency_response, imbalance, reserve, wholesale) across every day of
+       June 2026 and every month Sep-25..Jun-26. Using 'total' understated
+       the published index by £7k-£12k/MW/year depending on CM share.
+    2. ANNUALISE BY 365/days-in-month, not ×12. Modo scales the mean daily
+       rate to a 365-day year; ×12 assumes a 30.42-day month.
+
+    Both corrections together reproduce Modo's published headline exactly:
+    June 2026 1H = 4463.1918 × 365/30 = 54,302, matching the web UI. The
+    previous formula returned 46,302 for the same month.
     """
     rows = _fetch(month_from, month_to, duration)
-    out: Dict[str, int] = {}
+
+    # Accumulate every stream except the 'total' aggregate, which would
+    # double-count the five streams it already contains.
+    per_month: Dict[str, float] = {}
     for r in rows:
-        if r.get("market") != "total":
+        if r.get("market") == "total":
             continue
         month = r["month"]  # 'YYYY-MM-DD'
-        out[month] = round(float(r["revenue_permw"]) * 12)
+        per_month[month] = per_month.get(month, 0.0) + float(r["revenue_permw"])
+
+    out: Dict[str, int] = {}
+    for month, revenue_permw in per_month.items():
+        dt = datetime.strptime(month, "%Y-%m-%d")
+        days_in_month = monthrange(dt.year, dt.month)[1]
+        out[month] = round(revenue_permw * 365 / days_in_month)
     return out
 
 
