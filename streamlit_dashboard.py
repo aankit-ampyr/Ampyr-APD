@@ -5898,6 +5898,141 @@ market prices. It's the most honest theoretical ceiling for *this asset*.
    need monthly cadence rather than the rolling windows in the extract.
         """)
 
+    st.markdown("---")
+
+    # ================================================================
+    # SECTION 7 — Daily revenue stack from the Modo timeseries API
+    # ================================================================
+    _render_modo_daily_stack()
+
+
+# Modo's own palette, so the chart reads the same as their web UI.
+MODO_STACK_COLORS = {
+    'Frequency Response': '#4c2f92',
+    'Wholesale': '#7c5fd3',
+    'Balancing Mechanism': '#b9a6e8',
+    'Capacity Market': '#7fd4e8',
+    'Reserve': '#f4785f',
+    'Imbalance': '#a4243b',
+}
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def _fetch_modo_daily(date_from, date_to, duration):
+    """Cached wrapper — the API rate-limits at ~60 calls/minute."""
+    from src.data_cleaning.modo_client import fetch_daily_breakdown
+    return fetch_daily_breakdown(date_from, date_to, duration)
+
+
+def _render_modo_daily_stack():
+    """Daily GB-fleet revenue stack, reproducing Modo's web-UI chart."""
+    st.header("7. Modo GB fleet — daily revenue stack")
+    st.markdown(
+        "Daily revenue by market for the whole GB fleet, pre-annualised to "
+        "£/MW/year. This is the market context Northwold trades into: which "
+        "streams paid on which days, and when the fleet went negative."
+    )
+
+    months = [m['label'] for m in _MODO_STACK_MONTHS]
+    c1, c2 = st.columns([2, 1])
+    with c1:
+        picked = st.selectbox("Month", months, index=len(months) - 1,
+                              key='modo_stack_month')
+    with c2:
+        duration = st.selectbox(
+            "Index", ['1H', 'ALL', '2H'], index=0, key='modo_stack_duration',
+            help="1H is Northwold's duration bracket (<1.5h)",
+        )
+
+    entry = next(m for m in _MODO_STACK_MONTHS if m['label'] == picked)
+
+    try:
+        rows = _fetch_modo_daily(entry['start'], entry['end'], duration)
+    except Exception as exc:
+        msg = str(exc)
+        if 'call limit' in msg or '403' in msg:
+            st.warning(
+                "Modo API rate limit reached (~60 calls/minute). Wait a minute "
+                "and reload — results cache for an hour once fetched."
+            )
+        else:
+            st.error(f"Could not load Modo daily data: {msg}")
+        return
+
+    if not rows:
+        st.info(f"Modo has not published daily data for {picked} yet.")
+        return
+
+    df = pd.DataFrame(rows)
+    totals = df.groupby('date')['revenue'].sum()
+
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("Month mean", f"£{totals.mean():,.0f}",
+              help="Mean of daily annualised totals — Modo's headline index for this month")
+    m2.metric("Best day", f"£{totals.max():,.0f}", help=str(totals.idxmax()))
+    m3.metric("Worst day", f"£{totals.min():,.0f}", help=str(totals.idxmin()))
+    m4.metric("Negative days", int((totals < 0).sum()))
+
+    fig = go.Figure()
+    from src.data_cleaning.modo_client import MARKET_ORDER
+    for market in MARKET_ORDER:
+        sub = df[df['market'] == market]
+        if sub.empty:
+            continue
+        fig.add_bar(name=market, x=sub['date'], y=sub['revenue'],
+                    marker_color=MODO_STACK_COLORS.get(market))
+    fig.add_scatter(name='Total', x=totals.index, y=totals.values,
+                    mode='lines', line=dict(color='#d6336c', width=2))
+    fig.update_layout(
+        barmode='relative',  # stacks negatives below the axis, as Modo do
+        height=470,
+        yaxis_title='Revenue (£/MW/year)',
+        xaxis_title=None,
+        legend=dict(orientation='h', yanchor='top', y=-0.15),
+        margin=dict(t=30, b=10),
+        hovermode='x unified',
+    )
+    fig.add_hline(y=0, line=dict(color='#888', width=1))
+    st.plotly_chart(fig, use_container_width=True)
+
+    with st.expander("Stream totals for the month"):
+        summary = (df.groupby('market')['revenue'].sum() / totals.shape[0]).sort_values(ascending=False)
+        st.dataframe(
+            pd.DataFrame({
+                'Stream': summary.index,
+                'Mean £/MW/year': [f"£{v:,.0f}" for v in summary.values],
+                'Share of total': [
+                    f"{v / totals.mean() * 100:+.1f}%" if totals.mean() else '—'
+                    for v in summary.values
+                ],
+            }),
+            use_container_width=True, hide_index=True,
+        )
+
+    st.caption(
+        "Source: Modo `/pub/v1/indices/{id}/revenue/timeseries/` (daily, "
+        "market breakdown, annualised). Note this endpoint reports ~4% lower "
+        "than `monthly-index-live`, which is what the headline index dicts "
+        "above use because it matches Modo's published figures — an open "
+        "question with Modo. Use this chart for daily shape, not absolute level."
+    )
+
+
+# Month windows for the daily stack. interval_end is the last day of the
+# month; the API treats the range as inclusive of that local day.
+_MODO_STACK_MONTHS = [
+    {'label': 'September 2025', 'start': '2025-09-01', 'end': '2025-09-30'},
+    {'label': 'October 2025', 'start': '2025-10-01', 'end': '2025-10-31'},
+    {'label': 'November 2025', 'start': '2025-11-01', 'end': '2025-11-30'},
+    {'label': 'December 2025', 'start': '2025-12-01', 'end': '2025-12-31'},
+    {'label': 'January 2026', 'start': '2026-01-01', 'end': '2026-01-31'},
+    {'label': 'February 2026', 'start': '2026-02-01', 'end': '2026-02-28'},
+    {'label': 'March 2026', 'start': '2026-03-01', 'end': '2026-03-31'},
+    {'label': 'April 2026', 'start': '2026-04-01', 'end': '2026-04-30'},
+    {'label': 'May 2026', 'start': '2026-05-01', 'end': '2026-05-31'},
+    {'label': 'June 2026', 'start': '2026-06-01', 'end': '2026-06-30'},
+]
+
 
 # ============================================================================
 # BESS Cycles Dashboard (portfolio view, month-independent)

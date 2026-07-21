@@ -116,6 +116,106 @@ def fetch_monthly_index(
     return out
 
 
+# ---------------------------------------------------------------------------
+# Index Revenue Timeseries — the successor to monthly-index-live
+# ---------------------------------------------------------------------------
+# GET /pub/v1/indices/{id}/revenue/timeseries/
+#   interval_start, interval_end : YYYY-MM-DD (end is exclusive of the next
+#                                  local day; 2026-06-01..2026-06-30 yields
+#                                  exactly the 30 days of June)
+#   granularity                  : 'daily' | 'monthly'
+#   breakdown                    : 'market'
+#   capacity_normalisation       : 'mw'
+#   time_basis                   : 'year'  (values arrive pre-annualised)
+#
+# KNOWN DISCREPANCY (2026-07-21): for June 2026 1H this endpoint reports
+# 52,064 GBP/MW/year while monthly-index-live reports 54,302 — and 54,302 is
+# what Modo publish on the web UI. The gap is ~4% and is NOT a uniform scale
+# factor (it varies per stream: cm -3.3%, reserve -12.6%). Until Modo clarify,
+# the headline index dicts stay on monthly-index-live so the dashboard agrees
+# with figures stakeholders can see on Modo's own site; this endpoint is used
+# for the daily shape, where relative movement is what matters.
+TIMESERIES_ENDPOINT = "/pub/v1/indices/{index_id}/revenue/timeseries/"
+
+# Index IDs (from GET /pub/v1/indices/).
+INDEX_IDS = {
+    "ALL": 314,    # ME BESS GB
+    "1H": 420,     # ME BESS GB (1H)  — Northwold's duration bracket
+    "2H": 421,     # ME BESS GB (2H)
+    "GB-EAST": 4720,   # Northwold's region
+}
+
+# The timeseries endpoint breaks frequency response and reserve into
+# individual services; group them back to the six categories Modo shows on
+# the web UI so our chart matches theirs.
+MARKET_GROUPS = {
+    "dch": "Frequency Response", "dcl": "Frequency Response",
+    "dmh": "Frequency Response", "dml": "Frequency Response",
+    "drh": "Frequency Response", "drl": "Frequency Response",
+    "nbr": "Reserve", "nqr": "Reserve", "pbr": "Reserve",
+    "pqr": "Reserve", "psr": "Reserve",
+    "wholesale": "Wholesale",
+    "bm": "Balancing Mechanism",
+    "cm": "Capacity Market",
+    "imbalance": "Imbalance",
+}
+
+# Display order, bottom of the stack upward, matching Modo's legend.
+MARKET_ORDER = [
+    "Frequency Response", "Wholesale", "Balancing Mechanism",
+    "Capacity Market", "Reserve", "Imbalance",
+]
+
+
+def fetch_daily_breakdown(
+    date_from: str,
+    date_to: str,
+    duration: str = "1H",
+) -> list[dict]:
+    """Daily revenue by market for a GB BESS index, pre-annualised (£/MW/year).
+
+    Args:
+        date_from: 'YYYY-MM-DD' inclusive
+        date_to:   'YYYY-MM-DD' inclusive
+        duration:  key into INDEX_IDS — 'ALL', '1H', '2H' or 'GB-EAST'
+
+    Returns:
+        [{'date': 'YYYY-MM-DD', 'market': 'Wholesale', 'revenue': float}, ...]
+        with the 15 raw services already collapsed into the six display groups.
+    """
+    index_id = INDEX_IDS[duration]
+    cfg = _load_secrets()
+    qs = urllib.parse.urlencode({
+        "interval_start": date_from,
+        "interval_end": date_to,
+        "granularity": "daily",
+        "breakdown": "market",
+        "capacity_normalisation": "mw",
+        "time_basis": "year",
+    })
+    url = f"{cfg['base_url']}{TIMESERIES_ENDPOINT.format(index_id=index_id)}?{qs}"
+    req = urllib.request.Request(url, headers={"X-API-Key": cfg["api_token"]})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        body = e.read(500).decode("utf-8", errors="replace")
+        raise RuntimeError(f"Modo API {e.code} {e.reason}: {body}") from e
+
+    grouped: Dict[tuple, float] = {}
+    for rec in payload.get("results", {}).get("records", []):
+        # interval_start is UTC; the local day it belongs to is the date part
+        # of the interval END (23:00Z on 31 May == 1 June BST).
+        day = rec["interval_end"][:10]
+        group = MARKET_GROUPS.get(rec["market"], rec["market"])
+        grouped[(day, group)] = grouped.get((day, group), 0.0) + float(rec["revenue"])
+
+    return [
+        {"date": d, "market": m, "revenue": v}
+        for (d, m), v in sorted(grouped.items())
+    ]
+
+
 def _short_label(month_iso: str) -> str:
     """'2026-06-01' -> 'Jun 26', matching the dashboard's dict keys.
 
