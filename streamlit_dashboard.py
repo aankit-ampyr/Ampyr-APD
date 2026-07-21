@@ -5474,12 +5474,12 @@ def show_benchmark_dashboard():
         c1.metric("Charge rate", "4.2 MW")
         c2.metric("Discharge rate", "7.5 MW")
         c3.metric("Capacity", "8.4 MWh")
-        c4.metric("Effective duration", "~1.4 h",
-                  help="Geometric mean of charge/discharge: 8.4 MWh ÷ 5.85 MW. Most peer benchmarks assume 1h or 2h symmetric.")
+        c4.metric("Duration", "2.0 h",
+                  help="Nameplate: 8.4 MWh ÷ 4.2 MW rated power = 2 hours. The 7.5 MW figure is the export / grid-connection limit, not the duration basis.")
         st.caption(
-            "⚠ Asymmetric battery — £/MW/yr depends on which power rating you "
-            "normalise by. Page reports £/MW/yr using 4.2 MW (charge) for "
-            "consistency with the existing Benchmarks page. See pending TODO on full normalisation."
+            "Northwold is a **2-hour** battery (4.2 MW × 2h = 8.4 MWh), so the "
+            "**ME-BESS-GB 2H index (1.5–2.5h) is its correct peer**. £/MW/yr is "
+            "normalised by the 4.2 MW rated power, consistent with that duration."
         )
 
     # ---- Explainer for in-house optimiser ----
@@ -5533,10 +5533,10 @@ market prices. It's the most honest theoretical ceiling for *this asset*.
 
         # UK peer benchmarks — Modo ME-BESS-GB with three duration cuts.
         # Modo's official bracket cutoffs: 1H = duration <1.5h; 2H = 1.5h–2.5h.
-        # Northwold (~1.4h effective) is in the 1H bracket — exact peer match.
-        {'name': '📊 Modo ME-BESS-GB — 1H (<1.5h) — NORTHWOLD\'S BRACKET', 'group': 'UK Peer', 'monthly_values': ME_BESS_GB_1H},
+        # Northwold is 4.2 MW / 8.4 MWh = 2.0h, so the 2H bracket is its peer.
+        {'name': '📊 Modo ME-BESS-GB — 2H (1.5h–2.5h) — NORTHWOLD\'S BRACKET', 'group': 'UK Peer', 'monthly_values': ME_BESS_GB_2H},
         {'name': '📊 Modo ME-BESS-GB — All durations (headline, volume-weighted)', 'group': 'UK Peer', 'monthly_values': ME_BESS_GB_ALL},
-        {'name': '📊 Modo ME-BESS-GB — 2H (1.5h–2.5h)', 'group': 'UK Peer', 'monthly_values': ME_BESS_GB_2H},
+        {'name': '📊 Modo ME-BESS-GB — 1H (<1.5h)', 'group': 'UK Peer', 'monthly_values': ME_BESS_GB_1H},
         {'name': 'Aurora Energy Research — GB Battery Index', 'group': 'UK Peer', 'all_cells_status': '🔒'},
         {'name': 'Montel — UK BESS Leaderboard', 'group': 'UK Peer', 'all_cells_status': '🔒'},
 
@@ -5676,8 +5676,8 @@ market prices. It's the most honest theoretical ceiling for *this asset*.
         st.markdown(
             "TB-spread = top-N hours minus bottom-N hours per day (perfect-arbitrage "
             "revenue for an N-hour battery). TB1 ≈ 1h battery ceiling · TB2 ≈ 2h · "
-            "TB4 ≈ 4h. Day-Ahead and Intraday markets separately. **Northwold (1.4h) "
-            "should sit roughly between TB1 and TB2.**"
+            "TB4 ≈ 4h. Day-Ahead and Intraday markets separately. **Northwold is a "
+            "2h battery, so TB2 is its matching theoretical ceiling.**"
         )
         tb_rows = []
         for period in ['30 Days', '90 Days', '1 Year']:
@@ -5707,7 +5707,7 @@ market prices. It's the most honest theoretical ceiling for *this asset*.
             "100% = perfectly captured the TB-N spread (essentially impossible without "
             "perfect foresight). The TB-spread research from Modo says real 2h batteries "
             f"typically achieve ~{MODO_TB2_CAPTURE_PCT}% of TB2 (multi-market revenue stacks "
-            "exceed pure spread). For Northwold (1.4h), the right reference is between TB1 and TB2."
+            "exceed pure spread). Northwold is a 2h battery, so TB2 is its reference."
         )
 
         st.markdown("---")
@@ -5733,33 +5733,33 @@ market prices. It's the most honest theoretical ceiling for *this asset*.
                           mode='lines+markers', line=dict(color='#2ca02c', width=3, dash='dash'),
                           marker=dict(size=10))
     # Modo ME-BESS-GB duration cuts
-    fig_trend.add_scatter(name='📊 ME-BESS-GB — 1H (closest peer to Northwold)', x=months_labels,
+    fig_trend.add_scatter(name='📊 ME-BESS-GB — 1H', x=months_labels,
                           y=[ME_BESS_GB_1H.get(r['short']) for r in rows],
-                          mode='lines+markers', line=dict(color='#ff7f0e', width=3),
-                          marker=dict(size=10))
+                          mode='lines+markers', line=dict(color='#ff7f0e', width=2, dash='dot'),
+                          marker=dict(size=8), opacity=0.6)
     fig_trend.add_scatter(name='📊 ME-BESS-GB — All durations (fleet)', x=months_labels,
                           y=[ME_BESS_GB_ALL.get(r['short']) for r in rows],
                           mode='lines+markers', line=dict(color='#ff7f0e', width=2, dash='dot'),
                           marker=dict(size=8), opacity=0.6)
-    fig_trend.add_scatter(name='📊 ME-BESS-GB — 2H', x=months_labels,
+    fig_trend.add_scatter(name="📊 ME-BESS-GB — 2H (Northwold's bracket)", x=months_labels,
                           y=[ME_BESS_GB_2H.get(r['short']) for r in rows],
-                          mode='lines+markers', line=dict(color='#d62728', width=2, dash='dot'),
-                          marker=dict(size=8), opacity=0.6)
+                          mode='lines+markers', line=dict(color='#d62728', width=3),
+                          marker=dict(size=10))
     fig_trend.update_layout(title='Northwold vs Modo ME-BESS-GB peer benchmarks (£/MW/yr)',
                             yaxis_title='£/MW/year', xaxis_title='Month',
                             height=480, legend=dict(orientation='h', y=-0.25))
     st.plotly_chart(fig_trend, use_container_width=True)
 
     st.info(
-        "**ME-BESS-GB duration cuts** (sourced via Ankit's Modo AI chat, Apr 2026):\n\n"
-        "Modo classifies assets by hard duration brackets — **1H = <1.5h, "
-        "2H = 1.5h–2.5h**. Northwold's ~1.4h effective duration places it "
-        "unambiguously in the **1H bracket**, so the orange line is the exact peer "
-        "for like-for-like comparison.\n\n"
+        "**ME-BESS-GB duration cuts.** Modo classifies assets by hard duration "
+        "brackets — **1H = <1.5h, 2H = 1.5h–2.5h**. Northwold is 4.2 MW / "
+        "8.4 MWh = **2.0 hours**, so the red **2H line is its peer** for "
+        "like-for-like comparison. (The 7.5 MW export limit is a grid-connection "
+        "rating, not the duration basis.)\n\n"
         "The All-duration headline is **volume-weighted by MW capacity** (not a "
-        "simple average) — larger and longer-duration assets contribute more, "
-        "which biases the headline above what a small 1H asset like Northwold "
-        "should target. Methodology v2.1 (Jul 2024) refined this weighting."
+        "simple average), so it blends 1H and 4H assets together and is a fleet "
+        "context figure rather than a peer. Methodology v2.1 (Jul 2024) refined "
+        "this weighting."
     )
 
     st.markdown("---")
@@ -5795,10 +5795,9 @@ market prices. It's the most honest theoretical ceiling for *this asset*.
     # ================================================================
     st.header("5. Peer rank vs Modo ME-BESS-GB (duration-aware)")
     st.markdown(
-        "Northwold's £/MW/year compared against all three duration cuts of the "
-        "Modo ME-BESS-GB index. Because Northwold is asymmetric (1.2h on discharge, "
-        "2h on charge, ~1.4h effective), the **1H index is the closest peer** — but "
-        "we also show 2H and the fleet average for context."
+        "Northwold's £/MW/year against all three duration cuts. Northwold is a "
+        "**2-hour** battery (4.2 MW × 2h = 8.4 MWh), so **NW ÷ 2H is the "
+        "like-for-like ranking**; 1H and All-duration are shown for context."
     )
 
     peer_rows = []
@@ -5810,13 +5809,13 @@ market prices. It's the most honest theoretical ceiling for *this asset*.
         peer_rows.append({
             'Month': r['short'],
             'Northwold': f"£{round(actual):,}",
-            'ME-BESS 1H': f"£{m_1h:,}" if m_1h else '—',
+            'ME-BESS 2H (peer)': f"£{m_2h:,}" if m_2h else '—',
             'ME-BESS All': f"£{m_all:,}" if m_all else '—',
-            'ME-BESS 2H': f"£{m_2h:,}" if m_2h else '—',
-            'NW ÷ 1H': f"{actual/m_1h*100:.0f}%" if m_1h else '—',
+            'ME-BESS 1H': f"£{m_1h:,}" if m_1h else '—',
+            'NW ÷ 2H': f"{actual/m_2h*100:.0f}%" if m_2h else '—',
             'NW ÷ All': f"{actual/m_all*100:.0f}%" if m_all else '—',
-            'Verdict (vs 1H peer)': (
-                ('🟢 Above 1H peer' if actual >= m_1h else '🟡 Below 1H peer') if m_1h else '—'
+            'Verdict (vs 2H peer)': (
+                ('🟢 Above 2H peer' if actual >= m_2h else '🟡 Below 2H peer') if m_2h else '—'
             ),
         })
     # Add average row
@@ -5827,22 +5826,23 @@ market prices. It's the most honest theoretical ceiling for *this asset*.
     peer_rows.append({
         'Month': f'**{len(rows)}-mo avg**',
         'Northwold': f"**£{round(avg_actual):,}**",
-        'ME-BESS 1H': f"**£{round(avg_1h):,}**",
+        'ME-BESS 2H (peer)': f"**£{round(avg_2h):,}**",
         'ME-BESS All': f"**£{round(avg_all):,}**",
-        'ME-BESS 2H': f"**£{round(avg_2h):,}**",
-        'NW ÷ 1H': f"**{avg_actual/avg_1h*100:.0f}%**",
+        'ME-BESS 1H': f"**£{round(avg_1h):,}**",
+        'NW ÷ 2H': f"**{avg_actual/avg_2h*100:.0f}%**",
         'NW ÷ All': f"**{avg_actual/avg_all*100:.0f}%**",
-        'Verdict (vs 1H peer)': '—',
+        'Verdict (vs 2H peer)': '—',
     })
     st.dataframe(pd.DataFrame(peer_rows), use_container_width=True, hide_index=True)
 
     st.caption(
-        "📌 **Duration insight**: Modo's published bracket cutoffs are **1H < 1.5h** and "
-        "**2H = 1.5h–2.5h**. Northwold's ~1.4h effective duration sits in the 1H bracket, "
-        "so **NW ÷ 1H is the exact like-for-like comparison**. The All-duration headline "
-        "is volume-weighted by MW capacity (refined in v2.1, July 2024) — it skews above "
-        "Northwold because longer-duration 2H+ assets dominate by capacity. NW ÷ All is "
-        "useful for fleet context but not a fair performance ranking."
+        "📌 **Duration**: Modo's bracket cutoffs are **1H < 1.5h** and "
+        "**2H = 1.5h–2.5h**. Northwold's nameplate is 4.2 MW / 8.4 MWh = **2.0 hours**, "
+        "so **NW ÷ 2H is the like-for-like comparison**. The 7.5 MW figure quoted "
+        "elsewhere is the export / grid-connection limit, not the duration basis — "
+        "using it would imply 1.1h and put Northwold in the wrong bracket. "
+        "All-duration is volume-weighted across every duration and is fleet context, "
+        "not a peer ranking."
     )
 
     st.markdown("---")
@@ -5940,8 +5940,8 @@ def _render_modo_daily_stack():
                               key='modo_stack_month')
     with c2:
         duration = st.selectbox(
-            "Index", ['1H', 'ALL', '2H'], index=0, key='modo_stack_duration',
-            help="1H is Northwold's duration bracket (<1.5h)",
+            "Index", ['2H', 'ALL', '1H'], index=0, key='modo_stack_duration',
+            help="2H (1.5-2.5h) is Northwold's bracket — 4.2 MW / 8.4 MWh = 2.0h",
         )
 
     entry = next(m for m in _MODO_STACK_MONTHS if m['label'] == picked)
