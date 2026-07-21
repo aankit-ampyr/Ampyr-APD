@@ -456,11 +456,15 @@ def _show_energy_tab():
         col3.metric("Under/(Over) Invoiced", f"{total_under_over/1000:,.1f} MWh",
                      delta=f"£{total_under_over * 0.1:,.2f} at £0.10/kWh")
 
-        # Under/over invoiced bar chart by month
+        # Under/over invoiced bar chart by month. Plot the resolved YYYY-MM
+        # period where available — the source pivot carries only bare month
+        # names, so "Mar" alone is ambiguous once more than one year is loaded.
         display = pv_recon[pv_recon['month'] != 'Grand Total'].copy()
+        x_axis = (display['period'].fillna(display['month'])
+                  if 'period' in display.columns else display['month'])
         fig = go.Figure()
         fig.add_trace(go.Bar(
-            x=display['month'],
+            x=x_axis,
             y=display['under_over_kwh'] / 1000,
             marker_color=[COLOR_OK if v > 0 else COLOR_ERROR for v in display['under_over_kwh']],
             text=[f"{v/1000:.1f}" for v in display['under_over_kwh']],

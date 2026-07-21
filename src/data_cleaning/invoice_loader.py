@@ -249,9 +249,16 @@ def load_hartree_pv_readings(raw_dir: str) -> pd.DataFrame:
     Args:
         raw_dir: Path to raw/New/ directory
 
+    The pivot labels rows with bare month names ("Mar", "Apr", …) and carries
+    no year, which made the output impossible to filter or join by month. The
+    year is recovered from the invoice date embedded in the filename
+    (NWOSFL_..._20251119_PV ...) — readings always precede the invoice that
+    bills them — and a `period` column (YYYY-MM) is added alongside the
+    original `month` label.
+
     Returns:
-        DataFrame with columns: month, generation_kwh, invoiced_sin2_01_02,
-        invoiced_sin2_03, under_over_invoiced_kwh
+        DataFrame with columns: month, period, period_date, generation_kwh,
+        invoiced_sin2_01_02, invoiced_sin2_03, under_over_invoiced_kwh
     """
     raw_path = Path(raw_dir)
     pv_files = list(raw_path.rglob("*PV*Readings.xlsx"))
@@ -295,9 +302,59 @@ def load_hartree_pv_readings(raw_dir: str) -> pd.DataFrame:
                 })
 
         if records:
-            return pd.DataFrame(records)
+            return _assign_pv_years(pd.DataFrame(records), f.name)
 
     return pd.DataFrame()
+
+
+def _assign_pv_years(df: pd.DataFrame, filename: str) -> pd.DataFrame:
+    """Attach a real year to month-only Hartree PV pivot rows.
+
+    The rows are in chronological order but carry no year. The filename holds
+    the invoice date (…_YYYYMMDD_…); readings always precede the invoice, so
+    the last data month sits on or before the invoice month. Years are then
+    assigned by walking backwards and decrementing whenever the sequence steps
+    forward in month number, which is how a December-to-January boundary shows
+    up in reverse.
+    """
+    df = df.copy()
+    df['period'] = None
+    df['period_date'] = pd.NaT
+
+    m = re.search(r'_(\d{8})_', filename)
+    if not m:
+        return df
+    try:
+        invoice_dt = pd.to_datetime(m.group(1), format='%Y%m%d')
+    except ValueError:
+        return df
+
+    months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+              'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    data_rows = df[df['month'] != 'Grand Total']
+    if data_rows.empty:
+        return df
+
+    nums = [months.index(x) + 1 for x in data_rows['month']]
+
+    year = invoice_dt.year
+    if nums[-1] > invoice_dt.month:
+        year -= 1  # last reading month is after the invoice month → prior year
+
+    years = []
+    prev = None
+    for n in reversed(nums):
+        if prev is not None and n > prev:
+            year -= 1
+        years.append(year)
+        prev = n
+    years.reverse()
+
+    for idx, y, n in zip(data_rows.index, years, nums):
+        df.at[idx, 'period'] = f'{y:04d}-{n:02d}'
+        df.at[idx, 'period_date'] = pd.Timestamp(year=y, month=n, day=1)
+
+    return df
 
 
 # ─────────────────────────────────────────────────────────────
