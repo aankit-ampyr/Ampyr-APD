@@ -492,11 +492,16 @@ def calculate_daily_arbitrage(df):
     Arbitrage revenue = EPEX DA + IDA1 + IDC revenues
     (excludes SFFR as it's frequency response, not arbitrage)
 
+    All four source columns are GB-traded, so the total is netted by the 5%
+    GridBeyond revenue share before being returned. Without that the TB
+    Spread section reported gross arbitrage while comparing it against the
+    142% capture benchmark, overstating capture by 5%.
+
     Args:
-        df: DataFrame with revenue columns
+        df: DataFrame with revenue columns (gross, as loaded from the master CSV)
 
     Returns:
-        DataFrame with columns: Date, Arbitrage_Revenue
+        DataFrame with columns: Date, Arbitrage_Revenue — net of the GB share
     """
     df = df.copy()
 
@@ -520,7 +525,10 @@ def calculate_daily_arbitrage(df):
     df['IDA1_Revenue'] = safe_col(df, 'IDA1 Revenue')
     df['IDC_Revenue'] = safe_col(df, 'IDC Revenue')
 
-    df['Arbitrage_Total'] = df['EPEX_Revenue'] + df['IDA1_Revenue'] + df['IDC_Revenue']
+    # Net the 5% GridBeyond share — every component is a GB-traded stream.
+    df['Arbitrage_Total'] = apply_gb_net(
+        df['EPEX_Revenue'] + df['IDA1_Revenue'] + df['IDC_Revenue']
+    )
 
     # Group by date
     daily = df.groupby('Date').agg({
@@ -3686,8 +3694,8 @@ for Real totals. Positive variance means outperformance; negative means underper
 
 **Example (October 2025 — Frequency Response):**
 - IAR Projection: £1,038 (per IAR model, 4.2 MW × per-MW projection)
-- Actual SFFR Revenue: £28,382
-- Variance: ((28,382 - 1,038) ÷ 1,038) × 100 = **+2,634%**
+- Actual SFFR Revenue: £26,925 (£28,342 gross, net of the 5% GridBeyond share)
+- Variance: ((26,925 - 1,038) ÷ 1,038) × 100 = **+2,494%**
 
 **Key Patterns Observed:**
 - **Frequency Response** massively outperforms IAR (SFFR prices much higher than projected)
