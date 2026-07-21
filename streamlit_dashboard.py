@@ -5905,6 +5905,13 @@ market prices. It's the most honest theoretical ceiling for *this asset*.
     # ================================================================
     _render_modo_daily_stack()
 
+    st.markdown("---")
+
+    # ================================================================
+    # SECTION 8 — Northwold against its 2H peer, daily
+    # ================================================================
+    _render_northwold_vs_modo()
+
 
 # Modo's own palette, so the chart reads the same as their web UI.
 MODO_STACK_COLORS = {
@@ -6017,6 +6024,179 @@ def _render_modo_daily_stack():
         "index above exactly for every settled month; the most recent month "
         "can read a few percent low while Elexon settlement is still "
         "restating it, so treat the newest month as provisional."
+    )
+
+
+# Streams where BOTH Northwold and Modo have daily data, so a like-for-like
+# comparison is meaningful.
+COMPARABLE_STREAMS = ['Frequency Response', 'Wholesale', 'Imbalance']
+# Modo streams Northwold has no daily counterpart for. BM and Reserve are
+# genuine non-participation. Capacity Market is different: Northwold does earn
+# it, but only as a monthly EMR settlement figure, so it cannot be placed on a
+# daily axis — it is excluded from BOTH sides of the traded comparison.
+STRUCTURAL_STREAMS = ['Balancing Mechanism', 'Reserve', 'Capacity Market']
+
+
+def _northwold_daily_streams(master_file: str, capacity_mw: float = 4.2):
+    """Northwold daily revenue by stream, annualised to £/MW/year.
+
+    Maps Northwold's aggregator columns onto Modo's stream names so the two
+    can be charted together. Returns None if the month has no timestamps.
+    """
+    try:
+        df = pd.read_csv(os.path.join(DATA_DIR, master_file))
+    except FileNotFoundError:
+        return None
+    if 'Timestamp' not in df.columns:
+        return None
+    df['Timestamp'] = pd.to_datetime(df['Timestamp'], errors='coerce')
+
+    def col(name):
+        return pd.to_numeric(df[name], errors='coerce').fillna(0) if name in df.columns else 0
+
+    daily = pd.DataFrame({
+        'date': df['Timestamp'].dt.strftime('%Y-%m-%d'),
+        # SFFR is Northwold's only frequency product.
+        'Frequency Response': col('SFFR revenues'),
+        # Modo's "Wholesale" spans day-ahead and both intraday routes.
+        'Wholesale': (col('EPEX 30 DA Revenue') + col('EPEX DA Revenues')
+                      + col('IDA1 Revenue') + col('IDC Revenue')),
+        # Net of the charge — imbalance can and does run negative.
+        'Imbalance': col('Imbalance Revenue') - col('Imbalance Charge'),
+    }).groupby('date', as_index=False).sum()
+
+    for s in COMPARABLE_STREAMS:
+        daily[s] = daily[s] / capacity_mw * 365
+    return daily
+
+
+def _render_northwold_vs_modo():
+    """Northwold against the ME-BESS-GB 2H fleet index, daily."""
+    st.header("8. Northwold vs the 2H fleet")
+    st.markdown(
+        "Northwold against its duration peer — the ME-BESS-GB **2H** index — "
+        "on a common £/MW/year basis. The headline gap is split into markets "
+        "Northwold simply does not trade, and performance on the ones it does."
+    )
+
+    labels = [m['label'] for m in _MODO_STACK_MONTHS]
+    picked = st.selectbox("Month", labels, index=len(labels) - 1, key='nw_vs_modo_month')
+    entry = next(m for m in _MODO_STACK_MONTHS if m['label'] == picked)
+
+    master_file = (AVAILABLE_MONTHS.get(picked) or {}).get('master_file')
+    nw = _northwold_daily_streams(master_file) if master_file else None
+    if nw is None or nw.empty:
+        st.warning(
+            f"{picked} has no timestamped Northwold data — the legacy September "
+            "format carries no daily axis, so it cannot be compared day by day."
+        )
+        return
+
+    try:
+        modo_rows = _fetch_modo_daily(entry['start'], entry['end'], '2H')
+    except Exception as exc:
+        msg = str(exc)
+        if 'call limit' in msg or '403' in msg:
+            st.warning("Modo API rate limit reached — wait a minute and reload.")
+        else:
+            st.error(f"Could not load Modo data: {msg}")
+        return
+    if not modo_rows:
+        st.info(f"Modo has not published 2H data for {picked} yet.")
+        return
+
+    modo = pd.DataFrame(modo_rows)
+    modo_daily_total = modo.groupby('date')['revenue'].sum()
+    nw_daily_total = nw.set_index('date')[COMPARABLE_STREAMS].sum(axis=1)
+
+    # Align on the days both sources cover.
+    common = sorted(set(nw_daily_total.index) & set(modo_daily_total.index))
+    if not common:
+        st.warning("No overlapping days between Northwold and Modo for this month.")
+        return
+    nw_t = nw_daily_total.reindex(common)
+    mo_t = modo_daily_total.reindex(common)
+
+    # ---- Gap decomposition ----
+    modo_by_stream = modo.groupby('market')['revenue'].sum() / len(common)
+    nw_by_stream = nw.set_index('date')[COMPARABLE_STREAMS].reindex(common).mean()
+    structural = sum(modo_by_stream.get(s, 0.0) for s in STRUCTURAL_STREAMS)
+    modo_comparable = sum(modo_by_stream.get(s, 0.0) for s in COMPARABLE_STREAMS)
+    nw_comparable = float(nw_by_stream.sum())
+    traded_gap = nw_comparable - modo_comparable
+
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("Northwold", f"£{nw_t.mean():,.0f}", help="Mean daily annualised, comparable streams only")
+    m2.metric("Modo 2H fleet", f"£{mo_t.mean():,.0f}", help="All streams")
+    m3.metric("Not traded", f"−£{structural:,.0f}",
+              help="BM + Reserve + Capacity Market — markets Northwold has no daily revenue in")
+    m4.metric("Traded gap", f"£{traded_gap:,.0f}", delta=f"{traded_gap / modo_comparable * 100:+.0f}%"
+              if modo_comparable else None,
+              help="Northwold minus Modo on the three streams both actually trade")
+
+    st.info(
+        f"Of the **£{modo_comparable + structural - nw_comparable:,.0f}** headline gap, "
+        f"**£{structural:,.0f}** is markets Northwold earns nothing in daily "
+        f"(Balancing Mechanism, Reserve, Capacity Market) and "
+        f"**£{abs(traded_gap):,.0f}** is {'under' if traded_gap < 0 else 'out'}performance "
+        "on the streams it does trade. The first is a participation decision, the "
+        "second is a trading outcome — they need different responses."
+    )
+
+    # ---- Chart 1: daily totals ----
+    st.subheader("8a. Daily totals")
+    fig = go.Figure()
+    fig.add_scatter(name='Northwold', x=common, y=nw_t.values, mode='lines+markers',
+                    line=dict(color='#1f77b4', width=3), marker=dict(size=6))
+    fig.add_scatter(name='Modo 2H fleet', x=common, y=mo_t.values, mode='lines+markers',
+                    line=dict(color='#d62728', width=2, dash='dot'), marker=dict(size=5))
+    fig.add_hline(y=0, line=dict(color='#888', width=1))
+    fig.update_layout(height=420, yaxis_title='£/MW/year', xaxis_title=None,
+                      hovermode='x unified', margin=dict(t=30, b=10),
+                      legend=dict(orientation='h', yanchor='top', y=-0.15))
+    st.plotly_chart(fig, use_container_width=True)
+    st.caption(
+        "Northwold is a single asset against a fleet index, so expect it to be "
+        "much more volatile day to day. Read the level and the trend, not "
+        "individual days."
+    )
+
+    # ---- Chart 2: stream comparison ----
+    st.subheader("8b. Where the difference sits")
+    order = COMPARABLE_STREAMS + STRUCTURAL_STREAMS
+    nw_vals = [float(nw_by_stream.get(s, 0.0)) if s in COMPARABLE_STREAMS else 0.0 for s in order]
+    mo_vals = [float(modo_by_stream.get(s, 0.0)) for s in order]
+
+    fig2 = go.Figure()
+    fig2.add_bar(name='Northwold', y=order, x=nw_vals, orientation='h', marker_color='#1f77b4')
+    fig2.add_bar(name='Modo 2H fleet', y=order, x=mo_vals, orientation='h', marker_color='#d62728')
+    fig2.add_vline(x=0, line=dict(color='#888', width=1))
+    fig2.update_layout(barmode='group', height=430, xaxis_title='£/MW/year',
+                       margin=dict(t=30, b=10), yaxis=dict(autorange='reversed'),
+                       legend=dict(orientation='h', yanchor='top', y=-0.15))
+    st.plotly_chart(fig2, use_container_width=True)
+
+    comp = pd.DataFrame({
+        'Stream': order,
+        'Northwold': [f"£{v:,.0f}" if s in COMPARABLE_STREAMS else '—'
+                      for s, v in zip(order, nw_vals)],
+        'Modo 2H': [f"£{v:,.0f}" for v in mo_vals],
+        'Delta': [f"£{n - m:,.0f}" if s in COMPARABLE_STREAMS else f"−£{m:,.0f}"
+                  for s, n, m in zip(order, nw_vals, mo_vals)],
+        'Type': ['Traded by both' if s in COMPARABLE_STREAMS else 'Northwold absent'
+                 for s in order],
+    })
+    st.dataframe(comp, use_container_width=True, hide_index=True)
+
+    st.caption(
+        "⚠ **Attribution caveat**: Northwold books day-ahead positions under "
+        "Wholesale and the resulting deviation cost under Imbalance. Modo may "
+        "draw that boundary differently at fleet level, so those two rows can "
+        "offset each other — trust the comparable-streams total more than the "
+        "individual split. **Capacity Market**: Northwold does earn it, but only "
+        "as a monthly EMR settlement figure, so it has no daily series and is "
+        "counted as not-traded here rather than as a performance shortfall. "
+        "Normalised by 4.2 MW rated power."
     )
 
 
