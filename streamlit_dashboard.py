@@ -2214,8 +2214,11 @@ def show_executive_comparison():
     st.success(f"📈 **Trend ({first['short']} → {last['short']})**: Revenue changed by **£{total_change:,.0f}** ({total_pct:+.0f}%)")
     st.markdown("---")
 
-    # ==================== SECTION 2: REVENUE COMPARISON BAR CHART ====================
-    st.header("2️⃣ Revenue Comparison")
+    # ==================== SECTION 2: IAR VS ACTUAL ====================
+    show_iar_vs_actual()
+
+    # ==================== SECTION 3: REVENUE COMPARISON BAR CHART ====================
+    st.header("3️⃣ Revenue Comparison")
 
     bar_rows = []
     for m in months:
@@ -2237,8 +2240,8 @@ def show_executive_comparison():
     st.caption(GB_NET_FOOTNOTE_SHORT)
     st.markdown("---")
 
-    # ==================== SECTION 3: MARKET MIX COMPARISON ====================
-    st.header("3️⃣ Revenue by Market")
+    # ==================== SECTION 4: MARKET MIX COMPARISON ====================
+    st.header("4️⃣ Revenue by Market")
 
     # Pie charts — up to 3 per row
     market_keys = ['sffr', 'epex', 'ida1', 'idc', 'imbalance']
@@ -2275,8 +2278,8 @@ def show_executive_comparison():
     st.caption(GB_NET_FOOTNOTE)
     st.markdown("---")
 
-    # ==================== SECTION 4: EXECUTIVE SUMMARY ====================
-    st.header("4️⃣ Executive Summary")
+    # ==================== SECTION 5: EXECUTIVE SUMMARY ====================
+    st.header("5️⃣ Executive Summary")
 
     best_m = max(months, key=lambda m: m['capture'])
     worst_m = min(months, key=lambda m: m['capture'])
@@ -3386,442 +3389,30 @@ def _load_iar_monthly_per_mw():
         return {}
 
 
-def show_benchmark_comparison():
-    """Display industry benchmark comparison page."""
-    st.title("📊 Benchmarks")
-    st.markdown("Compare Northwold's performance against UK BESS industry benchmarks and IAR projections")
+def show_iar_vs_actual():
+    """IAR projections vs actual GridBeyond revenue.
 
-    # ---- Month configuration ----
-    BENCH_MONTHS = [
-        ('Sep 25', 30, 'Master_BESS_Analysis_Sept_2025.csv', 'Optimized_Results_Sept_2025.csv'),
-        ('Oct 25', 31, 'Master_BESS_Analysis_Oct_2025.csv', 'Optimized_Results_Oct_2025.csv'),
-        ('Nov 25', 30, 'Master_BESS_Analysis_Nov_2025.csv', 'Optimized_Results_Nov_2025.csv'),
-        ('Dec 25', 31, 'Master_BESS_Analysis_Dec_2025.csv', 'Optimized_Results_Dec_2025.csv'),
-        ('Jan 26', 31, 'Master_BESS_Analysis_Jan_2026.csv', 'Optimized_Results_Jan_2026.csv'),
-        ('Feb 26', 28, 'Master_BESS_Analysis_Feb_2026.csv', 'Optimized_Results_Feb_2026.csv'),
-        ('Mar 26', 31, 'Master_BESS_Analysis_Mar_2026.csv', 'Optimized_Results_Mar_2026.csv'),
-        ('Apr 26', 30, 'Master_BESS_Analysis_Apr_2026.csv', 'Optimized_Results_Apr_2026.csv'),
-        ('May 26', 31, 'Master_BESS_Analysis_May_2026.csv', 'Optimized_Results_May_2026.csv'),
-        ('Jun 26', 30, 'Master_BESS_Analysis_Jun_2026.csv', 'Optimized_Results_Jun_2026.csv'),
-    ]
+    Rendered on the Executive Comparison page. Loads its own month data so it
+    carries no dependency on the Benchmarks page's local state.
+    """
+    def safe_sum_b(dataframe, col):
+        if col in dataframe.columns:
+            return pd.to_numeric(dataframe[col], errors='coerce').fillna(0).sum()
+        return 0
 
-    # Modo Energy monthly benchmark (£/MW/year) — sourced from Modo Energy's
-    # ME-BESS-GB monthly-index-live API (market=total × 12), refreshed
-    # 2026-06-24. Refresh anytime via:
-    #   python -m src.data_cleaning.modo_client --from 2025-09 --to <YYYY-MM>
-    # Historical months differ from prior article-headline values (which appear
-    # to use a different aggregation); API values are the FCA-regulated
-    # ME-BESS-GB index used by Modo and are the authoritative source going forward.
-    MODO_BENCHMARKS = {
-        'Sep 25': 71000, 'Oct 25': 77000, 'Nov 25': 59000,
-        'Dec 25': 50000, 'Jan 26': 55000, 'Feb 26': 43000,
-        'Mar 26': 73000, 'Apr 26': 69000, 'May 26': 45000,
-        'Jun 26': 70000,
-    }
+    bm, masters = [], {}
+    for short, days, master_f, _opt in BENCHMARK_COMPARISON_MONTHS:
+        try:
+            masters[short] = pd.read_csv(os.path.join(DATA_DIR, master_f))
+        except FileNotFoundError:
+            continue
+        bm.append({'short': short, 'days': days})
+    data_loaded = len(bm) > 0
+    if not data_loaded:
+        st.warning("No monthly data found for the IAR comparison.")
+        return
 
-    # Source links per month. Now that everything comes from the API the
-    # individual monthly articles are kept only for narrative context — they
-    # often round and may use a slightly different aggregation.
-    MODO_SOURCE_LINKS = {
-        'Sep 25': 'https://modoenergy.com/research/en/battery-energy-storage-revenues-gb-september-2025-balancing-mechanism-frequency-response',
-        'Oct 25': 'https://modoenergy.com/research/en/battery-energy-storage-revenues-gb-october-2025-record-balancing-mechanism-dispatch-rates',
-        'Nov 25': 'https://modoenergy.com/research/en/me-bess-gb-battery-energy-storage-revenues-november-2025-balancing-mechanism-gas-wind',
-        'Dec 25': 'https://modoenergy.com/research/en/me-bess-gb-battery-energy-storage-revenues-december-2025-low-demand-christmas',
-        'Jan 26': 'https://modoenergy.com/research/en/me-bess-gb-revenues-january-2026-balancing-mechanism-wholesale-prices-gas-carbon',
-        'Feb 26': 'https://modoenergy.com/research/en/me-bess-gb-revenues-february-2026-wholesale-battery-energy-storage-balancing-mechanism',
-        'Mar 26': 'https://modoenergy.com/research/en/me-bess-gb-revenues-rise-march-2026-balancing-mechanism-record-gas-prices-',
-        'Apr 26': 'https://developers.modoenergy.com/reference/monthly-me-bess-gb',
-        'May 26': 'https://developers.modoenergy.com/reference/monthly-me-bess-gb',
-        'Jun 26': 'https://developers.modoenergy.com/reference/monthly-me-bess-gb',
-    }
-
-    # Capacity Market payments (£) — source: EMR Settlement T062 CSVs
-    # Contract: CAN-2025-NSFL01-001, 1.023 MW @ £20,000/MW/yr, monthly weighting
-    CM_ACTUALS = {
-        'Oct 25': 1704.17, 'Nov 25': 1884.42,
-        'Dec 25': 1994.84, 'Jan 26': 2113.87,
-        'Feb 26': 1829.35, 'Mar 26': 1859.19,
-    }
-
-    # DUoS actuals (£ net ex-VAT) — source: Hartree Partners Gen_Inv PDFs
-    # GDuos credits (Red+Amber+Green) are revenue; DNO Fixed is a cost
-    DUOS_ACTUALS = {
-        'Sep 25': {'red': -322.81, 'amber': -410.03, 'green': -43.94,
-                   'fixed': 3.58, 'net_credit': 773.20},
-        'Oct 25': {'red': -5500.11, 'amber': -268.35, 'green': -42.92,
-                   'fixed': 3.70, 'net_credit': 5807.68},
-        'Nov 25': {'red': -5379.73, 'amber': -106.41, 'green': -42.54,
-                   'fixed': 3.58, 'net_credit': 5525.10},
-        'Apr 26': {'red': -5974.31, 'amber': -572.72, 'green': -37.22,
-                   'fixed': 3.86, 'net_credit': 6580.39},
-    }
-
-    # Load and calculate Northwold metrics first
-    try:
-        def safe_sum_b(dataframe, col):
-            if col in dataframe.columns:
-                return pd.to_numeric(dataframe[col], errors='coerce').fillna(0).sum()
-            return 0
-
-        def calculate_monthly_revenue(df):
-            """Total GB-traded revenue for a month, NET of the 5% GridBeyond fee."""
-            sffr = safe_sum_b(df, 'SFFR revenues')
-            epex = safe_sum_b(df, 'EPEX 30 DA Revenue') + safe_sum_b(df, 'EPEX DA Revenues')
-            ida1 = safe_sum_b(df, 'IDA1 Revenue')
-            idc = safe_sum_b(df, 'IDC Revenue')
-            imb_rev = safe_sum_b(df, 'Imbalance Revenue')
-            imb_charge = safe_sum_b(df, 'Imbalance Charge')
-
-            gross = sffr + epex + ida1 + idc + imb_rev - imb_charge
-            return apply_gb_net(gross)
-
-        def calculate_cycles_local(df, power_col, capacity_mwh=8.4, dt_hours=0.5):
-            """Calculate cycles using industry standard method."""
-            if power_col not in df.columns:
-                return None
-            power = pd.to_numeric(df[power_col], errors='coerce').fillna(0)
-            energy = power * dt_hours
-            discharge_mwh = energy[energy > 0].sum()
-            charge_mwh = abs(energy[energy < 0].sum())
-            return (discharge_mwh + charge_mwh) / 2 / capacity_mwh
-
-        def find_power_col(df):
-            """Find the best power column and its dt."""
-            for col in df.columns:
-                if 'Physical_Power_MW' in col or col == 'Power_MW':
-                    return col, 0.5
-            for col in df.columns:
-                if 'Battery MWh' in col:
-                    return col, 1.0
-            return None, 0.5
-
-        capacity_mw = 4.2
-
-        # Load all months dynamically
-        bm = []  # benchmark month dicts
-        masters = {}
-        opts = {}
-        for short, days, master_f, opt_f in BENCH_MONTHS:
-            try:
-                m_df = pd.read_csv(os.path.join(DATA_DIR, master_f))
-                o_df = pd.read_csv(os.path.join(DATA_DIR, opt_f))
-                masters[short] = m_df
-                opts[short] = o_df
-
-                revenue = calculate_monthly_revenue(m_df)
-                annual_per_mw = (revenue / days) * 365 / capacity_mw
-
-                pcol, pdt = find_power_col(m_df)
-                cycles = calculate_cycles_local(m_df, pcol, dt_hours=pdt) if pcol else None
-
-                if 'Timestamp' in m_df.columns:
-                    m_df['Timestamp'] = pd.to_datetime(m_df['Timestamp'], errors='coerce')
-                    n_days = m_df['Timestamp'].dt.date.nunique()
-                else:
-                    n_days = days
-
-                daily_cycles = cycles / n_days if cycles else None
-                modo = MODO_BENCHMARKS.get(short)
-
-                # Non-GridBeyond revenue streams
-                cm = CM_ACTUALS.get(short, 0)
-                duos_data = DUOS_ACTUALS.get(short)
-                duos_credit = duos_data['net_credit'] if duos_data else 0
-                duos_fixed = duos_data['fixed'] if duos_data else 0
-
-                # Total including CM + DUoS
-                total_revenue = revenue + cm + duos_credit - duos_fixed
-                total_annual_per_mw = (total_revenue / days) * 365 / capacity_mw
-
-                bm.append({
-                    'short': short, 'days': days, 'revenue': revenue,
-                    'annual_per_mw': annual_per_mw, 'daily_cycles': daily_cycles,
-                    'modo': modo,
-                    'cm': cm, 'duos_credit': duos_credit, 'duos_fixed': duos_fixed,
-                    'total_revenue': total_revenue,
-                    'total_annual_per_mw': total_annual_per_mw,
-                })
-            except FileNotFoundError:
-                pass
-
-        avg_annual = sum(m['total_annual_per_mw'] for m in bm) / len(bm) if bm else 0
-        data_loaded = len(bm) > 0
-
-    except Exception as e:
-        st.error(f"Error loading data: {str(e)}")
-        data_loaded = False
-        bm = []
-        avg_annual = 0
-
-    # ==================== Section 1: Revenue vs Benchmarks ====================
-    st.header("1. Revenue vs Benchmarks")
-    st.markdown(
-        "Three-way comparison of Northwold actual revenue against the Modo Energy "
-        "GB BESS benchmark and the Internal Appraisal Report (IAR) projection. "
-        "**Monthly £/MW** shows what each party earned per MW in each real month "
-        "(honest apples-to-apples). **Annualised £/MW/year** projects the same "
-        "numbers to a full year for board-level comparison."
-    )
-
-    if data_loaded:
-        iar_monthly_per_mw = _load_iar_monthly_per_mw()
-
-        # Shared arrays (same month order as `bm`).
-        months = [m['short'] for m in bm]
-        days_by_short = {m['short']: m['days'] for m in bm}
-
-        # --- Monthly £/MW (actual reality, no annualisation) ---
-        actual_monthly = [m['total_revenue'] / capacity_mw for m in bm]
-        # None (not 0) for months Modo has not published yet — Plotly renders a
-        # gap, whereas 0 would read as "the benchmark measured zero revenue".
-        modo_monthly = [
-            (MODO_BENCHMARKS.get(s) * days_by_short[s] / 365)
-            if MODO_BENCHMARKS.get(s) else None
-            for s in months
-        ]
-        iar_monthly = [iar_monthly_per_mw.get(s, 0) for s in months]
-
-        # --- Annualised £/MW/year (board-level view) ---
-        actual_annual = [m['total_annual_per_mw'] for m in bm]
-        modo_annual = [MODO_BENCHMARKS.get(s) for s in months]
-        iar_annual = [
-            (iar_monthly_per_mw.get(s, 0) * 365 / days_by_short[s])
-            if iar_monthly_per_mw.get(s) else 0
-            for s in months
-        ]
-
-        # Colour assignment — reuse existing palette for consistency across the page.
-        C_ACTUAL = COLOR_ACTUAL         # Blue — Northwold
-        C_MODO = COLOR_IDC              # Purple — external benchmark
-        C_IAR = COLOR_MULTI_MARKET      # Green — internal target
-
-        def _grouped_bars(title, y_title, actual_ys, modo_ys, iar_ys, hover_unit):
-            fig = go.Figure()
-            fig.add_trace(go.Bar(
-                name='Northwold actual', x=months, y=actual_ys,
-                marker_color=C_ACTUAL,
-                hovertemplate=f'%{{x}}<br>Actual: £%{{y:,.0f}}{hover_unit}<extra></extra>',
-            ))
-            fig.add_trace(go.Bar(
-                name='Modo benchmark', x=months, y=modo_ys,
-                marker_color=C_MODO,
-                hovertemplate=f'%{{x}}<br>Modo: £%{{y:,.0f}}{hover_unit}<extra></extra>',
-            ))
-            fig.add_trace(go.Bar(
-                name='IAR projection', x=months, y=iar_ys,
-                marker_color=C_IAR,
-                hovertemplate=f'%{{x}}<br>IAR: £%{{y:,.0f}}{hover_unit}<extra></extra>',
-            ))
-            fig.update_layout(
-                title=title, barmode='group', yaxis_title=y_title,
-                height=420, showlegend=True, margin=dict(t=60, b=40),
-            )
-            return fig
-
-        st.plotly_chart(
-            _grouped_bars(
-                'Monthly £/MW — what each earned per MW in each real month',
-                '£/MW (month)', actual_monthly, modo_monthly, iar_monthly, '/MW',
-            ),
-            use_container_width=True,
-        )
-
-        st.plotly_chart(
-            _grouped_bars(
-                'Annualised £/MW/year — projecting each month at full-year pace',
-                '£/MW/year', actual_annual, modo_annual, iar_annual, '/MW/yr',
-            ),
-            use_container_width=True,
-        )
-
-        # ---- Per-month capture table ----
-        st.subheader("Per-month capture")
-        summary_rows = []
-        for i, m in enumerate(bm):
-            s = m['short']
-            act_m = actual_monthly[i]
-            mod_m = modo_monthly[i]
-            iar_m = iar_monthly[i]
-            cap_modo = (act_m / mod_m * 100) if mod_m else None
-            cap_iar = (act_m / iar_m * 100) if iar_m else None
-            summary_rows.append({
-                'Month': s,
-                'Actual (£/MW/mo)': f"£{round(act_m):,}",
-                'Modo (£/MW/mo)': f"£{round(mod_m):,}" if mod_m else '—',
-                'IAR (£/MW/mo)': f"£{round(iar_m):,}" if iar_m else '—',
-                'Capture vs Modo': f"{cap_modo:.0f}%" if cap_modo is not None else '—',
-                'Capture vs IAR': f"{cap_iar:.0f}%" if cap_iar is not None else '—',
-            })
-        st.dataframe(pd.DataFrame(summary_rows), use_container_width=True, hide_index=True)
-
-        # ---- Portfolio tiles ----
-        modo_pairs = [
-            (m['short'], actual_monthly[i] / modo_monthly[i] * 100)
-            for i, m in enumerate(bm) if modo_monthly[i]
-        ]
-        iar_pairs = [
-            (m['short'], actual_monthly[i] / iar_monthly[i] * 100)
-            for i, m in enumerate(bm) if iar_monthly[i]
-        ]
-        avg_cap_modo = (sum(p[1] for p in modo_pairs) / len(modo_pairs)) if modo_pairs else 0
-        avg_cap_iar = (sum(p[1] for p in iar_pairs) / len(iar_pairs)) if iar_pairs else 0
-        if modo_pairs:
-            best = max(modo_pairs, key=lambda p: p[1])
-            worst = min(modo_pairs, key=lambda p: p[1])
-            best_worst = f"{best[0]} {best[1]:.0f}% · {worst[0]} {worst[1]:.0f}%"
-        else:
-            best_worst = '—'
-
-        tile_cols = st.columns(3)
-        tile_cols[0].metric("Avg capture vs Modo", f"{avg_cap_modo:.0f}%")
-        tile_cols[1].metric("Avg capture vs IAR", f"{avg_cap_iar:.0f}%")
-        tile_cols[2].metric("Best · worst vs Modo", best_worst)
-
-        st.caption(GB_NET_FOOTNOTE)
-
-        # ---- Historical industry range (demoted to expander) ----
-        with st.expander("Historical industry range (Modo 2024–25 envelope)"):
-            st.caption(
-                "Previously shown as the primary benchmark here. Kept as reference "
-                "context — values are the min / median / max of Modo's monthly GB "
-                "BESS Index figures across calendar years 2024 and 2025."
-            )
-            st.dataframe(pd.DataFrame([
-                {'Tier': 'Low',  '£/MW/year': '£36,000', 'Cycles/day': '1.0', 'RTE': '82%'},
-                {'Tier': 'Mid',  '£/MW/year': '£60,000', 'Cycles/day': '1.5', 'RTE': '85%'},
-                {'Tier': 'High', '£/MW/year': '£88,000', 'Cycles/day': '3.0', 'RTE': '90%'},
-            ]), use_container_width=True, hide_index=True)
-
-        # Calculation explanations for Section 1
-        st.subheader("Metric Calculations")
-
-        with st.expander("📐 Total Revenue - How is it calculated?"):
-            st.markdown("""
-**Formula:**
-```
-GridBeyond Gross  = SFFR + EPEX DA + IDA1 + IDC + Imbalance Revenue - Imbalance Charge
-GridBeyond Net    = GridBeyond Gross × 0.95   (5% GB revenue share deducted)
-Total Revenue     = GridBeyond Net + Capacity Market + DUoS Net Credit - DUoS Fixed Charges
-```
-
-**Explanation:**
-GridBeyond gross revenue is the sum of all wholesale/ancillary revenues traded by the aggregator.
-The dashboard shows the **net** figure — after GridBeyond's 5% revenue share — so the numbers
-tie out to the GridBeyond invoice and are directly comparable to the IAR (which is also post-fee).
-Total Revenue adds non-GridBeyond streams: Capacity Market payments (EMR Settlement T062)
-and Distribution Use of System credits (Hartree Partners passthrough invoices) — these are paid
-direct and are not subject to the GB fee.
-
-**Example (October 2025):**
-- GridBeyond Revenue: £38,344 (SFFR + EPEX + IDA1 + IDC + Imbalance)
-- Capacity Market: £1,704 (EMR Settlement CAN-2025-NSFL01-001)
-- DUoS Net Credit: £5,808 (Red + Amber + Green GDuos credits)
-- DUoS Fixed Charges: -£4 (DNO fixed charges)
-- **Total: £45,852**
-            """)
-
-        with st.expander("📐 Revenue (£/MW/year) - How is it calculated?"):
-            st.markdown("""
-**Formula:**
-```
-£/MW/year = (Total Monthly Revenue ÷ Days in Month) × 365 ÷ Capacity_MW
-```
-
-**Explanation:**
-Annualizes total monthly revenue (GridBeyond + CM + DUoS) and normalizes by installed
-capacity (4.2 MW) to enable comparison with Modo Energy industry benchmarks regardless of asset size.
-
-**Example (October 2025):**
-- Total Monthly Revenue: £45,852 (GridBeyond £38,344 + CM £1,704 + DUoS £5,804)
-- Days in October: 31
-- Daily average: £45,852 ÷ 31 = £1,479/day
-- Annualized: £1,479 × 365 = £539,790/year
-- Per MW: £539,790 ÷ 4.2 MW = **£128,521/MW/year**
-            """)
-
-        with st.expander("📐 Daily Cycles - How is it calculated?"):
-            st.markdown("""
-**Formula:**
-```
-Daily Cycles = (Discharge_MWh + Charge_MWh) ÷ 2 ÷ Capacity_MWh ÷ Days
-```
-
-**Explanation:**
-One full cycle = fully charging then fully discharging the battery (8.4 MWh).
-We sum all energy throughput, divide by 2 (to count charge+discharge as one cycle),
-then divide by capacity and number of days.
-
-**Example (September 2025):**
-- Total Discharge: 126 MWh
-- Total Charge: 126 MWh
-- Total throughput: 252 MWh
-- Equivalent full cycles: 252 ÷ 2 ÷ 8.4 = 15 cycles
-- Daily average: 15 ÷ 30 days = **0.5 cycles/day**
-            """)
-
-        with st.expander("📐 Degradation - How is it calculated?"):
-            st.markdown("""
-**Formula:**
-```
-Degradation = Capacity loss (%) per 365 equivalent full cycles
-```
-
-**Explanation:**
-Battery capacity degrades with use. Industry benchmarks measure this as percentage
-capacity loss per year of typical cycling (365 cycles). Lower is better.
-
-**Industry Range (NREL Study):**
-- Low: 4.0% (high-quality cells, conservative operation)
-- Mid: 4.4% (typical lithium-ion)
-- High: 11.0% (aggressive cycling, poor thermal management)
-
-*Northwold TBD - requires long-term capacity testing data.*
-            """)
-
-        with st.expander("📐 Availability (TWCAA) - How is it calculated?"):
-            st.markdown("""
-**Formula:**
-```
-TWCAA = Technical Weighted Contracted Availability Assessment
-```
-
-**Explanation:**
-National Grid ESO metric measuring the percentage of time the asset is available
-to deliver contracted services. Accounts for planned maintenance, forced outages,
-and partial availability.
-
-**Industry Range (National Grid ESO):**
-- Low: 90% (significant downtime)
-- Mid: 94.4% (typical BESS performance)
-- High: 98% (excellent availability)
-
-*Northwold TBD - requires ESO reporting data.*
-            """)
-
-        with st.expander("📐 Round-Trip Efficiency - How is it calculated?"):
-            st.markdown("""
-**Formula:**
-```
-RTE = (Energy Discharged ÷ Energy Charged) × 100
-```
-
-**Explanation:**
-Measures energy losses during charge/discharge cycles. A battery charged with
-100 MWh that discharges 85 MWh has 85% RTE. Losses occur in power electronics,
-battery cells, and thermal management.
-
-**Industry Range (DNV GL):**
-- Low: 82% (older systems, poor conditions)
-- Mid: 85% (typical Li-ion NMC/LFP)
-- High: 90% (optimized operation)
-
-*Northwold: ~85% (estimated from system design)*
-            """)
-
-    st.markdown("---")
-
-    # Section 2: IAR vs Actual Revenue Comparison
-    st.header("2. Revenue IAR vs Actual")
+    st.header("2️⃣ Revenue IAR vs Actual")
     st.caption("Comparison of Internal Appraisal Report (IAR) projections against actual GridBeyond revenues. "
                "Both columns are shown **net of the 5% GridBeyond revenue share** so they are directly comparable "
                "to the GridBeyond invoice.")
@@ -4033,212 +3624,299 @@ calculated per MW/month and multiplied by 4.2 MW for comparison. No indexation i
 
     st.markdown("---")
 
-    # Section 3: Multi-Market Optimization vs Actual
-    st.header("3. Multi-Market Optimization vs Actual")
-    st.caption("Compare actual GridBeyond performance against optimized multi-market strategy with perfect foresight. "
-               "Both Actual and Optimised are shown **net of the 5% GridBeyond revenue share** (the optimiser output is "
-               "scaled by 0.95 on the assumption that, in real-world deployment, the optimised revenue would also be "
-               "traded through GridBeyond or an equivalent aggregator).")
 
-    if data_loaded and opts:
-        def get_revenue_breakdown(df):
+
+def show_benchmark_comparison():
+    """Display industry benchmark comparison page."""
+    st.title("📊 Benchmarks")
+    st.markdown("Compare Northwold's performance against UK BESS industry benchmarks and IAR projections")
+
+    # ---- Month configuration ----
+    BENCH_MONTHS = [
+        ('Sep 25', 30, 'Master_BESS_Analysis_Sept_2025.csv', 'Optimized_Results_Sept_2025.csv'),
+        ('Oct 25', 31, 'Master_BESS_Analysis_Oct_2025.csv', 'Optimized_Results_Oct_2025.csv'),
+        ('Nov 25', 30, 'Master_BESS_Analysis_Nov_2025.csv', 'Optimized_Results_Nov_2025.csv'),
+        ('Dec 25', 31, 'Master_BESS_Analysis_Dec_2025.csv', 'Optimized_Results_Dec_2025.csv'),
+        ('Jan 26', 31, 'Master_BESS_Analysis_Jan_2026.csv', 'Optimized_Results_Jan_2026.csv'),
+        ('Feb 26', 28, 'Master_BESS_Analysis_Feb_2026.csv', 'Optimized_Results_Feb_2026.csv'),
+        ('Mar 26', 31, 'Master_BESS_Analysis_Mar_2026.csv', 'Optimized_Results_Mar_2026.csv'),
+        ('Apr 26', 30, 'Master_BESS_Analysis_Apr_2026.csv', 'Optimized_Results_Apr_2026.csv'),
+        ('May 26', 31, 'Master_BESS_Analysis_May_2026.csv', 'Optimized_Results_May_2026.csv'),
+        ('Jun 26', 30, 'Master_BESS_Analysis_Jun_2026.csv', 'Optimized_Results_Jun_2026.csv'),
+    ]
+
+    # Modo Energy monthly benchmark (£/MW/year) — sourced from Modo Energy's
+    # ME-BESS-GB monthly-index-live API (market=total × 12), refreshed
+    # 2026-06-24. Refresh anytime via:
+    #   python -m src.data_cleaning.modo_client --from 2025-09 --to <YYYY-MM>
+    # Historical months differ from prior article-headline values (which appear
+    # to use a different aggregation); API values are the FCA-regulated
+    # ME-BESS-GB index used by Modo and are the authoritative source going forward.
+    MODO_BENCHMARKS = {
+        'Sep 25': 71000, 'Oct 25': 77000, 'Nov 25': 59000,
+        'Dec 25': 50000, 'Jan 26': 55000, 'Feb 26': 43000,
+        'Mar 26': 73000, 'Apr 26': 69000, 'May 26': 45000,
+        'Jun 26': 70000,
+    }
+
+    # Source links per month. Now that everything comes from the API the
+    # individual monthly articles are kept only for narrative context — they
+    # often round and may use a slightly different aggregation.
+    MODO_SOURCE_LINKS = {
+        'Sep 25': 'https://modoenergy.com/research/en/battery-energy-storage-revenues-gb-september-2025-balancing-mechanism-frequency-response',
+        'Oct 25': 'https://modoenergy.com/research/en/battery-energy-storage-revenues-gb-october-2025-record-balancing-mechanism-dispatch-rates',
+        'Nov 25': 'https://modoenergy.com/research/en/me-bess-gb-battery-energy-storage-revenues-november-2025-balancing-mechanism-gas-wind',
+        'Dec 25': 'https://modoenergy.com/research/en/me-bess-gb-battery-energy-storage-revenues-december-2025-low-demand-christmas',
+        'Jan 26': 'https://modoenergy.com/research/en/me-bess-gb-revenues-january-2026-balancing-mechanism-wholesale-prices-gas-carbon',
+        'Feb 26': 'https://modoenergy.com/research/en/me-bess-gb-revenues-february-2026-wholesale-battery-energy-storage-balancing-mechanism',
+        'Mar 26': 'https://modoenergy.com/research/en/me-bess-gb-revenues-rise-march-2026-balancing-mechanism-record-gas-prices-',
+        'Apr 26': 'https://developers.modoenergy.com/reference/monthly-me-bess-gb',
+        'May 26': 'https://developers.modoenergy.com/reference/monthly-me-bess-gb',
+        'Jun 26': 'https://developers.modoenergy.com/reference/monthly-me-bess-gb',
+    }
+
+    # Capacity Market payments (£) — source: EMR Settlement T062 CSVs
+    # Contract: CAN-2025-NSFL01-001, 1.023 MW @ £20,000/MW/yr, monthly weighting
+    CM_ACTUALS = {
+        'Oct 25': 1704.17, 'Nov 25': 1884.42,
+        'Dec 25': 1994.84, 'Jan 26': 2113.87,
+        'Feb 26': 1829.35, 'Mar 26': 1859.19,
+    }
+
+    # DUoS actuals (£ net ex-VAT) — source: Hartree Partners Gen_Inv PDFs
+    # GDuos credits (Red+Amber+Green) are revenue; DNO Fixed is a cost
+    DUOS_ACTUALS = {
+        'Sep 25': {'red': -322.81, 'amber': -410.03, 'green': -43.94,
+                   'fixed': 3.58, 'net_credit': 773.20},
+        'Oct 25': {'red': -5500.11, 'amber': -268.35, 'green': -42.92,
+                   'fixed': 3.70, 'net_credit': 5807.68},
+        'Nov 25': {'red': -5379.73, 'amber': -106.41, 'green': -42.54,
+                   'fixed': 3.58, 'net_credit': 5525.10},
+        'Apr 26': {'red': -5974.31, 'amber': -572.72, 'green': -37.22,
+                   'fixed': 3.86, 'net_credit': 6580.39},
+    }
+
+    # Load and calculate Northwold metrics first
+    try:
+        def safe_sum_b(dataframe, col):
+            if col in dataframe.columns:
+                return pd.to_numeric(dataframe[col], errors='coerce').fillna(0).sum()
+            return 0
+
+        def calculate_monthly_revenue(df):
+            """Total GB-traded revenue for a month, NET of the 5% GridBeyond fee."""
             sffr = safe_sum_b(df, 'SFFR revenues')
             epex = safe_sum_b(df, 'EPEX 30 DA Revenue') + safe_sum_b(df, 'EPEX DA Revenues')
             ida1 = safe_sum_b(df, 'IDA1 Revenue')
             idc = safe_sum_b(df, 'IDC Revenue')
             imb_rev = safe_sum_b(df, 'Imbalance Revenue')
             imb_charge = safe_sum_b(df, 'Imbalance Charge')
-            # Net 5% GridBeyond fee — apples-to-apples with the GB invoice and the optimiser output below.
-            return {
-                'SFFR': apply_gb_net(sffr),
-                'EPEX DA': apply_gb_net(epex),
-                'IDA1': apply_gb_net(ida1),
-                'IDC': apply_gb_net(idc),
-                'Imbalance': apply_gb_net(imb_rev - imb_charge),
-                'Total': apply_gb_net(sffr + epex + ida1 + idc + imb_rev - imb_charge),
-            }
 
-        def get_opt_revenue_breakdown(df):
-            df = df.copy()
-            df['Revenue'] = pd.to_numeric(df['Optimised_Revenue_Multi'], errors='coerce').fillna(0)
-            df['Market'] = df['Market_Used_Multi'].fillna('Idle')
-            sffr = df[df['Market'] == 'SFFR']['Revenue'].sum()
-            epex = df[df['Market'].str.contains('EPEX', na=False)]['Revenue'].sum()
-            isem = df[df['Market'].str.contains('ISEM', na=False)]['Revenue'].sum()
-            ssp = df[df['Market'].str.contains('SSP|SBP', na=False)]['Revenue'].sum()
-            da_hh = df[df['Market'].str.contains('DA_HH', na=False)]['Revenue'].sum()
-            total = df['Revenue'].sum()
-            # Net 5% — assume the optimised revenue would also be traded via GB in deployment.
-            return {
-                'SFFR': apply_gb_net(sffr),
-                'EPEX DA': apply_gb_net(epex + da_hh),
-                'IDA1': apply_gb_net(isem),
-                'IDC': 0,
-                'Imbalance': apply_gb_net(ssp),
-                'Total': apply_gb_net(total),
-            }
+            gross = sffr + epex + ida1 + idc + imb_rev - imb_charge
+            return apply_gb_net(gross)
 
-        # Summary metrics, wrapped into rows of at most 5 — one row of ten
-        # squeezes each tile too narrow to render its value without clipping.
-        BM_PER_ROW = 5
-        metric_rows = [
-            st.columns(BM_PER_ROW)
-            for _ in range((len(bm) + BM_PER_ROW - 1) // BM_PER_ROW)
+        def calculate_cycles_local(df, power_col, capacity_mwh=8.4, dt_hours=0.5):
+            """Calculate cycles using industry standard method."""
+            if power_col not in df.columns:
+                return None
+            power = pd.to_numeric(df[power_col], errors='coerce').fillna(0)
+            energy = power * dt_hours
+            discharge_mwh = energy[energy > 0].sum()
+            charge_mwh = abs(energy[energy < 0].sum())
+            return (discharge_mwh + charge_mwh) / 2 / capacity_mwh
+
+        def find_power_col(df):
+            """Find the best power column and its dt."""
+            for col in df.columns:
+                if 'Physical_Power_MW' in col or col == 'Power_MW':
+                    return col, 0.5
+            for col in df.columns:
+                if 'Battery MWh' in col:
+                    return col, 1.0
+            return None, 0.5
+
+        capacity_mw = 4.2
+
+        # Load all months dynamically
+        bm = []  # benchmark month dicts
+        masters = {}
+        opts = {}
+        for short, days, master_f, opt_f in BENCH_MONTHS:
+            try:
+                m_df = pd.read_csv(os.path.join(DATA_DIR, master_f))
+                o_df = pd.read_csv(os.path.join(DATA_DIR, opt_f))
+                masters[short] = m_df
+                opts[short] = o_df
+
+                revenue = calculate_monthly_revenue(m_df)
+                annual_per_mw = (revenue / days) * 365 / capacity_mw
+
+                pcol, pdt = find_power_col(m_df)
+                cycles = calculate_cycles_local(m_df, pcol, dt_hours=pdt) if pcol else None
+
+                if 'Timestamp' in m_df.columns:
+                    m_df['Timestamp'] = pd.to_datetime(m_df['Timestamp'], errors='coerce')
+                    n_days = m_df['Timestamp'].dt.date.nunique()
+                else:
+                    n_days = days
+
+                daily_cycles = cycles / n_days if cycles else None
+                modo = MODO_BENCHMARKS.get(short)
+
+                # Non-GridBeyond revenue streams
+                cm = CM_ACTUALS.get(short, 0)
+                duos_data = DUOS_ACTUALS.get(short)
+                duos_credit = duos_data['net_credit'] if duos_data else 0
+                duos_fixed = duos_data['fixed'] if duos_data else 0
+
+                # Total including CM + DUoS
+                total_revenue = revenue + cm + duos_credit - duos_fixed
+                total_annual_per_mw = (total_revenue / days) * 365 / capacity_mw
+
+                bm.append({
+                    'short': short, 'days': days, 'revenue': revenue,
+                    'annual_per_mw': annual_per_mw, 'daily_cycles': daily_cycles,
+                    'modo': modo,
+                    'cm': cm, 'duos_credit': duos_credit, 'duos_fixed': duos_fixed,
+                    'total_revenue': total_revenue,
+                    'total_annual_per_mw': total_annual_per_mw,
+                })
+            except FileNotFoundError:
+                pass
+
+        avg_annual = sum(m['total_annual_per_mw'] for m in bm) / len(bm) if bm else 0
+        data_loaded = len(bm) > 0
+
+    except Exception as e:
+        st.error(f"Error loading data: {str(e)}")
+        data_loaded = False
+        bm = []
+        avg_annual = 0
+
+    # ==================== Section 1: Revenue vs Benchmarks ====================
+    st.header("1. Revenue vs Benchmarks")
+    st.markdown(
+        "Three-way comparison of Northwold actual revenue against the Modo Energy "
+        "GB BESS benchmark and the Internal Appraisal Report (IAR) projection, in "
+        "**£/MW per calendar month** — what each party actually earned per MW in "
+        "each real month, with no annualisation."
+    )
+
+    if data_loaded:
+        iar_monthly_per_mw = _load_iar_monthly_per_mw()
+
+        # Shared arrays (same month order as `bm`).
+        months = [m['short'] for m in bm]
+        days_by_short = {m['short']: m['days'] for m in bm}
+
+        # --- Monthly £/MW (actual reality, no annualisation) ---
+        actual_monthly = [m['total_revenue'] / capacity_mw for m in bm]
+        # None (not 0) for months Modo has not published yet — Plotly renders a
+        # gap, whereas 0 would read as "the benchmark measured zero revenue".
+        modo_monthly = [
+            (MODO_BENCHMARKS.get(s) * days_by_short[s] / 365)
+            if MODO_BENCHMARKS.get(s) else None
+            for s in months
         ]
-        all_actuals = {}
-        all_opts_bd = {}
-        all_gaps = {}
-        all_captures = {}
+        iar_monthly = [iar_monthly_per_mw.get(s, 0) for s in months]
 
-        for idx, m in enumerate(bm):
-            short = m['short']
-            act = get_revenue_breakdown(masters[short])
-            opt_bd = get_opt_revenue_breakdown(opts[short])
-            gap = opt_bd['Total'] - act['Total']
-            capture = (act['Total'] / opt_bd['Total'] * 100) if opt_bd['Total'] > 0 else 0
-            all_actuals[short] = act
-            all_opts_bd[short] = opt_bd
-            all_gaps[short] = gap
-            all_captures[short] = capture
+        # Colour assignment — reuse existing palette for consistency across the page.
+        C_ACTUAL = COLOR_ACTUAL         # Blue — Northwold
+        C_MODO = COLOR_IDC              # Purple — external benchmark
+        C_IAR = COLOR_MULTI_MARKET      # Green — internal target
 
-            with metric_rows[idx // BM_PER_ROW][idx % BM_PER_ROW]:
-                st.metric(f"{short} Capture", f"{capture:.0f}%",
-                          delta=f"{capture - 100:+.0f}%" if capture != 100 else None)
+        def _grouped_bars(title, y_title, actual_ys, modo_ys, iar_ys, hover_unit):
+            fig = go.Figure()
+            fig.add_trace(go.Bar(
+                name='Northwold actual', x=months, y=actual_ys,
+                marker_color=C_ACTUAL,
+                hovertemplate=f'%{{x}}<br>Actual: £%{{y:,.0f}}{hover_unit}<extra></extra>',
+            ))
+            fig.add_trace(go.Bar(
+                name='Modo benchmark', x=months, y=modo_ys,
+                marker_color=C_MODO,
+                hovertemplate=f'%{{x}}<br>Modo: £%{{y:,.0f}}{hover_unit}<extra></extra>',
+            ))
+            fig.add_trace(go.Bar(
+                name='IAR projection', x=months, y=iar_ys,
+                marker_color=C_IAR,
+                hovertemplate=f'%{{x}}<br>IAR: £%{{y:,.0f}}{hover_unit}<extra></extra>',
+            ))
+            fig.update_layout(
+                title=title, barmode='group', yaxis_title=y_title,
+                height=420, showlegend=True, margin=dict(t=60, b=40),
+            )
+            return fig
 
-        # Comparison table
-        st.subheader("Monthly Revenue Comparison")
-        streams = ['SFFR', 'EPEX DA', 'IDA1', 'IDC', 'Imbalance', 'Total']
-        stream_labels = ['SFFR (Frequency Response)', 'EPEX DA (Day Ahead)',
-                         'IDA1/ISEM (Intraday)', 'IDC (Continuous)',
-                         'SSP/SBP (Imbalance)', 'TOTAL']
+        st.plotly_chart(
+            _grouped_bars(
+                'Monthly £/MW — what each earned per MW in each real month',
+                '£/MW (month)', actual_monthly, modo_monthly, iar_monthly, '/MW',
+            ),
+            use_container_width=True,
+        )
 
-        comp_data = {'Revenue Stream': stream_labels + ['Revenue Gap', 'Capture Rate']}
-        for m in bm:
-            short = m['short']
-            act = all_actuals[short]
-            opt_bd = all_opts_bd[short]
-            act_vals = [f"£{act[s]:,.0f}" for s in streams] + ['-', '-']
-            opt_vals = [f"£{opt_bd[s]:,.0f}" for s in streams] + [f"£{all_gaps[short]:,.0f}", f"{all_captures[short]:.0f}%"]
-            comp_data[f"{short} Actual"] = act_vals
-            comp_data[f"{short} Opt"] = opt_vals
+        # ---- Per-month capture table ----
+        st.subheader("Per-month capture")
+        summary_rows = []
+        for i, m in enumerate(bm):
+            s = m['short']
+            act_m = actual_monthly[i]
+            mod_m = modo_monthly[i]
+            iar_m = iar_monthly[i]
+            cap_modo = (act_m / mod_m * 100) if mod_m else None
+            cap_iar = (act_m / iar_m * 100) if iar_m else None
+            summary_rows.append({
+                'Month': s,
+                'Actual (£/MW/mo)': f"£{round(act_m):,}",
+                'Modo (£/MW/mo)': f"£{round(mod_m):,}" if mod_m else '—',
+                'IAR (£/MW/mo)': f"£{round(iar_m):,}" if iar_m else '—',
+                'Capture vs Modo': f"{cap_modo:.0f}%" if cap_modo is not None else '—',
+                'Capture vs IAR': f"{cap_iar:.0f}%" if cap_iar is not None else '—',
+            })
+        st.dataframe(pd.DataFrame(summary_rows), use_container_width=True, hide_index=True)
 
-        comp_df = pd.DataFrame(comp_data)
-
-        def style_comp(row):
-            n = len(comp_df)
-            if row.name == 5:
-                return ['font-weight: bold; background-color: #e6f3ff'] * len(row)
-            elif row.name in [6, 7]:
-                return ['font-weight: bold; background-color: #fff3e6'] * len(row)
-            return [''] * len(row)
-
-        st.dataframe(comp_df.style.apply(style_comp, axis=1), use_container_width=True, hide_index=True)
-        st.caption(GB_NET_FOOTNOTE_SHORT)
-
-        total_gap = sum(all_gaps.values())
-        avg_cap = sum(all_captures.values()) / len(all_captures)
-
-        if avg_cap >= 100:
-            st.success(f"**Performance Summary:** Average capture rate {avg_cap:.0f}% across {len(bm)} months — outperforming multi-market optimization.")
+        # ---- Portfolio tiles ----
+        modo_pairs = [
+            (m['short'], actual_monthly[i] / modo_monthly[i] * 100)
+            for i, m in enumerate(bm) if modo_monthly[i]
+        ]
+        iar_pairs = [
+            (m['short'], actual_monthly[i] / iar_monthly[i] * 100)
+            for i, m in enumerate(bm) if iar_monthly[i]
+        ]
+        avg_cap_modo = (sum(p[1] for p in modo_pairs) / len(modo_pairs)) if modo_pairs else 0
+        avg_cap_iar = (sum(p[1] for p in iar_pairs) / len(iar_pairs)) if iar_pairs else 0
+        if modo_pairs:
+            best = max(modo_pairs, key=lambda p: p[1])
+            worst = min(modo_pairs, key=lambda p: p[1])
+            best_worst = f"{best[0]} {best[1]:.0f}% · {worst[0]} {worst[1]:.0f}%"
         else:
-            st.warning(f"**Performance Summary:** Total gap £{total_gap:,.0f} across {len(bm)} months (avg capture: {avg_cap:.0f}%). Optimization uses perfect foresight — gap is expected.")
+            best_worst = '—'
 
-        # Calculation explanations
-        st.subheader("Metric Calculations")
+        tile_cols = st.columns(3)
+        tile_cols[0].metric("Avg capture vs Modo", f"{avg_cap_modo:.0f}%")
+        tile_cols[1].metric("Avg capture vs IAR", f"{avg_cap_iar:.0f}%")
+        tile_cols[2].metric("Best · worst vs Modo", best_worst)
 
-        with st.expander("📐 Multi-Market Optimization - How is it calculated?"):
-            st.markdown("""
-**Formula:**
-```
-For each day:
-  SFFR_Daily = Sum(7.0 MW × SFFR_Clearing_Price × 0.5hr) for 48 periods
-  Multi_Market = LP solver maximizing: Sum(Discharge × Sell_Price - Charge × Buy_Price) × 0.5hr
-  Daily Revenue = max(SFFR_Daily, Multi_Market)
-```
+        st.caption(GB_NET_FOOTNOTE)
 
-**Explanation:**
-A linear optimization model (scipy linprog, HiGHS solver) that first compares SFFR availability revenue
-against optimal multi-market dispatch for the whole day. If SFFR wins, the battery is locked in frequency
-response. If multi-market wins, it dispatches across 5 markets using **perfect price foresight**:
-- Buy from the lowest-priced market (min of EPEX, ISEM, SSP, SBP, DA HH)
-- Sell to the highest-priced market (max of the same 5)
-- Hold or idle when spreads don't cover round-trip losses
+        # ---- Historical industry range (demoted to expander) ----
+        with st.expander("Historical industry range (Modo 2024–25 envelope)"):
+            st.caption(
+                "Previously shown as the primary benchmark here. Kept as reference "
+                "context — values are the min / median / max of Modo's monthly GB "
+                "BESS Index figures across calendar years 2024 and 2025."
+            )
+            st.dataframe(pd.DataFrame([
+                {'Tier': 'Low',  '£/MW/year': '£36,000', 'Cycles/day': '1.0', 'RTE': '82%'},
+                {'Tier': 'Mid',  '£/MW/year': '£60,000', 'Cycles/day': '1.5', 'RTE': '85%'},
+                {'Tier': 'High', '£/MW/year': '£88,000', 'Cycles/day': '3.0', 'RTE': '90%'},
+            ]), use_container_width=True, hide_index=True)
 
-**Constraints Applied:**
-- Charge: 0–4.2 MW | Discharge: 0–7.5 MW (asymmetric)
-- SOC range: 5%–95% (0.42–7.98 MWh)
-- Max daily discharge throughput: 12.6 MWh (1.5 cycles × 8.4 MWh)
-- One-way efficiency: 93.3% (round-trip 87%)
-- SOC carries forward between days
-
-**Example (January 5, 2026 — best day):**
-- SFFR option: ~£477 (low SFFR clearing prices)
-- Multi-Market option: £5,222 (SSP spiked to 750 GBP/MWh at 19:00)
-- Decision: Multi-Market wins — battery charged at 68 GBP/MWh (SSP) overnight, held fully charged until the spike, then discharged aggressively into SSP
-            """)
-
-        with st.expander("📐 Revenue Gap - How is it calculated?"):
-            st.markdown("""
-**Formula:**
-```
-Revenue Gap = Optimized Multi-Market Revenue - Actual GridBeyond Revenue
-```
-
-**Explanation:**
-Measures the theoretical revenue improvement possible if the battery had been operated
-with perfect market foresight across all available markets. The gap typically concentrates
-in a few spike days per month (e.g., SSP spikes that are unpredictable in real-time).
-
-**Example (January 2026):**
-- Multi-Market Optimal: £33,376
-- Actual GridBeyond Revenue: £28,190
-- Revenue Gap: £33,376 - £28,190 = **£5,186**
-- Capture Rate: 84.5%
-
-**Gap Decomposition (Jan 26):**
-- ~67% from SSP spike events not captured (esp. Jan 5, 8)
-- ~15% from sub-optimal market selection
-- ~10% from SFFR availability assumption (7.0 MW vs 6.81 MW actual)
-- ~7% from imbalance penalties
-
-**Important Caveats:**
-- Optimization uses **perfect foresight** (knows future prices)
-- Does not account for market liquidity or execution costs
-- Represents theoretical maximum, not achievable in practice
-            """)
-
-        with st.expander("📐 Capture Rate - How is it calculated?"):
-            st.markdown("""
-**Formula:**
-```
-Capture Rate = (Actual GridBeyond Revenue ÷ Optimized Multi-Market Revenue) × 100
-```
-
-**Explanation:**
-Shows what percentage of the theoretical optimal revenue was actually captured by GridBeyond.
-A capture rate of 100% means actual matched optimal; >100% means outperformance (possible when
-actual strategies earn revenue from sources not in the optimization model).
-
-**Example (January 2026):**
-- Actual GridBeyond Revenue: £28,190
-- Multi-Market Optimal: £33,376
-- Capture Rate: (28,190 ÷ 33,376) × 100 = **84.5%**
-
-**Note:** On SFFR-only days, capture rates are typically 95%+ (gap is only from availability
-assumption: optimizer uses 7.0 MW, actual averages 6.81 MW). Large gaps concentrate in 2–3
-spike days per month when SSP prices spike unpredictably.
-
-**Interpretation:**
-- **>100%**: Outperforming optimization (revenue from strategies not modeled)
-- **80–100%**: Good performance, close to theoretical optimal
-- **60–80%**: Room for improvement in market participation
-- **<60%**: Significant opportunity gap to investigate
-            """)
-
-    st.markdown("---")
-
-    # Section 4: TB Spread Benchmarks
-    st.header("4. TB Spread Benchmarks")
+        # Calculation explanations for Section 1
+    # Section 2: TB Spread Benchmarks
+    st.header("2. TB Spread Benchmarks")
     st.caption("Top-Bottom spread analysis: comparing theoretical arbitrage potential to actual wholesale trading revenue")
 
     if data_loaded:
@@ -4307,126 +3985,6 @@ spike days per month when SSP prices spike unpredictably.
                 st.dataframe(summary_df, use_container_width=True, hide_index=True)
 
                 # Calculation explanations for Section 3
-                st.subheader("Metric Calculations")
-
-                with st.expander("📐 TB1 - How is it calculated?"):
-                    st.markdown("""
-**Formula:**
-```
-TB1 = Highest hourly price − Lowest hourly price (for the day)
-```
-
-**Explanation:**
-The simplest measure of daily price spread. Represents the theoretical maximum
-profit from a single 1-hour charge/discharge cycle buying at the lowest price
-and selling at the highest.
-
-**Example (1st September 2025):**
-- Highest hourly EPEX price: £85/MWh (at 6pm)
-- Lowest hourly EPEX price: £32/MWh (at 3am)
-- **TB1 = £85 - £32 = £53/MWh**
-                    """)
-
-                with st.expander("📐 TB2 - How is it calculated?"):
-                    st.markdown("""
-**Formula:**
-```
-TB2 = (Sum of 2 highest hourly prices) − (Sum of 2 lowest hourly prices)
-```
-
-**Explanation:**
-Represents the theoretical maximum profit for a 2-hour battery (like Northwold)
-that can charge for 2 hours at the cheapest prices and discharge for 2 hours
-at the most expensive prices.
-
-**Example (1st September 2025):**
-- 2 highest prices: £85 + £78 = £163
-- 2 lowest prices: £32 + £35 = £67
-- **TB2 = £163 - £67 = £96/MWh**
-
-*TB2 is the primary benchmark for 2-hour duration batteries.*
-                    """)
-
-                with st.expander("📐 TB3 - How is it calculated?"):
-                    st.markdown("""
-**Formula:**
-```
-TB3 = (Sum of 3 highest hourly prices) − (Sum of 3 lowest hourly prices)
-```
-
-**Explanation:**
-Theoretical maximum for a 3-hour battery. Useful for comparing against longer
-duration assets or understanding diminishing returns of longer duration.
-
-**Example (1st September 2025):**
-- 3 highest prices: £85 + £78 + £72 = £235
-- 3 lowest prices: £32 + £35 + £38 = £105
-- **TB3 = £235 - £105 = £130/MWh**
-                    """)
-
-                with st.expander("📐 Daily Arbitrage Revenue - How is it calculated?"):
-                    st.markdown("""
-**Formula:**
-```
-Daily Arbitrage = EPEX DA Revenue + IDA1 Revenue + IDC Revenue
-```
-
-**Explanation:**
-Sum of all wholesale trading revenues for the day. Excludes frequency response
-(SFFR) since that's an ancillary service, not arbitrage.
-
-**Example (1st September 2025):**
-- EPEX DA Revenue: £180
-- IDA1 Revenue: £95
-- IDC Revenue: £0
-- **Daily Arbitrage = £275**
-
-*This is compared against TB2 theoretical maximum to calculate capture rate.*
-                    """)
-
-                with st.expander("📐 TB2 Capture Rate - How is it calculated?"):
-                    st.markdown("""
-**Formula:**
-```
-TB2 Capture Rate = (Arbitrage Revenue ÷ (TB2 × Capacity_MWh)) × 100
-```
-
-**Explanation:**
-Measures how much of the theoretical maximum arbitrage revenue was actually captured.
-The denominator (TB2 × 8.4 MWh) represents perfect trading at best prices.
-
-**Example (1st September 2025):**
-- TB2 spread: £96/MWh
-- Capacity: 8.4 MWh
-- Theoretical max: £96 × 8.4 = £806
-- Actual arbitrage: £275
-- **Capture Rate = (275 ÷ 806) × 100 = 34%**
-
-*Note: Capture rates >100% are possible through intraday trading (multiple cycles)
-and stacking frequency response on top of arbitrage.*
-                    """)
-
-                with st.expander("📐 Industry Benchmark (142%) - What does it mean?"):
-                    st.markdown("""
-**Source:** Modo Energy - "Benchmarking European battery revenue with TB spreads"
-
-**Explanation:**
-Modo Energy analyzed revenues from GB BESS assets and found that well-operated
-2-hour batteries typically earn ~142% of the TB2 theoretical spread. This is
-achieved through:
-
-1. **Multiple daily cycles** - Trading more than once per day
-2. **Intraday optimization** - Capturing price spikes in real-time markets
-3. **Ancillary service stacking** - Earning frequency response alongside arbitrage
-4. **Balancing Mechanism participation** - Additional revenue from grid balancing
-
-**Rating Guide:**
-- **≥142%**: At or above industry benchmark (excellent)
-- **100-142%**: Capturing spread but below benchmark (room for improvement)
-- **<100%**: Not fully capturing available spread (needs investigation)
-                    """)
-
-                # Time series chart
                 st.subheader("Daily TB2 Spread vs Actual Arbitrage")
 
                 all_combined = pd.concat([
@@ -4662,6 +4220,464 @@ achieved through:
         - Availability (TWCAA): National Grid ESO performance data
         - Round-trip efficiency: Lithium-ion industry specifications
         """)
+    # Section 3: Multi-Market Optimization vs Actual
+    st.header("3. Multi-Market Optimization vs Actual")
+    st.caption("Compare actual GridBeyond performance against optimized multi-market strategy with perfect foresight. "
+               "Both Actual and Optimised are shown **net of the 5% GridBeyond revenue share** (the optimiser output is "
+               "scaled by 0.95 on the assumption that, in real-world deployment, the optimised revenue would also be "
+               "traded through GridBeyond or an equivalent aggregator).")
+
+    if data_loaded and opts:
+        def get_revenue_breakdown(df):
+            sffr = safe_sum_b(df, 'SFFR revenues')
+            epex = safe_sum_b(df, 'EPEX 30 DA Revenue') + safe_sum_b(df, 'EPEX DA Revenues')
+            ida1 = safe_sum_b(df, 'IDA1 Revenue')
+            idc = safe_sum_b(df, 'IDC Revenue')
+            imb_rev = safe_sum_b(df, 'Imbalance Revenue')
+            imb_charge = safe_sum_b(df, 'Imbalance Charge')
+            # Net 5% GridBeyond fee — apples-to-apples with the GB invoice and the optimiser output below.
+            return {
+                'SFFR': apply_gb_net(sffr),
+                'EPEX DA': apply_gb_net(epex),
+                'IDA1': apply_gb_net(ida1),
+                'IDC': apply_gb_net(idc),
+                'Imbalance': apply_gb_net(imb_rev - imb_charge),
+                'Total': apply_gb_net(sffr + epex + ida1 + idc + imb_rev - imb_charge),
+            }
+
+        def get_opt_revenue_breakdown(df):
+            df = df.copy()
+            df['Revenue'] = pd.to_numeric(df['Optimised_Revenue_Multi'], errors='coerce').fillna(0)
+            df['Market'] = df['Market_Used_Multi'].fillna('Idle')
+            sffr = df[df['Market'] == 'SFFR']['Revenue'].sum()
+            epex = df[df['Market'].str.contains('EPEX', na=False)]['Revenue'].sum()
+            isem = df[df['Market'].str.contains('ISEM', na=False)]['Revenue'].sum()
+            ssp = df[df['Market'].str.contains('SSP|SBP', na=False)]['Revenue'].sum()
+            da_hh = df[df['Market'].str.contains('DA_HH', na=False)]['Revenue'].sum()
+            total = df['Revenue'].sum()
+            # Net 5% — assume the optimised revenue would also be traded via GB in deployment.
+            return {
+                'SFFR': apply_gb_net(sffr),
+                'EPEX DA': apply_gb_net(epex + da_hh),
+                'IDA1': apply_gb_net(isem),
+                'IDC': 0,
+                'Imbalance': apply_gb_net(ssp),
+                'Total': apply_gb_net(total),
+            }
+
+        # Summary metrics, wrapped into rows of at most 5 — one row of ten
+        # squeezes each tile too narrow to render its value without clipping.
+        BM_PER_ROW = 5
+        metric_rows = [
+            st.columns(BM_PER_ROW)
+            for _ in range((len(bm) + BM_PER_ROW - 1) // BM_PER_ROW)
+        ]
+        all_actuals = {}
+        all_opts_bd = {}
+        all_gaps = {}
+        all_captures = {}
+
+        for idx, m in enumerate(bm):
+            short = m['short']
+            act = get_revenue_breakdown(masters[short])
+            opt_bd = get_opt_revenue_breakdown(opts[short])
+            gap = opt_bd['Total'] - act['Total']
+            capture = (act['Total'] / opt_bd['Total'] * 100) if opt_bd['Total'] > 0 else 0
+            all_actuals[short] = act
+            all_opts_bd[short] = opt_bd
+            all_gaps[short] = gap
+            all_captures[short] = capture
+
+            with metric_rows[idx // BM_PER_ROW][idx % BM_PER_ROW]:
+                st.metric(f"{short} Capture", f"{capture:.0f}%",
+                          delta=f"{capture - 100:+.0f}%" if capture != 100 else None)
+
+        # Comparison table
+        st.subheader("Monthly Revenue Comparison")
+        streams = ['SFFR', 'EPEX DA', 'IDA1', 'IDC', 'Imbalance', 'Total']
+        stream_labels = ['SFFR (Frequency Response)', 'EPEX DA (Day Ahead)',
+                         'IDA1/ISEM (Intraday)', 'IDC (Continuous)',
+                         'SSP/SBP (Imbalance)', 'TOTAL']
+
+        comp_data = {'Revenue Stream': stream_labels + ['Revenue Gap', 'Capture Rate']}
+        for m in bm:
+            short = m['short']
+            act = all_actuals[short]
+            opt_bd = all_opts_bd[short]
+            act_vals = [f"£{act[s]:,.0f}" for s in streams] + ['-', '-']
+            opt_vals = [f"£{opt_bd[s]:,.0f}" for s in streams] + [f"£{all_gaps[short]:,.0f}", f"{all_captures[short]:.0f}%"]
+            comp_data[f"{short} Actual"] = act_vals
+            comp_data[f"{short} Opt"] = opt_vals
+
+        comp_df = pd.DataFrame(comp_data)
+
+        def style_comp(row):
+            n = len(comp_df)
+            if row.name == 5:
+                return ['font-weight: bold; background-color: #e6f3ff'] * len(row)
+            elif row.name in [6, 7]:
+                return ['font-weight: bold; background-color: #fff3e6'] * len(row)
+            return [''] * len(row)
+
+        st.dataframe(comp_df.style.apply(style_comp, axis=1), use_container_width=True, hide_index=True)
+        st.caption(GB_NET_FOOTNOTE_SHORT)
+
+        total_gap = sum(all_gaps.values())
+        avg_cap = sum(all_captures.values()) / len(all_captures)
+
+        if avg_cap >= 100:
+            st.success(f"**Performance Summary:** Average capture rate {avg_cap:.0f}% across {len(bm)} months — outperforming multi-market optimization.")
+        else:
+            st.warning(f"**Performance Summary:** Total gap £{total_gap:,.0f} across {len(bm)} months (avg capture: {avg_cap:.0f}%). Optimization uses perfect foresight — gap is expected.")
+
+        # Calculation explanations
+    st.markdown("---")
+
+
+    st.markdown("---")
+
+    # ==================== METRIC CALCULATIONS (end of page) ====================
+    st.header("Metric Calculations")
+    st.caption("Formulas and worked examples for every metric on this page.")
+
+    st.subheader("Metric Calculations")
+
+    with st.expander("📐 Total Revenue - How is it calculated?"):
+        st.markdown("""
+**Formula:**
+```
+GridBeyond Gross  = SFFR + EPEX DA + IDA1 + IDC + Imbalance Revenue - Imbalance Charge
+GridBeyond Net    = GridBeyond Gross × 0.95   (5% GB revenue share deducted)
+Total Revenue     = GridBeyond Net + Capacity Market + DUoS Net Credit - DUoS Fixed Charges
+```
+
+**Explanation:**
+GridBeyond gross revenue is the sum of all wholesale/ancillary revenues traded by the aggregator.
+The dashboard shows the **net** figure — after GridBeyond's 5% revenue share — so the numbers
+tie out to the GridBeyond invoice and are directly comparable to the IAR (which is also post-fee).
+Total Revenue adds non-GridBeyond streams: Capacity Market payments (EMR Settlement T062)
+and Distribution Use of System credits (Hartree Partners passthrough invoices) — these are paid
+direct and are not subject to the GB fee.
+
+**Example (October 2025):**
+- GridBeyond Revenue: £38,344 (SFFR + EPEX + IDA1 + IDC + Imbalance)
+- Capacity Market: £1,704 (EMR Settlement CAN-2025-NSFL01-001)
+- DUoS Net Credit: £5,808 (Red + Amber + Green GDuos credits)
+- DUoS Fixed Charges: -£4 (DNO fixed charges)
+- **Total: £45,852**
+        """)
+
+    with st.expander("📐 Revenue (£/MW/year) - How is it calculated?"):
+        st.markdown("""
+**Formula:**
+```
+£/MW/year = (Total Monthly Revenue ÷ Days in Month) × 365 ÷ Capacity_MW
+```
+
+**Explanation:**
+Annualizes total monthly revenue (GridBeyond + CM + DUoS) and normalizes by installed
+capacity (4.2 MW) to enable comparison with Modo Energy industry benchmarks regardless of asset size.
+
+**Example (October 2025):**
+- Total Monthly Revenue: £45,852 (GridBeyond £38,344 + CM £1,704 + DUoS £5,804)
+- Days in October: 31
+- Daily average: £45,852 ÷ 31 = £1,479/day
+- Annualized: £1,479 × 365 = £539,790/year
+- Per MW: £539,790 ÷ 4.2 MW = **£128,521/MW/year**
+        """)
+
+    with st.expander("📐 Daily Cycles - How is it calculated?"):
+        st.markdown("""
+**Formula:**
+```
+Daily Cycles = (Discharge_MWh + Charge_MWh) ÷ 2 ÷ Capacity_MWh ÷ Days
+```
+
+**Explanation:**
+One full cycle = fully charging then fully discharging the battery (8.4 MWh).
+We sum all energy throughput, divide by 2 (to count charge+discharge as one cycle),
+then divide by capacity and number of days.
+
+**Example (September 2025):**
+- Total Discharge: 126 MWh
+- Total Charge: 126 MWh
+- Total throughput: 252 MWh
+- Equivalent full cycles: 252 ÷ 2 ÷ 8.4 = 15 cycles
+- Daily average: 15 ÷ 30 days = **0.5 cycles/day**
+        """)
+
+    with st.expander("📐 Degradation - How is it calculated?"):
+        st.markdown("""
+**Formula:**
+```
+Degradation = Capacity loss (%) per 365 equivalent full cycles
+```
+
+**Explanation:**
+Battery capacity degrades with use. Industry benchmarks measure this as percentage
+capacity loss per year of typical cycling (365 cycles). Lower is better.
+
+**Industry Range (NREL Study):**
+- Low: 4.0% (high-quality cells, conservative operation)
+- Mid: 4.4% (typical lithium-ion)
+- High: 11.0% (aggressive cycling, poor thermal management)
+
+*Northwold TBD - requires long-term capacity testing data.*
+        """)
+
+    with st.expander("📐 Availability (TWCAA) - How is it calculated?"):
+        st.markdown("""
+**Formula:**
+```
+TWCAA = Technical Weighted Contracted Availability Assessment
+```
+
+**Explanation:**
+National Grid ESO metric measuring the percentage of time the asset is available
+to deliver contracted services. Accounts for planned maintenance, forced outages,
+and partial availability.
+
+**Industry Range (National Grid ESO):**
+- Low: 90% (significant downtime)
+- Mid: 94.4% (typical BESS performance)
+- High: 98% (excellent availability)
+
+*Northwold TBD - requires ESO reporting data.*
+        """)
+
+    with st.expander("📐 Round-Trip Efficiency - How is it calculated?"):
+        st.markdown("""
+**Formula:**
+```
+RTE = (Energy Discharged ÷ Energy Charged) × 100
+```
+
+**Explanation:**
+Measures energy losses during charge/discharge cycles. A battery charged with
+100 MWh that discharges 85 MWh has 85% RTE. Losses occur in power electronics,
+battery cells, and thermal management.
+
+**Industry Range (DNV GL):**
+- Low: 82% (older systems, poor conditions)
+- Mid: 85% (typical Li-ion NMC/LFP)
+- High: 90% (optimized operation)
+
+*Northwold: ~85% (estimated from system design)*
+        """)
+
+
+    st.subheader("Metric Calculations")
+
+    with st.expander("📐 Multi-Market Optimization - How is it calculated?"):
+        st.markdown("""
+**Formula:**
+```
+For each day:
+  SFFR_Daily = Sum(7.0 MW × SFFR_Clearing_Price × 0.5hr) for 48 periods
+  Multi_Market = LP solver maximizing: Sum(Discharge × Sell_Price - Charge × Buy_Price) × 0.5hr
+  Daily Revenue = max(SFFR_Daily, Multi_Market)
+```
+
+**Explanation:**
+A linear optimization model (scipy linprog, HiGHS solver) that first compares SFFR availability revenue
+against optimal multi-market dispatch for the whole day. If SFFR wins, the battery is locked in frequency
+response. If multi-market wins, it dispatches across 5 markets using **perfect price foresight**:
+- Buy from the lowest-priced market (min of EPEX, ISEM, SSP, SBP, DA HH)
+- Sell to the highest-priced market (max of the same 5)
+- Hold or idle when spreads don't cover round-trip losses
+
+**Constraints Applied:**
+- Charge: 0–4.2 MW | Discharge: 0–7.5 MW (asymmetric)
+- SOC range: 5%–95% (0.42–7.98 MWh)
+- Max daily discharge throughput: 12.6 MWh (1.5 cycles × 8.4 MWh)
+- One-way efficiency: 93.3% (round-trip 87%)
+- SOC carries forward between days
+
+**Example (January 5, 2026 — best day):**
+- SFFR option: ~£477 (low SFFR clearing prices)
+- Multi-Market option: £5,222 (SSP spiked to 750 GBP/MWh at 19:00)
+- Decision: Multi-Market wins — battery charged at 68 GBP/MWh (SSP) overnight, held fully charged until the spike, then discharged aggressively into SSP
+        """)
+
+    with st.expander("📐 Revenue Gap - How is it calculated?"):
+        st.markdown("""
+**Formula:**
+```
+Revenue Gap = Optimized Multi-Market Revenue - Actual GridBeyond Revenue
+```
+
+**Explanation:**
+Measures the theoretical revenue improvement possible if the battery had been operated
+with perfect market foresight across all available markets. The gap typically concentrates
+in a few spike days per month (e.g., SSP spikes that are unpredictable in real-time).
+
+**Example (January 2026):**
+- Multi-Market Optimal: £33,376
+- Actual GridBeyond Revenue: £28,190
+- Revenue Gap: £33,376 - £28,190 = **£5,186**
+- Capture Rate: 84.5%
+
+**Gap Decomposition (Jan 26):**
+- ~67% from SSP spike events not captured (esp. Jan 5, 8)
+- ~15% from sub-optimal market selection
+- ~10% from SFFR availability assumption (7.0 MW vs 6.81 MW actual)
+- ~7% from imbalance penalties
+
+**Important Caveats:**
+- Optimization uses **perfect foresight** (knows future prices)
+- Does not account for market liquidity or execution costs
+- Represents theoretical maximum, not achievable in practice
+        """)
+
+    with st.expander("📐 Capture Rate - How is it calculated?"):
+        st.markdown("""
+**Formula:**
+```
+Capture Rate = (Actual GridBeyond Revenue ÷ Optimized Multi-Market Revenue) × 100
+```
+
+**Explanation:**
+Shows what percentage of the theoretical optimal revenue was actually captured by GridBeyond.
+A capture rate of 100% means actual matched optimal; >100% means outperformance (possible when
+actual strategies earn revenue from sources not in the optimization model).
+
+**Example (January 2026):**
+- Actual GridBeyond Revenue: £28,190
+- Multi-Market Optimal: £33,376
+- Capture Rate: (28,190 ÷ 33,376) × 100 = **84.5%**
+
+**Note:** On SFFR-only days, capture rates are typically 95%+ (gap is only from availability
+assumption: optimizer uses 7.0 MW, actual averages 6.81 MW). Large gaps concentrate in 2–3
+spike days per month when SSP prices spike unpredictably.
+
+**Interpretation:**
+- **>100%**: Outperforming optimization (revenue from strategies not modeled)
+- **80–100%**: Good performance, close to theoretical optimal
+- **60–80%**: Room for improvement in market participation
+- **<60%**: Significant opportunity gap to investigate
+        """)
+
+
+    st.subheader("Metric Calculations")
+
+    with st.expander("📐 TB1 - How is it calculated?"):
+        st.markdown("""
+**Formula:**
+```
+TB1 = Highest hourly price − Lowest hourly price (for the day)
+```
+
+**Explanation:**
+The simplest measure of daily price spread. Represents the theoretical maximum
+profit from a single 1-hour charge/discharge cycle buying at the lowest price
+and selling at the highest.
+
+**Example (1st September 2025):**
+- Highest hourly EPEX price: £85/MWh (at 6pm)
+- Lowest hourly EPEX price: £32/MWh (at 3am)
+- **TB1 = £85 - £32 = £53/MWh**
+        """)
+
+    with st.expander("📐 TB2 - How is it calculated?"):
+        st.markdown("""
+**Formula:**
+```
+TB2 = (Sum of 2 highest hourly prices) − (Sum of 2 lowest hourly prices)
+```
+
+**Explanation:**
+Represents the theoretical maximum profit for a 2-hour battery (like Northwold)
+that can charge for 2 hours at the cheapest prices and discharge for 2 hours
+at the most expensive prices.
+
+**Example (1st September 2025):**
+- 2 highest prices: £85 + £78 = £163
+- 2 lowest prices: £32 + £35 = £67
+- **TB2 = £163 - £67 = £96/MWh**
+
+*TB2 is the primary benchmark for 2-hour duration batteries.*
+        """)
+
+    with st.expander("📐 TB3 - How is it calculated?"):
+        st.markdown("""
+**Formula:**
+```
+TB3 = (Sum of 3 highest hourly prices) − (Sum of 3 lowest hourly prices)
+```
+
+**Explanation:**
+Theoretical maximum for a 3-hour battery. Useful for comparing against longer
+duration assets or understanding diminishing returns of longer duration.
+
+**Example (1st September 2025):**
+- 3 highest prices: £85 + £78 + £72 = £235
+- 3 lowest prices: £32 + £35 + £38 = £105
+- **TB3 = £235 - £105 = £130/MWh**
+        """)
+
+    with st.expander("📐 Daily Arbitrage Revenue - How is it calculated?"):
+        st.markdown("""
+**Formula:**
+```
+Daily Arbitrage = EPEX DA Revenue + IDA1 Revenue + IDC Revenue
+```
+
+**Explanation:**
+Sum of all wholesale trading revenues for the day. Excludes frequency response
+(SFFR) since that's an ancillary service, not arbitrage.
+
+**Example (1st September 2025):**
+- EPEX DA Revenue: £180
+- IDA1 Revenue: £95
+- IDC Revenue: £0
+- **Daily Arbitrage = £275**
+
+*This is compared against TB2 theoretical maximum to calculate capture rate.*
+        """)
+
+    with st.expander("📐 TB2 Capture Rate - How is it calculated?"):
+        st.markdown("""
+**Formula:**
+```
+TB2 Capture Rate = (Arbitrage Revenue ÷ (TB2 × Capacity_MWh)) × 100
+```
+
+**Explanation:**
+Measures how much of the theoretical maximum arbitrage revenue was actually captured.
+The denominator (TB2 × 8.4 MWh) represents perfect trading at best prices.
+
+**Example (1st September 2025):**
+- TB2 spread: £96/MWh
+- Capacity: 8.4 MWh
+- Theoretical max: £96 × 8.4 = £806
+- Actual arbitrage: £275
+- **Capture Rate = (275 ÷ 806) × 100 = 34%**
+
+*Note: Capture rates >100% are possible through intraday trading (multiple cycles)
+and stacking frequency response on top of arbitrage.*
+        """)
+
+    with st.expander("📐 Industry Benchmark (142%) - What does it mean?"):
+        st.markdown("""
+**Source:** Modo Energy - "Benchmarking European battery revenue with TB spreads"
+
+**Explanation:**
+Modo Energy analyzed revenues from GB BESS assets and found that well-operated
+2-hour batteries typically earn ~142% of the TB2 theoretical spread. This is
+achieved through:
+
+1. **Multiple daily cycles** - Trading more than once per day
+2. **Intraday optimization** - Capturing price spikes in real-time markets
+3. **Ancillary service stacking** - Earning frequency response alongside arbitrage
+4. **Balancing Mechanism participation** - Additional revenue from grid balancing
+
+**Rating Guide:**
+- **≥142%**: At or above industry benchmark (excellent)
+- **100-142%**: Capturing spread but below benchmark (room for improvement)
+- **<100%**: Not fully capturing available spread (needs investigation)
+        """)
+
+    # Time series chart
 
 
 # ============================================================================
