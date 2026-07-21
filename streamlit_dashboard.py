@@ -6118,15 +6118,18 @@ def _northwold_daily_streams(master_file: str, capacity_mw: float = 4.2):
     def col(name):
         return pd.to_numeric(df[name], errors='coerce').fillna(0) if name in df.columns else 0
 
+    # All three streams are GridBeyond-traded, so net the 5% revenue share the
+    # way every other page does. Without this the section reported gross and
+    # overstated Northwold by exactly 5% against the peer index.
     daily = pd.DataFrame({
         'date': df['Timestamp'].dt.strftime('%Y-%m-%d'),
         # SFFR is Northwold's only frequency product.
-        'Frequency Response': col('SFFR revenues'),
+        'Frequency Response': apply_gb_net(col('SFFR revenues')),
         # Modo's "Wholesale" spans day-ahead and both intraday routes.
-        'Wholesale': (col('EPEX 30 DA Revenue') + col('EPEX DA Revenues')
-                      + col('IDA1 Revenue') + col('IDC Revenue')),
+        'Wholesale': apply_gb_net(col('EPEX 30 DA Revenue') + col('EPEX DA Revenues')
+                                  + col('IDA1 Revenue') + col('IDC Revenue')),
         # Net of the charge — imbalance can and does run negative.
-        'Imbalance': col('Imbalance Revenue') - col('Imbalance Charge'),
+        'Imbalance': apply_gb_net(col('Imbalance Revenue') - col('Imbalance Charge')),
     }).groupby('date', as_index=False).sum()
 
     for s in COMPARABLE_STREAMS:
@@ -6260,8 +6263,38 @@ def _render_northwold_vs_modo():
         "individual split. **Capacity Market**: Northwold does earn it, but only "
         "as a monthly EMR settlement figure, so it has no daily series and is "
         "counted as not-traded here rather than as a performance shortfall. "
-        "Normalised by 4.2 MW rated power."
+        "Northwold figures are net of the 5% GridBeyond revenue share and "
+        "normalised by 4.2 MW rated power."
     )
+
+    with st.expander("Why this differs from the Executive Summary's peer figure"):
+        st.markdown("""
+Both pages compare Northwold to the same ME-BESS-GB 2H index, but they measure
+different things, so their percentages will not agree. Neither is wrong.
+
+| | Executive Summary | This section |
+|---|---|---|
+| **Northwold includes** | GridBeyond traded revenue **+ Capacity Market + DUoS** | GridBeyond traded revenue only |
+| **Peer side** | Full 2H index, all streams | Split into traded vs not-traded |
+| **Granularity** | Monthly totals | Daily, aggregated |
+| **Question answered** | *Is the asset earning what a 2H asset should?* | *Where does the difference come from?* |
+
+The Executive Summary is the right number to quote — it counts every pound the
+asset earns, including revenue that never passes through the aggregator. This
+section deliberately strips CM and DUoS from Northwold so the remaining streams
+can be set against Modo's like-for-like, which is what makes the structural vs
+traded split meaningful.
+
+Expect the Executive Summary to read **higher** in months where Capacity Market
+and DUoS credits landed, and to converge with this section in months where they
+did not — June 2026 has neither, so the two agree there.
+
+**One open question**: Northwold is shown net of the 5% GridBeyond share, for
+consistency with the rest of the dashboard and with the GridBeyond invoice.
+Whether Modo's index is reported gross or net of optimiser fees is not
+documented, so the peer comparison may understate Northwold by up to 5%.
+Worth confirming with Modo.
+        """)
 
 
 # Month windows for the daily stack. interval_end is the last day of the
