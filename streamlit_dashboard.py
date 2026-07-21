@@ -4070,31 +4070,14 @@ def show_benchmark_comparison():
 
                 st.plotly_chart(fig_tb, use_container_width=True)
 
-                # Performance rating
-                col1, col2 = st.columns(2)
+                st.markdown("**TB Spread Interpretation:**")
+                st.markdown("""
+                - **TB2 Capture > 142%**: Exceeding industry benchmark for 2-hr batteries
+                - **TB2 Capture 100-142%**: Capturing spread but below benchmark
+                - **TB2 Capture < 100%**: Not fully capturing available spread
 
-                with col1:
-                    st.markdown("**Performance Rating:**")
-                    for short, comb in combined_months.items():
-                        avg_cap = comb['TB2_Capture'].mean()
-                        if pd.isna(avg_cap):
-                            continue
-                        if avg_cap >= 142:
-                            st.success(f"{short}: {avg_cap:.0f}% - At or above benchmark")
-                        elif avg_cap >= 100:
-                            st.warning(f"{short}: {avg_cap:.0f}% - Below benchmark but positive")
-                        else:
-                            st.info(f"{short}: {avg_cap:.0f}% - Below 100%")
-
-                with col2:
-                    st.markdown("**TB Spread Interpretation:**")
-                    st.markdown("""
-                    - **TB2 Capture > 142%**: Exceeding industry benchmark for 2-hr batteries
-                    - **TB2 Capture 100-142%**: Capturing spread but below benchmark
-                    - **TB2 Capture < 100%**: Not fully capturing available spread
-
-                    *Capture rates >100% achieved through intraday trading and frequency response stacking.*
-                    """)
+                *Capture rates >100% achieved through intraday trading and frequency response stacking.*
+                """)
 
                 # Expandable daily details
                 with st.expander("View Daily TB Spread Details"):
