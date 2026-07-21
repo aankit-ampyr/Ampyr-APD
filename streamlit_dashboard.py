@@ -3347,6 +3347,22 @@ def show_pdf_export_page(month: str = "September 2025"):
                 st.error(f"Error generating comparison: {str(e)}")
 
 
+def modo_2h_band():
+    """Low / median / high of the ME-BESS-GB 2H index across loaded months.
+
+    Replaces a hardcoded £36k / £60k / £88k band that came from the
+    2024–2025 observed range — a period ending before this dataset even
+    starts, and drawn from the all-duration fleet rather than Northwold's
+    2H peer group. Deriving it keeps the band current as months are added.
+    """
+    vals = sorted(v for v in ME_BESS_GB_2H.values() if v)
+    if not vals:
+        return None, None, None
+    n = len(vals)
+    median = vals[n // 2] if n % 2 else (vals[n // 2 - 1] + vals[n // 2]) / 2
+    return vals[0], median, vals[-1]
+
+
 # Capacity Market payments (£) — source: EMR Settlement T062 CSVs.
 # Contract CAN-2025-NSFL01-001, 1.023 MW @ £20,000/MW/yr, monthly weighting.
 #
@@ -3663,7 +3679,10 @@ calculated per MW/month and multiplied by 4.2 MW for comparison. No indexation i
 def show_benchmark_comparison():
     """Display industry benchmark comparison page."""
     st.title("📊 Benchmarks")
-    st.markdown("Compare Northwold's performance against UK BESS industry benchmarks and IAR projections")
+    st.markdown(
+        "Northwold against the **Modo ME-BESS-GB 2H index** — its duration peer "
+        "group (1.5–2.5h) — plus in-house TB spreads and the multi-market optimiser."
+    )
 
     # ---- Month configuration ----
     BENCH_MONTHS = [
@@ -3812,10 +3831,10 @@ def show_benchmark_comparison():
     # ==================== Section 1: Revenue vs Benchmarks ====================
     st.header("1. Revenue vs Benchmarks")
     st.markdown(
-        "Three-way comparison of Northwold actual revenue against the Modo Energy "
-        "GB BESS benchmark and the Internal Appraisal Report (IAR) projection, in "
-        "**£/MW per calendar month** — what each party actually earned per MW in "
-        "each real month, with no annualisation."
+        "Three-way comparison of Northwold actual revenue against the **Modo "
+        "ME-BESS-GB 2H index** (Northwold's duration peer) and the Internal "
+        "Appraisal Report (IAR) projection, in **£/MW per calendar month** — what "
+        "each party actually earned per MW in each real month, no annualisation."
     )
 
     if data_loaded:
@@ -3829,9 +3848,13 @@ def show_benchmark_comparison():
         actual_monthly = [m['total_revenue'] / capacity_mw for m in bm]
         # None (not 0) for months Modo has not published yet — Plotly renders a
         # gap, whereas 0 would read as "the benchmark measured zero revenue".
+        # ME_BESS_GB_2H, not the all-duration index: Northwold is 4.2 MW /
+        # 8.4 MWh = 2.0h, so the 2H cut (1.5-2.5h) is its peer group. The
+        # all-duration headline is volume-weighted across every duration and
+        # is fleet context rather than a like-for-like comparison.
         modo_monthly = [
-            (MODO_BENCHMARKS.get(s) * days_by_short[s] / 365)
-            if MODO_BENCHMARKS.get(s) else None
+            (ME_BESS_GB_2H.get(s) * days_by_short[s] / 365)
+            if ME_BESS_GB_2H.get(s) else None
             for s in months
         ]
         iar_monthly = [iar_monthly_per_mw.get(s, 0) for s in months]
@@ -3849,7 +3872,7 @@ def show_benchmark_comparison():
                 hovertemplate=f'%{{x}}<br>Actual: £%{{y:,.0f}}{hover_unit}<extra></extra>',
             ))
             fig.add_trace(go.Bar(
-                name='Modo benchmark', x=months, y=modo_ys,
+                name='Modo 2H peer', x=months, y=modo_ys,
                 marker_color=C_MODO,
                 hovertemplate=f'%{{x}}<br>Modo: £%{{y:,.0f}}{hover_unit}<extra></extra>',
             ))
@@ -3885,9 +3908,9 @@ def show_benchmark_comparison():
             summary_rows.append({
                 'Month': s,
                 'Actual (£/MW/mo)': f"£{round(act_m):,}",
-                'Modo (£/MW/mo)': f"£{round(mod_m):,}" if mod_m else '—',
+                'Modo 2H (£/MW/mo)': f"£{round(mod_m):,}" if mod_m else '—',
                 'IAR (£/MW/mo)': f"£{round(iar_m):,}" if iar_m else '—',
-                'Capture vs Modo': f"{cap_modo:.0f}%" if cap_modo is not None else '—',
+                'vs Modo 2H': f"{cap_modo:.0f}%" if cap_modo is not None else '—',
                 'Capture vs IAR': f"{cap_iar:.0f}%" if cap_iar is not None else '—',
             })
         st.dataframe(pd.DataFrame(summary_rows), use_container_width=True, hide_index=True)
@@ -4138,7 +4161,7 @@ def show_benchmark_comparison():
         - **DNV GL**: Energy Storage Performance Standards *(industry standard)*
         - **OEM Warranty**: 1.5 cycles/day limit *(per Northwold Storage Asset Optimisation Agreement)*
 
-        **Note:** Modo Energy's GB BESS Index tracks monthly revenues across all GB batteries. Range £36k–£88k/MW/year (2024–2025). Total Revenue in this dashboard includes GridBeyond + CM + DUoS for like-for-like comparison.
+        **Note:** Benchmarks on this page use the **ME-BESS-GB 2H index** (1.5–2.5h duration) — Northwold's peer group, since it is 4.2 MW / 8.4 MWh = 2.0h. Pulled live from the Modo API and refreshed monthly, so the peer range moves with the market rather than being fixed. The older £36k–£88k figures were the 2024–25 all-duration envelope and are retained only as historical reference. Total Revenue here includes GridBeyond + CM + DUoS for like-for-like comparison.
         """)
 
     st.markdown("---")
@@ -4157,13 +4180,17 @@ def show_benchmark_comparison():
         month_values = [m['total_annual_per_mw'] for m in bm]
         max_apm = max(month_values) if month_values else 0
 
-        # Industry range as a shaded band behind the points.
-        fig.add_hrect(y0=36000, y1=88000, fillcolor='rgba(150,150,150,0.12)',
-                      line_width=0, layer='below',
-                      annotation_text='Industry range £36k–£88k',
-                      annotation_position='top left', annotation_font_size=11)
-        fig.add_hline(y=60000, line_dash="dash", line_color="orange",
-                      annotation_text="Industry Mid (£60k)", annotation_position="right")
+        # Peer band derived live from the 2H index, not the old static
+        # £36k/£60k/£88k figures (2024–25 observed range, all-duration).
+        band_low, band_mid, band_high = modo_2h_band()
+        if band_low:
+            fig.add_hrect(y0=band_low, y1=band_high, fillcolor='rgba(214,39,40,0.10)',
+                          line_width=0, layer='below',
+                          annotation_text=f'Modo 2H peer range £{band_low/1000:.0f}k–£{band_high/1000:.0f}k',
+                          annotation_position='top left', annotation_font_size=11)
+            fig.add_hline(y=band_mid, line_dash="dash", line_color="#d62728",
+                          annotation_text=f"2H median (£{band_mid/1000:.0f}k)",
+                          annotation_position="right", annotation_font_size=11)
 
         fig.add_trace(go.Scatter(
             name='Northwold',
@@ -4192,27 +4219,32 @@ def show_benchmark_comparison():
         st.markdown("---")
         st.subheader("Key Insights")
 
+        # Thresholds come from the live 2H peer index, not the retired
+        # £60k/£88k figures taken from the 2024–25 all-duration range.
+        b_low, b_mid, b_high = modo_2h_band()
         col1, col2 = st.columns(2)
 
         with col1:
             st.markdown("**Strengths:**")
-            above_high = [m['short'] for m in bm if m['total_annual_per_mw'] >= 88000]
+            above_high = [m['short'] for m in bm if b_high and m['total_annual_per_mw'] >= b_high]
             if above_high:
-                st.markdown(f"- {', '.join(above_high)} exceeded industry high benchmark")
-            if avg_annual >= 60000:
-                st.markdown(f"- Combined average (£{avg_annual:,.0f}/MW/yr) above industry mid")
+                st.markdown(f"- {', '.join(above_high)} exceeded the 2H peak (£{b_high/1000:.0f}k)")
+            if b_mid and avg_annual >= b_mid:
+                st.markdown(f"- Combined average (£{avg_annual:,.0f}/MW/yr) above the 2H median")
             within_warranty = [m['short'] for m in bm if m['daily_cycles'] and m['daily_cycles'] <= 1.5]
             if within_warranty:
                 st.markdown(f"- {', '.join(within_warranty)} cycling within warranty limits (<=1.5/day)")
+            if not above_high and not (b_mid and avg_annual >= b_mid):
+                st.markdown("- No month reached the 2H peer median")
 
         with col2:
             st.markdown("**Areas for Improvement:**")
-            below_mid = [(m['short'], 60000 - m['total_annual_per_mw']) for m in bm if m['total_annual_per_mw'] < 60000]
+            below_mid = [(m['short'], b_mid - m['total_annual_per_mw'])
+                         for m in bm if b_mid and m['total_annual_per_mw'] < b_mid]
             for short, gap in below_mid:
-                st.markdown(f"- {short}: £{gap:,.0f}/MW below industry mid")
-            if avg_annual < 88000:
-                gap = 88000 - avg_annual
-                st.markdown(f"- Combined average £{gap:,.0f}/MW below industry high")
+                st.markdown(f"- {short}: £{gap:,.0f}/MW below the 2H median")
+            if b_high and avg_annual < b_high:
+                st.markdown(f"- Combined average £{b_high - avg_annual:,.0f}/MW below the 2H peak")
 
         st.markdown("---")
         with st.expander("📰 Modo Energy source articles (click month to open)"):
