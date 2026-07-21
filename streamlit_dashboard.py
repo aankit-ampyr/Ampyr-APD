@@ -1774,10 +1774,15 @@ def show_report_page(month: str = "September 2025"):
 
     epex_revenue = apply_gb_net(northwold_df['EPEX 30 DA Revenue'].sum()) if 'EPEX 30 DA Revenue' in northwold_df.columns else 0
     ida1_revenue = apply_gb_net(northwold_df['IDA1 Revenue'].sum()) if 'IDA1 Revenue' in northwold_df.columns else 0
+    # IDC was omitted from this page entirely — not just from the breakdown but
+    # from actual_total itself, so every figure derived from it (gap, capture
+    # rate, daily totals) was wrong. Zero before Jan 2026, which is why it went
+    # unnoticed; Jan 2026 alone was overstated by £5,217, 19% of the month.
+    idc_revenue = apply_gb_net(northwold_df['IDC Revenue'].sum()) if 'IDC Revenue' in northwold_df.columns else 0
     imbalance_revenue = apply_gb_net(northwold_df['Imbalance Revenue'].sum()) if 'Imbalance Revenue' in northwold_df.columns else 0
     imbalance_charge = apply_gb_net(northwold_df['Imbalance Charge'].sum()) if 'Imbalance Charge' in northwold_df.columns else 0
     net_imbalance = imbalance_revenue - imbalance_charge
-    actual_total = sffr_revenue + epex_revenue + ida1_revenue + net_imbalance
+    actual_total = sffr_revenue + epex_revenue + ida1_revenue + idc_revenue + net_imbalance
 
     # Multi-market revenue (optimiser output also netted by 5% GB fee)
     multi_total = apply_gb_net(multi_df['Optimised_Revenue_Multi'].sum())
@@ -1856,6 +1861,7 @@ def show_report_page(month: str = "September 2025"):
             'SFFR Revenue': abs(sffr_revenue),
             'EPEX Trading': abs(epex_revenue),
             'IDA1 Trading': abs(ida1_revenue),
+            'IDC Trading': abs(idc_revenue),
             'Imbalance (Net)': abs(net_imbalance)
         }
 
@@ -1925,7 +1931,7 @@ def show_report_page(month: str = "September 2025"):
     ]
 
     market_revenues = [
-        epex_revenue + ida1_revenue,
+        epex_revenue + ida1_revenue + idc_revenue,
         apply_gb_net(multi_df[multi_df['Strategy_Selected_Daily'] == 'EPEX']['Optimised_Revenue_Daily'].sum()),
         apply_gb_net(multi_df[multi_df['Strategy_Selected_EFA'] == 'EPEX']['Optimised_Revenue_EFA'].sum()),
         multi_total
@@ -2005,7 +2011,7 @@ def show_report_page(month: str = "September 2025"):
 
     # Calculate daily revenues using actual column names
     revenue_cols = ['SFFR revenues', 'EPEX 30 DA Revenue', 'IDA1 Revenue',
-                   'Imbalance Revenue', 'Imbalance Charge']
+                   'IDC Revenue', 'Imbalance Revenue', 'Imbalance Charge']
 
     # Only include columns that exist
     agg_dict = {}
@@ -2024,6 +2030,8 @@ def show_report_page(month: str = "September 2025"):
             daily_actual['Total'] += daily_actual['EPEX 30 DA Revenue']
         if 'IDA1 Revenue' in daily_actual.columns:
             daily_actual['Total'] += daily_actual['IDA1 Revenue']
+        if 'IDC Revenue' in daily_actual.columns:
+            daily_actual['Total'] += daily_actual['IDC Revenue']
         if 'Imbalance Revenue' in daily_actual.columns:
             daily_actual['Total'] += daily_actual['Imbalance Revenue']
         if 'Imbalance Charge' in daily_actual.columns:
@@ -3367,7 +3375,11 @@ def show_pdf_export_page(month: str = "September 2025"):
                     total_all = gb_total + cm + duos_net
 
                     return {
-                        'SFFR': sffr, 'EPEX': epex, 'Imbalance': imb,
+                        # IDA1 and IDC were counted in gb_total but not exported
+                        # as their own rows, so the CSV's components did not sum
+                        # to the total beside them.
+                        'SFFR': sffr, 'EPEX': epex, 'IDA1': ida1, 'IDC': idc,
+                        'Imbalance': imb,
                         'GridBeyond Total': gb_total,
                         'Capacity Market': cm, 'DUoS Net': duos_net,
                         'Total (All Streams)': total_all,
