@@ -3347,6 +3347,33 @@ def show_pdf_export_page(month: str = "September 2025"):
                 st.error(f"Error generating comparison: {str(e)}")
 
 
+# Capacity Market payments (£) — source: EMR Settlement T062 CSVs.
+# Contract CAN-2025-NSFL01-001, 1.023 MW @ £20,000/MW/yr, monthly weighting.
+#
+# Module level deliberately: this used to be duplicated inside three separate
+# page functions and the copies drifted — the Executive Comparison copy was
+# missing Mar 26, understating that month by £1,859. One definition, read by
+# every page.
+CM_ACTUALS = {
+    'Oct 25': 1704.17, 'Nov 25': 1884.42,
+    'Dec 25': 1994.84, 'Jan 26': 2113.87,
+    'Feb 26': 1829.35, 'Mar 26': 1859.19,
+}
+
+# DUoS actuals (£ net ex-VAT) — source: Hartree Partners Gen_Inv PDFs.
+# GDuos credits (Red+Amber+Green) are revenue; DNO Fixed is a cost.
+DUOS_ACTUALS = {
+    'Sep 25': {'red': -322.81, 'amber': -410.03, 'green': -43.94,
+               'fixed': 3.58, 'net_credit': 773.20},
+    'Oct 25': {'red': -5500.11, 'amber': -268.35, 'green': -42.92,
+               'fixed': 3.70, 'net_credit': 5807.68},
+    'Nov 25': {'red': -5379.73, 'amber': -106.41, 'green': -42.54,
+               'fixed': 3.58, 'net_credit': 5525.10},
+    'Apr 26': {'red': -5974.31, 'amber': -572.72, 'green': -37.22,
+               'fixed': 3.86, 'net_credit': 6580.39},
+}
+
+
 def _iar_col_map(ws):
     """Read row 3 datetime headers and return {col_idx: 'Mon YY'} for every
     populated month. The IAR Excel has month headers in row 3 starting at
@@ -3406,7 +3433,14 @@ def show_iar_vs_actual():
             masters[short] = pd.read_csv(os.path.join(DATA_DIR, master_f))
         except FileNotFoundError:
             continue
-        bm.append({'short': short, 'days': days})
+        duos = DUOS_ACTUALS.get(short) or {}
+        bm.append({
+            'short': short,
+            'days': days,
+            'cm': CM_ACTUALS.get(short, 0),
+            'duos_credit': duos.get('net_credit', 0),
+            'duos_fixed': duos.get('fixed', 0),
+        })
     data_loaded = len(bm) > 0
     if not data_loaded:
         st.warning("No monthly data found for the IAR comparison.")
@@ -3675,26 +3709,8 @@ def show_benchmark_comparison():
         'Jun 26': 'https://developers.modoenergy.com/reference/monthly-me-bess-gb',
     }
 
-    # Capacity Market payments (£) — source: EMR Settlement T062 CSVs
-    # Contract: CAN-2025-NSFL01-001, 1.023 MW @ £20,000/MW/yr, monthly weighting
-    CM_ACTUALS = {
-        'Oct 25': 1704.17, 'Nov 25': 1884.42,
-        'Dec 25': 1994.84, 'Jan 26': 2113.87,
-        'Feb 26': 1829.35, 'Mar 26': 1859.19,
-    }
-
-    # DUoS actuals (£ net ex-VAT) — source: Hartree Partners Gen_Inv PDFs
-    # GDuos credits (Red+Amber+Green) are revenue; DNO Fixed is a cost
-    DUOS_ACTUALS = {
-        'Sep 25': {'red': -322.81, 'amber': -410.03, 'green': -43.94,
-                   'fixed': 3.58, 'net_credit': 773.20},
-        'Oct 25': {'red': -5500.11, 'amber': -268.35, 'green': -42.92,
-                   'fixed': 3.70, 'net_credit': 5807.68},
-        'Nov 25': {'red': -5379.73, 'amber': -106.41, 'green': -42.54,
-                   'fixed': 3.58, 'net_credit': 5525.10},
-        'Apr 26': {'red': -5974.31, 'amber': -572.72, 'green': -37.22,
-                   'fixed': 3.86, 'net_credit': 6580.39},
-    }
+    # CM_ACTUALS and DUOS_ACTUALS now live at module level (see near
+    # BENCHMARK_COMPARISON_MONTHS) so every page reads the same numbers.
 
     # Load and calculate Northwold metrics first
     try:
@@ -4340,7 +4356,7 @@ def show_benchmark_comparison():
     st.header("Metric Calculations")
     st.caption("Formulas and worked examples for every metric on this page.")
 
-    st.subheader("Metric Calculations")
+    st.subheader("Section 1 — Revenue vs Benchmarks")
 
     with st.expander("📐 Total Revenue - How is it calculated?"):
         st.markdown("""
@@ -4466,99 +4482,7 @@ battery cells, and thermal management.
         """)
 
 
-    st.subheader("Metric Calculations")
-
-    with st.expander("📐 Multi-Market Optimization - How is it calculated?"):
-        st.markdown("""
-**Formula:**
-```
-For each day:
-  SFFR_Daily = Sum(7.0 MW × SFFR_Clearing_Price × 0.5hr) for 48 periods
-  Multi_Market = LP solver maximizing: Sum(Discharge × Sell_Price - Charge × Buy_Price) × 0.5hr
-  Daily Revenue = max(SFFR_Daily, Multi_Market)
-```
-
-**Explanation:**
-A linear optimization model (scipy linprog, HiGHS solver) that first compares SFFR availability revenue
-against optimal multi-market dispatch for the whole day. If SFFR wins, the battery is locked in frequency
-response. If multi-market wins, it dispatches across 5 markets using **perfect price foresight**:
-- Buy from the lowest-priced market (min of EPEX, ISEM, SSP, SBP, DA HH)
-- Sell to the highest-priced market (max of the same 5)
-- Hold or idle when spreads don't cover round-trip losses
-
-**Constraints Applied:**
-- Charge: 0–4.2 MW | Discharge: 0–7.5 MW (asymmetric)
-- SOC range: 5%–95% (0.42–7.98 MWh)
-- Max daily discharge throughput: 12.6 MWh (1.5 cycles × 8.4 MWh)
-- One-way efficiency: 93.3% (round-trip 87%)
-- SOC carries forward between days
-
-**Example (January 5, 2026 — best day):**
-- SFFR option: ~£477 (low SFFR clearing prices)
-- Multi-Market option: £5,222 (SSP spiked to 750 GBP/MWh at 19:00)
-- Decision: Multi-Market wins — battery charged at 68 GBP/MWh (SSP) overnight, held fully charged until the spike, then discharged aggressively into SSP
-        """)
-
-    with st.expander("📐 Revenue Gap - How is it calculated?"):
-        st.markdown("""
-**Formula:**
-```
-Revenue Gap = Optimized Multi-Market Revenue - Actual GridBeyond Revenue
-```
-
-**Explanation:**
-Measures the theoretical revenue improvement possible if the battery had been operated
-with perfect market foresight across all available markets. The gap typically concentrates
-in a few spike days per month (e.g., SSP spikes that are unpredictable in real-time).
-
-**Example (January 2026):**
-- Multi-Market Optimal: £33,376
-- Actual GridBeyond Revenue: £28,190
-- Revenue Gap: £33,376 - £28,190 = **£5,186**
-- Capture Rate: 84.5%
-
-**Gap Decomposition (Jan 26):**
-- ~67% from SSP spike events not captured (esp. Jan 5, 8)
-- ~15% from sub-optimal market selection
-- ~10% from SFFR availability assumption (7.0 MW vs 6.81 MW actual)
-- ~7% from imbalance penalties
-
-**Important Caveats:**
-- Optimization uses **perfect foresight** (knows future prices)
-- Does not account for market liquidity or execution costs
-- Represents theoretical maximum, not achievable in practice
-        """)
-
-    with st.expander("📐 Capture Rate - How is it calculated?"):
-        st.markdown("""
-**Formula:**
-```
-Capture Rate = (Actual GridBeyond Revenue ÷ Optimized Multi-Market Revenue) × 100
-```
-
-**Explanation:**
-Shows what percentage of the theoretical optimal revenue was actually captured by GridBeyond.
-A capture rate of 100% means actual matched optimal; >100% means outperformance (possible when
-actual strategies earn revenue from sources not in the optimization model).
-
-**Example (January 2026):**
-- Actual GridBeyond Revenue: £28,190
-- Multi-Market Optimal: £33,376
-- Capture Rate: (28,190 ÷ 33,376) × 100 = **84.5%**
-
-**Note:** On SFFR-only days, capture rates are typically 95%+ (gap is only from availability
-assumption: optimizer uses 7.0 MW, actual averages 6.81 MW). Large gaps concentrate in 2–3
-spike days per month when SSP prices spike unpredictably.
-
-**Interpretation:**
-- **>100%**: Outperforming optimization (revenue from strategies not modeled)
-- **80–100%**: Good performance, close to theoretical optimal
-- **60–80%**: Room for improvement in market participation
-- **<60%**: Significant opportunity gap to investigate
-        """)
-
-
-    st.subheader("Metric Calculations")
+    st.subheader("Section 2 — TB Spread Benchmarks")
 
     with st.expander("📐 TB1 - How is it calculated?"):
         st.markdown("""
@@ -4676,6 +4600,98 @@ achieved through:
 - **100-142%**: Capturing spread but below benchmark (room for improvement)
 - **<100%**: Not fully capturing available spread (needs investigation)
         """)
+    st.subheader("Section 3 — Multi-Market Optimisation")
+
+    with st.expander("📐 Multi-Market Optimization - How is it calculated?"):
+        st.markdown("""
+**Formula:**
+```
+For each day:
+  SFFR_Daily = Sum(7.0 MW × SFFR_Clearing_Price × 0.5hr) for 48 periods
+  Multi_Market = LP solver maximizing: Sum(Discharge × Sell_Price - Charge × Buy_Price) × 0.5hr
+  Daily Revenue = max(SFFR_Daily, Multi_Market)
+```
+
+**Explanation:**
+A linear optimization model (scipy linprog, HiGHS solver) that first compares SFFR availability revenue
+against optimal multi-market dispatch for the whole day. If SFFR wins, the battery is locked in frequency
+response. If multi-market wins, it dispatches across 5 markets using **perfect price foresight**:
+- Buy from the lowest-priced market (min of EPEX, ISEM, SSP, SBP, DA HH)
+- Sell to the highest-priced market (max of the same 5)
+- Hold or idle when spreads don't cover round-trip losses
+
+**Constraints Applied:**
+- Charge: 0–4.2 MW | Discharge: 0–7.5 MW (asymmetric)
+- SOC range: 5%–95% (0.42–7.98 MWh)
+- Max daily discharge throughput: 12.6 MWh (1.5 cycles × 8.4 MWh)
+- One-way efficiency: 93.3% (round-trip 87%)
+- SOC carries forward between days
+
+**Example (January 5, 2026 — best day):**
+- SFFR option: ~£477 (low SFFR clearing prices)
+- Multi-Market option: £5,222 (SSP spiked to 750 GBP/MWh at 19:00)
+- Decision: Multi-Market wins — battery charged at 68 GBP/MWh (SSP) overnight, held fully charged until the spike, then discharged aggressively into SSP
+        """)
+
+    with st.expander("📐 Revenue Gap - How is it calculated?"):
+        st.markdown("""
+**Formula:**
+```
+Revenue Gap = Optimized Multi-Market Revenue - Actual GridBeyond Revenue
+```
+
+**Explanation:**
+Measures the theoretical revenue improvement possible if the battery had been operated
+with perfect market foresight across all available markets. The gap typically concentrates
+in a few spike days per month (e.g., SSP spikes that are unpredictable in real-time).
+
+**Example (January 2026):**
+- Multi-Market Optimal: £33,376
+- Actual GridBeyond Revenue: £28,190
+- Revenue Gap: £33,376 - £28,190 = **£5,186**
+- Capture Rate: 84.5%
+
+**Gap Decomposition (Jan 26):**
+- ~67% from SSP spike events not captured (esp. Jan 5, 8)
+- ~15% from sub-optimal market selection
+- ~10% from SFFR availability assumption (7.0 MW vs 6.81 MW actual)
+- ~7% from imbalance penalties
+
+**Important Caveats:**
+- Optimization uses **perfect foresight** (knows future prices)
+- Does not account for market liquidity or execution costs
+- Represents theoretical maximum, not achievable in practice
+        """)
+
+    with st.expander("📐 Capture Rate - How is it calculated?"):
+        st.markdown("""
+**Formula:**
+```
+Capture Rate = (Actual GridBeyond Revenue ÷ Optimized Multi-Market Revenue) × 100
+```
+
+**Explanation:**
+Shows what percentage of the theoretical optimal revenue was actually captured by GridBeyond.
+A capture rate of 100% means actual matched optimal; >100% means outperformance (possible when
+actual strategies earn revenue from sources not in the optimization model).
+
+**Example (January 2026):**
+- Actual GridBeyond Revenue: £28,190
+- Multi-Market Optimal: £33,376
+- Capture Rate: (28,190 ÷ 33,376) × 100 = **84.5%**
+
+**Note:** On SFFR-only days, capture rates are typically 95%+ (gap is only from availability
+assumption: optimizer uses 7.0 MW, actual averages 6.81 MW). Large gaps concentrate in 2–3
+spike days per month when SSP prices spike unpredictably.
+
+**Interpretation:**
+- **>100%**: Outperforming optimization (revenue from strategies not modeled)
+- **80–100%**: Good performance, close to theoretical optimal
+- **60–80%**: Room for improvement in market participation
+- **<60%**: Significant opportunity gap to investigate
+        """)
+
+
 
     # Time series chart
 
