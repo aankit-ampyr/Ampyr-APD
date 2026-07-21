@@ -1791,63 +1791,91 @@ def show_report_page(month: str = "September 2025"):
     improvement_pct = ((multi_total / actual_total - 1) * 100)
     revenue_gap = multi_total - actual_total
 
-    # ==================== SECTION 1: EXECUTIVE SUMMARY ====================
-    st.header("1️⃣ The Performance Gap")
-    st.markdown("The analysis reveals a significant gap between the asset's actual revenue and its optimized potential using multi-market strategies.")
+    # ==================== SECTION 1: PERFORMANCE OVERVIEW ====================
+    st.header("1️⃣ Performance Overview")
+    st.markdown(
+        "Actual revenue for the month, measured against the **Modo ME-BESS-GB 2H "
+        "index** — Northwold's duration peer — and against the in-house optimiser's "
+        "perfect-foresight ceiling."
+    )
 
-    # Key metrics
+    # Normalisation must match the rest of the dashboard: 4.2 MW rated power
+    # (Northwold is 4.2 MW / 8.4 MWh = 2h) and annualised by actual days in the
+    # month. This previously used 7.5 MW — the export limit — and a flat x12,
+    # which reported June as £20,230/MW/yr against £36,627 everywhere else.
+    capacity_mw = config.P_IMP_MAX_MW  # 4.2 MW rated power
+    report_days = northwold_df['Timestamp'].dt.date.nunique() if 'Timestamp' in northwold_df.columns else 30
+    actual_annual_per_mw = actual_total / report_days * 365 / capacity_mw
+    multi_annual_per_mw = multi_total / report_days * 365 / capacity_mw
+
+    peer = ME_BESS_GB_2H.get(_bh_month_short(month))
+
     col1, col2, col3 = st.columns(3)
 
     with col1:
         st.metric(
             f"Actual Revenue ({month[:3]})",
             f"£{actual_total:,.0f}",
-            help=f"Total revenue from actual operation in {month}"
+            help=f"Total revenue from actual operation in {month}, net of the 5% GridBeyond share"
         )
 
     with col2:
         st.metric(
-            "Multi-Market Potential",
-            f"£{multi_total:,.0f}",
-            delta=f"+{improvement_pct:.0f}%",
-            help="Optimized revenue using multi-market strategy"
+            "vs Modo 2H peer",
+            f"{actual_annual_per_mw / peer * 100:.0f}%" if peer else "—",
+            delta=f"£{actual_annual_per_mw - peer:,.0f}/MW/yr" if peer else None,
+            help=(f"£{actual_annual_per_mw:,.0f}/MW/yr against a peer of £{peer:,.0f}. "
+                  "This is the actionable comparison — what comparable 2h batteries "
+                  "actually earned in the same market.") if peer
+                 else "Modo has not published the 2H index for this month yet.",
         )
 
     with col3:
         st.metric(
-            "Identified Opportunity",
-            f"£{revenue_gap:,.0f}",
-            delta=f"+{improvement_pct:.0f}%",
-            help="Additional revenue available through optimization"
+            "Perfect-foresight ceiling",
+            f"£{multi_total:,.0f}",
+            help="What the in-house optimiser would have earned knowing every price "
+                 "in advance. An upper bound, not a target — no trader can capture a "
+                 "hindsight optimum, so the distance to it is not recoverable revenue.",
         )
 
     # Annualized comparison chart
-    st.subheader("📊 Annualized Revenue Comparison")
+    st.subheader("📊 Annualised Revenue per MW")
 
-    # Calculate annualized values per MW
-    capacity_mw = config.P_EXP_MAX_MW  # 7.5 MW
-    actual_annual_per_mw = (actual_total * 12) / capacity_mw
-    multi_annual_per_mw = (multi_total * 12) / capacity_mw
+    # Peer sits between actual and the ceiling so the reader sees the achievable
+    # reference alongside the theoretical one.
+    bar_x = ['Actual', 'Modo 2H peer', 'Perfect-foresight ceiling']
+    bar_y = [actual_annual_per_mw, peer, multi_annual_per_mw]
+    bar_c = [COLOR_ACTUAL, '#d62728', COLOR_MULTI_MARKET]
+    if not peer:
+        bar_x = ['Actual', 'Perfect-foresight ceiling']
+        bar_y = [actual_annual_per_mw, multi_annual_per_mw]
+        bar_c = [COLOR_ACTUAL, COLOR_MULTI_MARKET]
 
     fig_annual = go.Figure(data=[
         go.Bar(
-            x=['Actual (£/MW/yr)', 'Multi-Market (£/MW/yr)'],
-            y=[actual_annual_per_mw, multi_annual_per_mw],
-            text=[f'£{actual_annual_per_mw:,.0f}', f'£{multi_annual_per_mw:,.0f}'],
+            x=bar_x, y=bar_y,
+            text=[f'£{v:,.0f}' if v else '—' for v in bar_y],
             textposition='auto',
-            marker_color=[COLOR_ACTUAL, COLOR_MULTI_MARKET]
+            marker_color=bar_c,
         )
     ])
 
     fig_annual.update_layout(
-        title="Annualized Revenue per MW",
+        title=f"Annualised £/MW/year — {month}",
         yaxis_title="Revenue (£/MW/yr)",
         height=400,
-        showlegend=False
+        showlegend=False,
+        margin=dict(t=50),
     )
 
     st.plotly_chart(fig_annual, use_container_width=True)
-    st.caption(GB_NET_FOOTNOTE_SHORT)
+    st.caption(
+        "Annualised as (monthly revenue ÷ days in month) × 365, normalised by the "
+        "4.2 MW rated power — the same basis as every other page. The peer is the "
+        "achievable reference; the ceiling assumes perfect price foresight and is "
+        "an upper bound only. " + GB_NET_FOOTNOTE_SHORT
+    )
 
     # ==================== SECTION 2: ACTUAL PERFORMANCE ====================
     st.header("2️⃣ Actual Performance Analysis")
@@ -2102,7 +2130,8 @@ def show_report_page(month: str = "September 2025"):
         (**{sffr_revenue/actual_total*100:.0f}%** of revenue),
         missing profitable market trading opportunities.
 
-        Multi-market approach would yield **+£{revenue_gap:,.0f}** additional revenue.
+        The optimiser suggests a broader market mix, though its figure assumes
+        perfect price foresight.
         """)
 
     with col3:
@@ -2116,16 +2145,43 @@ def show_report_page(month: str = "September 2025"):
         without warranty impact.
         """)
 
-    # Summary box
+    # Summary box — framed against the peer, which is achievable, rather than
+    # against the perfect-foresight ceiling, which is not. The old version
+    # promised "annual additional revenue" of the monthly gap x12, treating a
+    # hindsight optimum as recoverable and extrapolating one month to a year.
     st.markdown("---")
-    st.success(f"""
-    ### 🎯 Key Recommendation
+    if peer:
+        peer_gap_per_mw = peer - actual_annual_per_mw
+        if peer_gap_per_mw > 0:
+            st.warning(f"""
+    ### 🎯 Where the opportunity is
 
-    Implementing the multi-market optimization strategy would:
-    - Increase monthly revenue by **{improvement_pct:.0f}%** (£{revenue_gap:,.0f})
-    - Generate annual additional revenue of **£{revenue_gap*12:,.0f}**
-    - Remain well within warranty cycling limits
-    - Better utilize the asset's full capabilities
+    - Northwold earned **£{actual_annual_per_mw:,.0f}/MW/yr** against a 2H peer of
+      **£{peer:,.0f}/MW/yr** — **£{peer_gap_per_mw:,.0f}/MW/yr** behind comparable batteries
+    - Closing that gap is the realistic target; the perfect-foresight ceiling
+      (£{multi_annual_per_mw:,.0f}/MW/yr) is an upper bound, not a plan
+    - Cycling at **{actual_daily_cycles:.2f}/day** against a **{config.CYCLES_PER_DAY}** warranty limit leaves
+      room to trade harder without warranty impact
+    """)
+        else:
+            st.success(f"""
+    ### 🎯 Performance against peer
+
+    - Northwold earned **£{actual_annual_per_mw:,.0f}/MW/yr**, **£{-peer_gap_per_mw:,.0f}/MW/yr ahead**
+      of the 2H peer at £{peer:,.0f}/MW/yr
+    - The perfect-foresight ceiling (£{multi_annual_per_mw:,.0f}/MW/yr) shows theoretical
+      headroom remains, but it assumes prices were known in advance
+    - Cycling at **{actual_daily_cycles:.2f}/day** against a **{config.CYCLES_PER_DAY}** warranty limit leaves
+      room to trade harder without warranty impact
+    """)
+    else:
+        st.info(f"""
+    ### 🎯 Summary
+
+    - Northwold earned **£{actual_annual_per_mw:,.0f}/MW/yr** this month
+    - Modo has not published the 2H peer index for {month} yet, so no peer
+      comparison is available
+    - Cycling at **{actual_daily_cycles:.2f}/day** against a **{config.CYCLES_PER_DAY}** warranty limit
     """)
 
 def show_executive_comparison():
