@@ -155,6 +155,13 @@ AVAILABLE_MONTHS = {
         "optimization_file": "Optimized_Results_May_2026.csv",
         "use_master": True,
     },
+    "June 2026": {
+        "bess_file": None,
+        "northwold_file": None,
+        "master_file": "Master_BESS_Analysis_Jun_2026.csv",
+        "optimization_file": "Optimized_Results_Jun_2026.csv",
+        "use_master": True,
+    },
 }
 
 @st.cache_data
@@ -5225,6 +5232,7 @@ BENCHMARK_COMPARISON_MONTHS = [
     ('Mar 26', 31, 'Master_BESS_Analysis_Mar_2026.csv', 'Optimized_Results_Mar_2026.csv'),
     ('Apr 26', 30, 'Master_BESS_Analysis_Apr_2026.csv', 'Optimized_Results_Apr_2026.csv'),
     ('May 26', 31, 'Master_BESS_Analysis_May_2026.csv', 'Optimized_Results_May_2026.csv'),
+    ('Jun 26', 30, 'Master_BESS_Analysis_Jun_2026.csv', 'Optimized_Results_Jun_2026.csv'),
 ]
 
 # Modo Energy ME-BESS-GB index — FCA-regulated GB BESS revenue benchmark.
@@ -5841,7 +5849,7 @@ def main():
     # Default to Executive Comparison on first load so the app opens on the
     # portfolio overview rather than a month-specific page.
     if 'active_general_page' not in st.session_state:
-        st.session_state.active_general_page = 'exec_comparison'
+        st.session_state.active_general_page = 'tinte_solar'
 
     st.sidebar.markdown("### General")
 

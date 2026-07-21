@@ -37,6 +37,16 @@ try:
 except ImportError:  # pragma: no cover
     from src.data_cleaning.solar_data_requirements import SOLAR_DATA_REQUIREMENTS, MODO_FINDING
 
+# Confidential, local-only EPC contract parameters (git-ignored). Absent on any
+# fresh clone — the dashboard degrades gracefully when it is not present.
+try:
+    from data_cleaning.tinte_contract import TINTE_EPC, warranty_output_curve
+except ImportError:
+    try:
+        from src.data_cleaning.tinte_contract import TINTE_EPC, warranty_output_curve
+    except ImportError:
+        TINTE_EPC, warranty_output_curve = None, None
+
 ORANGE = "#F4A300"
 BLUE = "#2C7FB8"
 GREY = "#9aa0a6"
@@ -131,6 +141,24 @@ def _fig_curtailment(ctx):
 
 def _fig_degradation(ctx):
     s = ctx["report"]["strings"]
+    if TINTE_EPC and warranty_output_curve:
+        years, expected, floor = warranty_output_curve(30)
+        w = TINTE_EPC["warranty"]
+        fig = go.Figure()
+        fig.add_scatter(x=years, y=expected, name="Datasheet expected", line=dict(color="#2ca02c", width=2))
+        fig.add_scatter(x=years, y=floor, name="Warranty floor (min guaranteed)",
+                        line=dict(color="#d62728", width=2, dash="dash"))
+        fig.add_annotation(
+            text=(f"{w['module_output_years']}-yr linear warranty · yr1 "
+                  f"{w['first_year_degradation_pct']['typ']}–{w['first_year_degradation_pct']['max']}%, then "
+                  f"{w['annual_degradation_pct']['typ']}–{w['annual_degradation_pct']['max']}%/yr · "
+                  f"strings: {s['faulty']} faulty / {s['total']}"),
+            showarrow=False, xref="paper", yref="paper", x=0.5, y=-0.24, font=dict(size=9, color=GREY))
+        fig.update_layout(height=300, margin=dict(l=10, r=10, t=30, b=46),
+                          title="Module output vs warranty degradation (from EPC)",
+                          xaxis_title="Operating year", yaxis_title="% of nameplate",
+                          yaxis_range=[85, 100], legend=dict(orientation="h", y=1.02, x=0))
+        return fig
     cats = ["Normal", "Underperforming\n(Z<-1)", "Faulty\n(Z<-2)", "Severe\n(Z<-3)"]
     vals = [s["normal"], s["underperforming"], s["faulty"], s["severe"]]
     colors = ["#2ca02c", "#fdae61", "#d62728", "#7f0000"]
@@ -164,8 +192,9 @@ NOTES = {
                      "flags are not in the feed (report gives plant-breakdown loss −90 MWh)."),
     "curtailment-rate": ("partial", "Setpoint-based curtailment events. The report combines grid + curtailment "
                          "(−148 MWh) and flags the split as tentative."),
-    "degradation-warranty": ("partial", "Multi-year degradation vs warranty is not available (one month). "
-                             "Shown: the report's string Z-score health as a related proxy."),
+    "degradation-warranty": ("partial", "Warranty degradation band shown from the EPC (12-yr product / 30-yr "
+                             "linear output; yr1 0.7–1.0%, then 0.25–0.4%/yr). Measured degradation vs this curve "
+                             "needs multi-year performance data; string health is the near-term proxy."),
 }
 NOTE_BY_CAT = {
     "revenue": "Needs a revenue / financial feed (£). The Tinte export is technical (SCADA) only.",
@@ -321,6 +350,23 @@ def show_tinte_solar_dashboard():
     c[4].metric("PR (proxy)", f"{meta['avg_pr']:.2f}")
     c[5].metric("Faulty strings", f"{report['strings']['faulty']}/{report['strings']['total']}")
     st.markdown("---")
+
+    if TINTE_EPC:
+        with st.expander("🧾 EPC contract facts (confidential — local only)"):
+            e = TINTE_EPC
+            cx, sub, wr = e["capex_eur"], e["subsidy"], e["warranty"]
+            st.markdown(
+                f"- **Source:** {e['source']}\n"
+                f"- **Plant:** {e['dc_capacity_kwp']:,.0f} kWp DC · {e['n_modules']:,} × {e['module_type']} · "
+                f"{e['n_inverters']} × {e['inverter_type']} · {e['mounting']}\n"
+                f"- **EPC CapEx:** €{cx['subtotal']:,} ({cx['eur_per_wp_subtotal']} €/Wp) "
+                f"= DC €{cx['dc_total']:,} + AC €{cx['ac_lv'] + cx['ac_mv_hv']:,}\n"
+                f"- **Subsidy:** {sub['scheme']} €{sub['reference_eur_mwh']}/MWh on {sub['capacity_mw']} MW ({sub['authority']})\n"
+                f"- **Guaranteed PR:** {e['guaranteed_pr']} · PVsyst losses soiling {e['pvsyst_losses']['soiling_pct']}%, "
+                f"LID {e['pvsyst_losses']['lid_pct']}%\n"
+                f"- **Warranty:** modules {wr['module_product_years']}-yr product / {wr['module_output_years']}-yr output · "
+                f"inverters {wr['inverter_product_years']}-yr · mounting {wr['mounting_product_years']}-yr"
+            )
 
     # ---- Survey tally → sections by vote count ----
     responses = load_responses()

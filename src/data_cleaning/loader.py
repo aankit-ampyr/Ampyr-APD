@@ -42,10 +42,14 @@ def find_files(folder_path: str) -> dict:
         elif 'northwold' in filename and files['gridbeyond'] is None:
             files['gridbeyond'] = str(file)
 
-        # SCADA files: export-*.xlsx (legacy) or mon-yy-*.xlsx (new format)
-        elif filename.startswith('export-'):
+        # SCADA files: export-*.xlsx (legacy), mon-yy-*.xlsx, or
+        # "{Month} Month BESS-*.xlsx" (as sent by ASE ops)
+        elif filename.startswith('export-') and files['scada'] is None:
             files['scada'] = str(file)
-        elif re.match(r'^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)-\d{2}-', filename):
+        elif re.match(
+            r'^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*[\s-]',
+            filename
+        ) and files['scada'] is None:
             files['scada'] = str(file)
 
     return files

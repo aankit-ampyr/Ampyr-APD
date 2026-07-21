@@ -1,285 +1,74 @@
-# Ankit Agarwal — Work Profile & Projects
+# CLAUDE.md — Ampyr-APD (Asset Performance Dashboard, Streamlit prototype)
 
-## About
-- **Role**: GM — Product & Technology, Ampyr Energy Tech Solutions Pvt Ltd
-- **Entity**: Ampyr Energy Tech Solutions Pvt Ltd (CIN: U72900KA2021PTC143816)
-- **Office**: Assetz House No. 30, 3rd Floor, Crescent Road, Bangalore 560001
-- **Reports to**: Shivendu Airi (Director — Investment & Business Development)
-- **Development Partner**: DoublU India Pvt Ltd (Bangalore) — contracted under Project Lazarus
-- **Working Directory**: `C:\repos`
+> Rebuilt 2026-07-10 as an APD-only project file (the previous version was a stale 30-Apr snapshot of the master `C:\repos\CLAUDE.md`). Org context, contracts, conventions, and the cross-project index live in the master file — this file is the **authoritative status doc for APD** and holds only APD content. Keep status here dated; update it as work lands.
 
----
+## What this is
 
-## Company Context
+Ankit's Streamlit prototype of the **Asset Performance Dashboard (APD)** — monitoring and analysing Ampyr's energy assets (BESS, solar, solar+BESS) against optimized baselines, IAR projections, and market benchmarks. Doublu is building the production version (React + FastAPI) under Project Lazarus; this prototype leads it and is actively developed in parallel.
 
-### AGP Group (Parent)
-AGP Sustainable Real Assets is a Singapore-headquartered global investor, developer, and asset manager focused on sustainable real assets. Founded in 2018 by partners from Assetz Property Group (est. 2005) and Equis Funds Group (est. 2011).
+**Assets onboarded**: Northwold BESS (8.4 MWh, UK) + **Tinte solar** (Ampyr Tinte, 9.8 MW AC / 12.6 MWp DC PV, Netherlands — added 24 Jun 2026). More Germany solar expected Jul–Aug 2026, more NL Sep–Oct 2026.
 
-- **AUM**: US$4.2 billion+
-- **Pipeline**: US$10 billion secured development
-- **Headcount**: 770+ platform employees, 17 Partners globally
-- **Strategic Investor**: Stonepeak ($650M, Nov 2023)
-- **Three pillars**: Energy (AMPYR), Digital (data centres), Real Estate (Assetz)
+## Stack & key files
 
-### AMPYR Energy (Energy Pillar)
-AMPYR is AGP's global renewable energy platform — a vertically integrated IPP (develop, build, own, operate).
+- **Stack**: Python 3.11, Streamlit, Pandas, NumPy, Plotly, Matplotlib, SciPy (LP), OpenPyXL
+- `streamlit_dashboard.py` — main app (~270KB)
+- `src/pages/` — `monthly_checklist.py`, `invoice_analysis.py`, `tinte_solar_dashboard.py`, `data_quality.py`
+- `src/data_cleaning/` — ETL modules (`process_invoices`, Tinte ETL) + `read_*` accessors
+- `data/` — materialised outputs: `Master_BESS_Analysis_<Mon>_<YYYY>.csv` + `Optimized_Results_*.csv` (Sept 2025 → May 2026), `invoices/*.parquet`, `tinte/*.parquet`, `benchmarks/`
+- `raw/` — input drop-zone only: month folders `Oct 2025/` … `May 2026/`, `OneDrive_*/` (multi-month Hartree batches), `Tinte/` (solar workbook)
+- `docs/` — incl. `Tinte_Data_Collection_Request.md` (uncommitted)
 
-| Platform | Geography | Structure | Scale |
-|----------|-----------|-----------|-------|
-| **AMPYR Solar Europe (ASE)** | UK, Germany, Netherlands | JV: AGP + Hartree Partners + NaGa Solar | 7+ GW pipeline |
-| **AMPYR Distributed Energy (ADE)** | UK & Europe | Subsidiary | 100+ MW, 150+ sites |
-| **AMPYR Energy USA** | USA | JV: AGP + Hartree Partners | 4+ GW pipeline |
-| **AMPYR Energy India** | Karnataka, Maharashtra | JV: AGP + Climate Fund Managers | 1+ GW |
-| **AMPYR Energy Australia** | Australia/NZ | AGP platform | Solar, wind, BESS |
+## Data pipeline rules (load-bearing)
 
-**Global totals**: 12+ GW development pipeline, 365+ projects, 130 MW constructed/operational (by 2024), 9 countries, 95+ projects active, 6 offices.
+- **Pages NEVER read `raw/` at runtime.** `raw/` is a starting point; every page reads materialised `data/` outputs via `data_cleaning.read_*`. This ETL boundary is an architectural rule — do not bypass it.
+- **ETL**: `python -m src.data_cleaning.process_invoices` materialises `data/invoices/*.parquet`; `python -m src.data_cleaning.process_tinte` materialises `raw/Tinte/Tinte.xlsx` → `data/tinte/*.parquet` (+ `meta.json`). Run the relevant ETL whenever new files land in `raw/`.
+- **Any data refactor must verify bit-for-bit** (`assert_frame_equal(..., check_exact=True)`) against the pre-refactor outputs; surface deltas before proceeding.
 
-### AMPYR GTC (Global Technology Centre) — Where Ankit Works
-AMPYR GTC is the in-house capability centre spanning across all AMPYR global platforms. It provides:
+## Status as of 2026-07-10 (portfolio refresh + Tarun strategic update)
 
-| Function | Description |
-|----------|-------------|
-| **Investment & Business Development** | Market intelligence, financial modelling, opportunity assessments |
-| **Design & Engineering** | GIS, 3D modelling, yield simulations, technical project delivery |
-| **Procurement & Supply Chain** | Strategic sourcing, contracting, vendor management |
-| **Program Management** | Risk mitigation, resource planning, stakeholder communication |
-| **Asset Management** | Real-time analytics, custom reporting, predictive maintenance |
+The 10 Jul Tarun meeting produced three decisions that materially reshape APD: no SCADA integration (asset-performance data now from an ASE-built/managed internal DB), cloud shifts to Azure (not AWS), and Doublu Phase 2 is paused ~2 months+ while Phase-1 feedback is gathered and improvements are made in-house first. On delivery, the Doublu production build is ~90–95% complete after Sprint 8 (demoed 26 Jun) with handover to the in-house team underway (Doublu to provide L3/L4 support post-handover). The prototype is targeting a V1 (Tinte + Northwold first) around 15 Jul.
 
-### GTC Leadership Team
-| Name | Role |
-|------|------|
-| **Tarun Agrawal** | Partner with AGP, CEO — AMPYR Solar Europe |
-| **Shivendu Airi** | Director — Investment & Business Development (Ankit's manager) |
-| **Mohammad Mustaque** | Director — Design & Engineering, Asset Management |
-| **Vikas Varshney** | Director — Procurement & Supply Chain Management |
+- **No SCADA integration (10 Jul):** all asset-performance data now comes from ASE's internal database, which ASE will build and manage. **Supersedes the ~4-month SCADA-delivery blocker** — the new dependency is ASE internal-DB readiness. (SCADA items under "API integrations" and in the Phase 2 roadmap annotated as superseded below.)
+- **Cloud = Azure, not AWS (10 Jul):** both Ampyr Solar Europe and AGP run on Azure, and AGP supplies the M365 + Claude + Codex subscriptions for Ampyr GTC. Supersedes the 30 Jun "AWS non-base tier" decision.
+- **Doublu Phase 2 paused ~2 months+ (10 Jul):** Phase 2 dev (aggregator management + SOLR analytics) and the SOW countersignature are deferred while Phase-1 feedback is actioned in-house — **kickoff is no longer 13 Jul.**
+- **Production (Doublu):** Sprint 8 demoed 26 Jun, ~5–10% of features remain. Modules shown: battery-health daily-cycle analytics (1.5 cycles/day warranty line + exceedance table), Executive Analysis (stream-wise SFFR / EPEX / IDA1 / IDC revenue + capture), EMR invoice PDF extraction. **30 Jun decision:** per-asset aggregator on/off toggle (Northwold uses an aggregator; Germany/NL assets don't). **Persist KPI results to DB** to stop recalculating each load — flagged critical for cloud cost + future AI.
+- **Prototype (Ankit):** Tinte NL solar onboarded 24 Jun (9.8 MW AC / 12.6 MWp), 35-KPI solar dashboard shipped but blocked on financial/market data; May 2026 BESS + Modo May benchmark integrated (May capture 83% — £24,578 net of 5% GridBeyond fee vs £29,534 optimal); template-upload workflow in progress (Ishita uploads docs → system auto-processes future same-format uploads).
 
-*Note: Pradeep Kunwar (former Centre Head — GTC and Investment) has left the company.*
+## Current status (as of 2026-07-10)
 
-### Key Internal Contacts
-- **HR**: Neha Tyagi (neha.tyagi@ampyrenergy.com), Palak Jain (palak.jain@ampyrenergy.com)
-- **IT Helpdesk**: helpdesk@agpgroup.com
-- **Admin**: Neha Chauhan (neha.chauhan@ampyrenergy.com)
-- **Doublu (Dev Partner)**: Arijit Sarkar (arijit.sarkar@doublu.ai)
+- **Last commits (24 Jun)**: May 2026 monthly data integrated + Modo May benchmark refresh (`21a0a22`); **Tinte solar KPI dashboard shipped** (`c666706`) — 35-KPI solar universe, per-KPI data-requirements, standalone survey page removed.
+- **Uncommitted working tree (modified ~6 Jul)**: `src/pages/tinte_solar_dashboard.py` (+50 lines) + `streamlit_dashboard.py` + `.gitignore`, plus new `docs/Tinte_Data_Collection_Request.md` — the request lists what's needed to populate all 35 Tinte KPIs beyond the technical feed (PPA/offtake terms, revenue & settlement statements, GvO/SDE++ lines; note: **no Modo benchmark exists for NL solar** — market/capture KPIs need EPEX/ENTSO-E NL day-ahead + a merchant curve from Aurora/Baringa). Also untracked: `.understand-anything/` + `Raw Files APD.zip` (neither ignored). Commit, ignore, or discard deliberately.
+- **May 2026 BESS data**: `Master_BESS_Analysis_May_2026.csv` (1,487 rows) + `Optimized_Results_May_2026.csv` (1,440 rows, multi-market LP); May actual £24,578 net of the 5% GridBeyond fee = 83% capture vs optimal £29,534. Monthly Checklist current through May (Modo aligned to API, CM +Mar, DUoS +Apr, IAR +Apr/May). Pending: May CM + DUoS actuals arrive with future invoices (~July); Modo Terminal percentile extract is a separate manual scrape.
+- **Benchmarks**: Modo ME-BESS-GB monthly-index-live API (FCA-regulated) is the authoritative source; May pulled at £39k/MW/yr (ALL 39,023 / 1H 28,168 / 2H 45,126), historical months restated to live-index values. Active 3-benchmark stack: Northwold Actual + Modo all-durations + ME-BESS-GB 2h. Grid fees >5% subtracted across all views. Northwold 1.25–1.5h duration caveat vs Modo brackets documented.
 
----
+## API integrations (status as of 2026-07-09)
 
-## Long-Term Product Vision
+- **EPEX** (primary price feed, replaces GridBeyond) — BLOCKED on Tom Reed departure; Cyrus recruiting a replacement, est. 1–2 months delay
+- **Aurora** (benchmark) — BLOCKED on MPA Solar Europe email provisioning (reminder sent 26 May, no response)
+- **Modo** — live + integrated
+- **SCADA API** — stuck with the EPC company. **SUPERSEDED 2026-07-10**: no SCADA integration — asset-performance data now sourced from ASE's internal DB (see "Status as of 2026-07-10" above); new dependency is ASE internal-DB readiness, not the EPC's SCADA delivery.
+- **Aggregator APIs — do not exist; CSV-only ingestion is the standing assumption** (directly constrains the Phase 2 "aggregator API ingestion" roadmap item below)
+- **Management-user access** (view-only on view-analysis tab) — owed by Doublu; Rohan's 12 May test via the `*-management@` email format has no recorded outcome — confirm and close
 
-All projects below are building blocks toward a single strategic goal: **Autonomous Portfolio Revenue Optimisation**.
+## Production build (Doublu) — APD track
 
-The end-state platform will:
-1. **Monitor** asset performance across the portfolio in real-time (APD)
-2. **Size** new investments optimally before committing capital (PSP)
-3. **Model** financials across the full portfolio at speed (PFA)
-4. **Predict** market prices (in-house or purchased forecasts) and generation output (purchased initially, then in-house)
-5. **Optimise** bid strategies across assets using those predictions to maximise portfolio revenue
-6. **Automate** reconciliation and back-office operations (Bank-Rec)
-7. **Assist** analysts and decision-makers with a domain-aware AI layer (RAG + proprietary LLM)
+- **Sprint history**: Sprint 1 (auth, user management, platform assignment, audit logs — 12 stories) ✓. Sprint 2 (demoed 6 Apr, 25% milestone: asset onboarding wizard, aggregator + SCADA validation, 50-col data merging, SOC logic) ✓. Subsequent sprint demos 20 Apr → 12 May: DG generator config (binary/variable, F0/F1 fuel curve), first hosted production-env demo (21 Apr), asset details returning-user view + upload history, benchmark settings (Modo monthly auto-pull, green/yellow/red), intraday vs day-ahead price series + battery power graph, n-simulations per project with search/filter/resume/discard. Sprint user stories: `Ampyr-PRDs\Dev Work updates\` (Sprints 1–4, 6).
+- **Launch timeline (per 2 Jun meeting — outcomes UNRECORDED, refresh on next Doublu sync)**: launch targeted 1st/2nd week of July; final approval target was 20 Jun; delivery estimate 11 Jul. Whether approval happened and delivery held is not recorded anywhere on disk as of 2026-07-10 — **establish and record the actual launch state.**
+- **Production tabs locked (2 Jun)**: Executive Comparison + Benchmarks + Invoice Analysis + Battery Health. Benchmark Comparison demoted to explainer (not in production). Multi-market optimization v2 deployed for testing.
+- **Open Doublu items**: dot-based viz replacing heat-map (actual + IAR + Modo on one chart); 5% revenue-share deduction verification across all formulas (Aditya, flagged 12 May); management-user access (above); Sprint-2 item "send Nov–Feb aggregator files to Anil/Arijit" — likely completed (later sprints demoed 50-col aggregator merging) but closure never recorded, confirm.
+- **Phase 2**: costed SOW drafts received — **AMP/LZ/002** Dev + **AMP/LZ/003** AI (the AI SOW includes a USD 15,000 APD implementation line). Terms in the master `C:\repos\CLAUDE.md`; review/negotiation state tracked in `Ampyr-PRDs\Phase 2\`, not here.
 
-### How the projects connect
+### APD Roadmap (Doublu)
 
-```
-                        AMPYR PRODUCT PLATFORM
-                        ~~~~~~~~~~~~~~~~~~~~~~
-
-  [Market Price Forecasts] ──┐     ┌── [Generation Forecasts]
-   (in-house / purchased)    │     │    (purchased → in-house)
-                             ▼     ▼
-                    ┌─────────────────────┐
-                    │  BID OPTIMISATION   │  ← Future: autonomous bidding
-                    │  ENGINE             │    across assets & markets
-                    └────────┬────────────┘
-                             │
-            ┌────────────────┼────────────────┐
-            ▼                ▼                ▼
-    ┌──────────────┐ ┌──────────────┐ ┌──────────────┐
-    │   APD        │ │   PSP        │ │   PFA        │
-    │  (Monitor)   │ │  (Size)      │ │  (Model)     │
-    │  Asset Perf  │ │  New Invest  │ │  Financials  │
-    └──────────────┘ └──────────────┘ └──────────────┘
-            │                                 │
-            └──────────┐      ┌───────────────┘
-                       ▼      ▼
-               ┌──────────────────┐
-               │   Bank-Rec       │
-               │  (Reconcile)     │
-               └──────────────────┘
-
-    ┌─────────────────────────────────────────┐
-    │  RAG + Proprietary LLM                  │
-    │  (AI layer spanning all modules)        │
-    │  Domain knowledge, natural language     │
-    │  querying, recommendations, anomaly     │
-    │  detection across the entire platform   │
-    └─────────────────────────────────────────┘
-```
-
-### Phased approach
-| Phase | Focus | Status |
-|-------|-------|--------|
-| **Now** | Build APD + PSP (Doublu), start PFA + Bank-Rec (internal) | In progress |
-| **Next** | Generation forecasts (purchased), market price data integration | Planning |
-| **Later** | In-house forecasting models, bid optimisation engine | Future |
-| **End-state** | AI-driven autonomous portfolio revenue optimisation with RAG + LLM | Vision |
-
----
-
-## Project Lazarus — Doublu Engagement (SOW: AMP/LZ/001)
-
-Doublu is rebuilding Ankit's two Streamlit prototypes into production web applications.
-
-- **Contract**: MSA + SOW signed, NDA in place
-- **Duration**: 12 Feb 2026 → 20 Nov 2026 (40 weeks)
-- **Doublu Contact**: Arijit Sarkar (Managing Director)
-- **Ampyr Contact**: Ankit Agarwal
-- **Production Stack**: React + TypeScript, MUI, Recharts/Plotly, FastAPI (Python), PostgreSQL, Docker, JWT auth, OLlama (AI)
-- **Doublu Team**: Lead Backend/Architect, Backend Engineer, Frontend Engineer (React), BA, UI/UX Designer, DevOps, QA
-
-### Pricing (INR ex taxes)
-| Module | Phase 1A | Phase 1B |
-|--------|----------|----------|
-| AMD    | 15,18,000 | 15,64,000 |
-| BESS   | 14,72,000 | 17,02,000 |
-| **Total** | **29,90,000** | **32,66,000** |
-
-Phase 2 pricing to be confirmed after Phase 1 delivery. Service fee of 4.5%/month applies during transition periods.
-
-### Payment Schedule
-- 30% at Project Kick Off
-- 25% at Phase 1A delivery
-- 25% at Phase 1B commencement
-- 20% at Phase 1 code handover
-
----
-
-## Active Projects (Officially Approved)
-
-### 1. Ampyr-APD — Asset Performance Dashboard (formerly Bess-Dashboard)
-- **Path (prototype)**: `C:\repos\Ampyr-APD`
-- **Built by**: DoublU (production) / Ankit (Streamlit prototype — actively developed in parallel)
-- **Status**: Phase 1A — Sprint 1 complete, **Sprint 2 demoed 6 Apr (25% milestone reached)**. Sprint 3 prep pending from Doublu.
-- **Sprint 1 (Delivered)**: Authentication & authorization, user management & platform assignment, audit logs (12 stories)
-- **Sprint 2 (Delivered, demoed 6 Apr)**: AMD asset onboarding wizard (basic info → optimization params → file upload), aggregator + SCADA validation, data merging (50 cols), SOC calculation logic. Action items raised: rename AMD→APD, alphanumeric asset name validation, flag missing SCADA intervals as errors (no auto-fill), GitHub repo access, send Nov–Feb aggregator files to Anil/Arijit.
-- **Prototype Stack**: Python 3.11, Streamlit, Pandas, NumPy, Plotly, Matplotlib, SciPy (LP), OpenPyXL
-- **Production Stack**: React + TypeScript, MUI, FastAPI, PostgreSQL, Docker
-- **What it does**: Dashboard for monitoring and analyzing Ampyr Group's energy assets (solar, BESS, solar+BESS). Tracks aggregator performance against optimized baselines, IAR projections, and market benchmarks. Currently prototyped for Northwold Solar Farm BESS (8.4 MWh).
-- **Prototype Key files**: `streamlit_dashboard.py` (main, 184KB), `/src/`, `/data/`, `/extra/`
-- **Prototype Data Pipeline** (as of 30 Apr 2026): `raw/` is starting-point only — organised by month folders (`Oct 2025/`, …, `Apr 2026/`, plus `OneDrive_*/` for multi-month Hartree batches). Pages never read `raw/` directly. ETL: `python -m src.data_cleaning.process_invoices` materialises `data/invoices/*.parquet`; pages read those via `data_cleaning.read_*` functions. Run the ETL whenever new files are dropped into `raw/`.
-- **Prototype Active Work** (as of 2026-06-24): **May 2026 data integrated + Modo May benchmark pulled.** The 3 missing GridBeyond/Northwold May files (202605 Backing Data, May-26 SCADA 10-min, SFFR self-bill £24,409) were located in Outlook and ingested → `Master_BESS_Analysis_May_2026.csv` (1,487 rows) + `Optimized_Results_May_2026.csv` (1,440 rows, multi-market LP) + refreshed invoice ETL parquets; May actual £24,578 net of the 5% GridBeyond fee = 83% capture vs optimal. Modo ME-BESS-GB index re-pulled from the FCA-regulated monthly-index-live API for May (£39k/MW/yr; ALL 39,023 / 1H 28,168 / 2H 45,126) with historical months restated to authoritative values; May wired into every dashboard month list + benchmark dict, and the **Monthly Checklist page (previously 2 months stale, ending March) brought current through May** (Modo aligned to API, CM +Mar, DUoS +Apr, IAR +Apr/May). Pending: May CM + DUoS actuals await future invoices (settle/arrive ~July); Modo Terminal percentile extract is a separate manual scrape.
-
-#### AMD Roadmap (Doublu)
 | Phase | Weeks | Scope |
 |-------|-------|-------|
 | **Phase 1A** | 1–8 | Initial working system: single asset/org, manual upload, basic validation, core metrics, single benchmark (Modo), basic dashboards, inline annotations |
-| **Phase 1B** | 9–17 | Full Phase 1: auth + RBAC, multi-org/asset management, full data ingestion pipeline, complete analytics + benchmarking, automated digests + reporting, exports (CSV/Excel), admin/audit/governance |
-| **Phase 2** | 14–28 | Additional benchmark sources, aggregator API ingestion, SCADA API ingestion, multi-region/country, enhanced visualisations |
+| **Phase 1B** | 9–17 | Full Phase 1: auth + RBAC, multi-org/asset management, full ingestion pipeline, complete analytics + benchmarking, automated digests + reporting, exports, admin/audit/governance |
+| **Phase 2** | 14–28 | Additional benchmark sources, aggregator API ingestion (constrained: aggregator APIs don't exist — CSV-only), SCADA API ingestion (**superseded 2026-07-10** — data now from ASE internal DB, not SCADA), multi-region/country, enhanced visualisations |
 | **Support** | 29–40 | Post-implementation support |
 
-### 2. Ampyr-PSP — Project Sizing Platform (formerly BESS Sizing Tool)
-- **Path (prototype)**: `C:\repos\Ampyr-PSP`
-- **Built by**: DoublU (production) / Ankit (Streamlit prototype — actively developed in parallel)
-- **Status**: Phase 1A — Sprint 1 complete, **Sprint 2 demoed 6 Apr (25% milestone reached)**. Sprint 3 prep pending from Doublu.
-- **Sprint 1 (Delivered)**: Authentication & authorization, user management & platform assignment, audit logs (shared with AMD)
-- **Sprint 2 (Delivered, demoed 6 Apr)**: Project management (search/filter/archive/delete with audit trail, double-confirm deletion), simulation wizard steps 1–3: load profile (5 patterns: 24/7, day, night, seasonal, custom windows), solar profile (Excel upload + curtailable analysis), battery configuration (containers, SOC 5–95%, RTE 87%, cycle limits 0–3). Action items: rename BESS→"Project Sizing Platform", min cycle limit 0.5→0, share Figma (Shikha off until 15 Apr).
-- **Prototype Stack**: Python 3.11+, Streamlit, Pandas, NumPy, Plotly, SciPy
-- **Production Stack**: React + TypeScript, MUI, FastAPI, PostgreSQL, Docker
-- **What it does**: Optimizes BESS sizing for solar+storage. Year-long hourly simulation with binary delivery constraints (25 MW or nothing). Finds optimal battery capacity (10–500 MWh). Includes DG hybrid simulation.
-- **Prototype Key files**: `app.py` (entry), `/pages/` (wizard steps), `/src/` (dispatch engine, config), `/Inputs/` (solar profiles)
-- **Prototype Active Work**: Project IRR calculation — Level 1 testing **resumed with Anchal 1 Apr**. ~447 lines uncommitted in `src/financial_model.py` plus new `consolidated_model.py`, `dispatch_energy.py`, `excel_reader.py`, `gas_model.py`, `tests/test_project_irr.py` — needs commit.
+## End-of-session checklist (APD)
 
-#### BESS Roadmap (Doublu)
-| Phase | Weeks | Scope |
-|-------|-------|-------|
-| **Phase 1A** | 1–8 | Initial working system: basic scenario setup, core simulation config, engine integration, guided config, basic dashboards, persistence, basic result views |
-| **Phase 1B** | 9–17 | Full Phase 1: auth + user access, project/scenario management, full simulation input config, engine integration + execution, scenario versioning, results analysis + visualization, exports, admin/audit |
-| **Phase 2** | 14–28 | AI features: chat interface, NLP querying over scenarios, result interpretation, scenario recommendation, anomaly detection, AI-assisted reporting, product polish (caching, lazy loading, UX) |
-| **Support** | 29–40 | Post-implementation support |
-
-### 3. Ampyr-PFA — Financial Analysis Digitisation (Financial Model Digitisation)
-- **Path**: `C:\repos\Ampyr-PFA`
-- **Built by**: Ankit (internal)
-- **Status**: Phase 0 Complete (infra ready), Phase 1 next (DB schema & ingestion)
-- **Stack**: Python 3.12, FastAPI, PostgreSQL 16, SQLAlchemy 2.0, Alembic, NumPy, SciPy, Streamlit (UI), Docker, Ruff, pytest
-- **What it does**: Digitises Ampyr's Excel-based renewable energy financial model. Portfolio of 78 solar/BESS assets, 170 metrics each, 35-year monthly horizon (3.1M output cells). Target: reduce modelling time from 2–3 hours to <5 seconds. Handles 877 Excel formulas (26 function types), DSCR circular reference solving.
-- **Key files**: `app/{models,ingestion,engine,api,reports,ui}/`
-- **Config**: `.env.example` present, PostgreSQL at localhost:5432, Git LFS for Excel files
-- **Next**: Database schema & ingestion pipeline
-
-### 4. AGP-Bank-Rec (Bank Reconciliation — Functional Prototype)
-- **Path**: `C:\repos\AGP-Bank-Rec`
-- **Built by**: Ankit (internal)
-- **Scope**: Functional prototype — not production system
-- **Status**: **Project discontinued (30 Mar 2026)**. Kyriba bank statement function terminated for cost savings. Prototype demoed to Tinvia & Francine — project closed after meeting.
-- **Stack**: Python 3.12+, Pandas, OpenPyXL, RapidFuzz, httpx (async), Streamlit (review UI), pytest, Ruff
-- **What it does**: Was: daily bank reconciliation prototype for 3 SPV entities with 5-tier matching engine. Prototype demonstrated to Tinvia & Francine on 30 Mar. Project discontinued.
-- **Key files**: `run_matching.py` (entry, needs `-X utf8` on Windows), `data/samples/` (private Excel files)
-- **Important**: Uses `Decimal` (never `float`) for all monetary amounts, quantized to 2 decimal places
-- **Completed**: NetSuite OAuth 1.0 client, matching engine, dashboard, prototype demo to finance team
-- **Limitations identified**: Intercompany transfers, pay-on-behalf, SEPA batch payments, multi-currency scenarios, CSV upload bypasses NetSuite mandatory field validation
-- **Next**: None — project closed.
-
----
-
-## Upcoming / In-Progress Initiatives
-
-### 5. Ampyr RAG System
-- **Path**: `C:\repos\Ampyr-RAG`
-- **Built by**: Ankit (internal)
-- **Status**: Pre-implementation (domain ontology + research phase)
-- **Stack**: Python, Docling (PDF conversion), planned: vector DB (Pinecone), LangChain, Elasticsearch, embeddings
-- **What it does**: Domain-specific RAG pipeline for renewable energy knowledge (Solar PV, Wind, BESS). Entity/relationship extraction using domain ontology.
-- **Key files**: `ampyr_domain_ontology_v1.yaml`, `rag-reference/` (architecture research)
-- **Next**: Architecture selection, pipeline implementation
-
-### 6. Proprietary LLM for Ampyr Energy
-- **Built by**: Ankit (internal)
-- **Status**: Planning
-- **Notes**: Custom LLM fine-tuned for Ampyr's energy domain. To be integrated with the RAG system above.
-
----
-
-## Out of Scope (per Doublu SOW)
-- Creation/modification of core optimization or financial algorithms (Ankit owns these)
-- Real-time operational execution, automated dispatch, trading/bidding integration
-- Autonomous AI decision-making, continuous model training, custom AI model development
-- External user access, public links, collaborative multi-user editing
-- Custom report formats beyond defined templates
-
----
-
-## Reference / Documentation
-
-### Development PRDs
-- **Path**: `C:\repos\Ampyr-PRDs`
-- **Purpose**: All approved project documentation, contracts, and specs
-- **Key subfolders**:
-  - `Final Project Docs/` — Approved PDFs (business requirements v2, cost proposal, roadmap, executive summary, Lars's BESS presentation)
-  - `Final Project Docs/Signed agreements/` — MSA (signed), SOW (signed), NDA, Contract Review Form (with Doublu)
-  - `BessDashboard Docs 12 Feb/` — Comprehensive BESS/Lazarus specs (Tool1, Tool2, data requirements, UK markets, methodology)
-  - `MarkDown Files/` — Platform PRDs (Asset Performance, Investment Sizing, Revenue Optimisation, Strategy docs)
-  - `Dev Work updates/` — Sprint-level user stories and Doublu weekly status reports
-    - `Lazarus - User Stories_Sprint 1.xlsx` — 12 stories (completed): Auth, user management, platform assignment, audit logs
-    - `Lazarus - User Stories_Sprint 2.xlsx` — 32 stories (in progress): AMD asset onboarding + view analysis, BESS project management + simulation wizard
-    - `Lazarus - Weekly_Status_Report_ 26 Mar '26.pptx` — Doublu weekly report (Sprint 2, 12.5% milestone)
-
----
-
-## General Conventions
-- All Ampyr projects use **Python** as primary language
-- UI preference: **Streamlit** for internal prototypes/dashboards, **React + FastAPI** for production (Doublu)
-- Data handling: **Pandas + NumPy**, financial data always uses **Decimal**
-- Deployment: Streamlit Cloud for prototypes, Docker for production services
-- Code quality: **Ruff** for linting, **pytest** for testing
-- All projects are under `C:\repos\` on Windows
-
----
-
-## End-of-Conversation Checklist
-
-**Before closing any conversation, always do the following:**
-
-1. **Update Project Timelines**: Review and update `C:\repos\Ampyr-PRDs\Ampyr Project Timelines.xlsx` if any project status, timeline, or scope changed during this conversation. Update the `Status` column for any work items that moved (e.g., Not Started → In Progress → Done), adjust weekly checkpoints, and update the Portfolio Summary sheet if priorities or allocations shifted.
-
-2. **Update CLAUDE.md**: If any project status, scope, or context changed, update this file to reflect the latest state.
-
-3. **Update Memory**: If new persistent context was discussed (new projects, contacts, decisions), update the memory files at `C:\Users\AnkitAgarwal\.claude\projects\C--repos\memory\`.
+1. Record status changes **in this file** (dated) — this is APD's authoritative status doc per the master index.
+2. If the change affects the portfolio level (timeline, scope, % complete), update the tracker artifacts per the master file's Weekly Refresh procedure.
+3. Touch the master `C:\repos\CLAUDE.md` only for index-level changes (paths, ownership, durable facts).

@@ -50,3 +50,6 @@ test_*.csv
 
 # Streamlit
 .streamlit/secrets.toml
+# Confidential Tinte contract material (local only - do not push)
+raw/Tinte/*EPC*.pdf
+src/data_cleaning/tinte_contract.py
