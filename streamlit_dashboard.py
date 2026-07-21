@@ -4147,44 +4147,42 @@ def show_benchmark_comparison():
         # Visual comparison chart
         st.subheader("Revenue Benchmark Comparison")
 
+        # One dot per month along a month axis. Previously every month was
+        # plotted at the same x position and distinguished only by symbol and
+        # colour, from 5-entry palettes that wrapped — so with ten months the
+        # points overlapped and pairs rendered identically.
         fig = go.Figure()
 
-        # Industry range bar
-        fig.add_trace(go.Bar(
-            name='Industry Range',
-            x=['Revenue £/MW/year'],
-            y=[88000 - 36000],
-            base=[36000],
-            marker_color='lightgray',
-            width=0.3,
-            showlegend=True
-        ))
+        month_labels = [m['short'] for m in bm]
+        month_values = [m['total_annual_per_mw'] for m in bm]
+        max_apm = max(month_values) if month_values else 0
 
+        # Industry range as a shaded band behind the points.
+        fig.add_hrect(y0=36000, y1=88000, fillcolor='rgba(150,150,150,0.12)',
+                      line_width=0, layer='below',
+                      annotation_text='Industry range £36k–£88k',
+                      annotation_position='top left', annotation_font_size=11)
         fig.add_hline(y=60000, line_dash="dash", line_color="orange",
                       annotation_text="Industry Mid (£60k)", annotation_position="right")
 
-        # One scatter point per month
-        symbols = ['diamond', 'circle', 'square', 'triangle-up', 'star']
-        colors = [COLOR_EPEX, COLOR_ACTUAL, COLOR_SFFR, COLOR_MULTI_MARKET, '#E69F00']
-        max_apm = 0
-        for idx, m in enumerate(bm):
-            apm = m['total_annual_per_mw']
-            max_apm = max(max_apm, apm)
-            fig.add_trace(go.Scatter(
-                name=m['short'],
-                x=['Revenue £/MW/year'],
-                y=[apm],
-                mode='markers',
-                marker=dict(size=18, color=colors[idx % len(colors)],
-                            symbol=symbols[idx % len(symbols)]),
-            ))
+        fig.add_trace(go.Scatter(
+            name='Northwold',
+            x=month_labels,
+            y=month_values,
+            mode='markers',
+            marker=dict(size=14, color=COLOR_ACTUAL,
+                        line=dict(width=1, color='white')),
+            hovertemplate='%{x}: £%{y:,.0f}/MW/yr<extra></extra>',
+        ))
 
         fig.update_layout(
             title="Northwold vs Industry",
             yaxis_title="£/MW/year",
+            xaxis_title=None,
             yaxis=dict(range=[0, max(120000, max_apm * 1.1)]),
             height=400,
-            showlegend=True
+            showlegend=False,
+            margin=dict(t=50),
         )
 
         st.plotly_chart(fig, use_container_width=True)
