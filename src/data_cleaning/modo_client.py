@@ -30,6 +30,7 @@ import tomllib
 import urllib.error
 import urllib.parse
 import urllib.request
+from datetime import datetime
 from pathlib import Path
 from typing import Dict
 
@@ -91,13 +92,15 @@ def fetch_monthly_index(
     return out
 
 
-# Short label → YYYY-MM mapping for dict-key alignment with the dashboard.
-MONTH_LABELS: list[tuple[str, str]] = [
-    ("Sep 25", "2025-09"), ("Oct 25", "2025-10"), ("Nov 25", "2025-11"),
-    ("Dec 25", "2025-12"), ("Jan 26", "2026-01"), ("Feb 26", "2026-02"),
-    ("Mar 26", "2026-03"), ("Apr 26", "2026-04"),
-    ("May 26", "2026-05"),
-]
+def _short_label(month_iso: str) -> str:
+    """'2026-06-01' -> 'Jun 26', matching the dashboard's dict keys.
+
+    Derived rather than looked up: a hardcoded month list silently discarded
+    every month past its last entry, so newly published months vanished from
+    the refresh without any error being raised.
+    """
+    dt = datetime.strptime(month_iso, "%Y-%m-%d")
+    return f"{dt.strftime('%b')} {dt.strftime('%y')}"
 
 
 def refresh_monthly_index(
@@ -115,12 +118,11 @@ def refresh_monthly_index(
             '2H':  {'Sep 25': 74655, ...},
         }
     """
-    api_to_short = {ym + "-01": short for short, ym in MONTH_LABELS}
     out: dict[str, dict[str, int]] = {}
     for dur_code, dur_label in (("*", "ALL"), ("1", "1H"), ("2", "2H")):
         api_data = fetch_monthly_index(month_from, month_to, dur_code)
         out[dur_label] = {
-            api_to_short[k]: v for k, v in api_data.items() if k in api_to_short
+            _short_label(k): v for k, v in sorted(api_data.items())
         }
     return out
 
@@ -129,18 +131,14 @@ def _print_dicts(data: dict[str, dict[str, int]]) -> None:
     """Print the three dicts in copy-paste form for updating streamlit_dashboard.py."""
     for label, d in data.items():
         print(f"\nME_BESS_GB_{label} = {{")
-        for short, _ in MONTH_LABELS:
-            v = d.get(short)
-            if v is not None:
-                print(f"    {short!r}: {v},")
+        for short, v in d.items():
+            print(f"    {short!r}: {v},")
         print("}")
     # MODO_BENCHMARKS uses ALL-durations rounded to nearest 1000
     print("\nMODO_BENCHMARKS (ALL durations, rounded to nearest 1000):")
     print("MODO_BENCHMARKS = {")
-    for short, _ in MONTH_LABELS:
-        v = data["ALL"].get(short)
-        if v is not None:
-            print(f"    {short!r}: {round(v / 1000) * 1000},")
+    for short, v in data["ALL"].items():
+        print(f"    {short!r}: {round(v / 1000) * 1000},")
     print("}")
 
 

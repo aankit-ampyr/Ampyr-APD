@@ -454,7 +454,14 @@ def extract_pdf_invoice(filepath: str) -> Optional[Dict]:
     # Classify PDF type from filename
     fname = path.name.upper()
     fname_spaced = fname.replace('_', ' ')
-    if 'GRIDBEYOND' in fname_spaced or 'GRID BEYOND' in fname_spaced:
+    # GridBeyond renamed their monthly invoice partway through: the old form
+    # was "NWOSFL_Gridbeyond_<date>_BESS <Mon><YY>.pdf" (caught by the vendor
+    # name), the new form is "Northwold SFFR Self Bill <Mon> <YY>.pdf" which
+    # carries no vendor name at all. Without the SFFR/self-bill test the new
+    # form falls through to the "NORTHWOLD " branch below and is misfiled as
+    # a Hartree invoice.
+    if ('GRIDBEYOND' in fname_spaced or 'GRID BEYOND' in fname_spaced
+            or 'SFFR' in fname_spaced or 'SELF BILL' in fname_spaced):
         pdf_type = 'GridBeyond'
     elif 'BESS' in fname_spaced and ('HARTREE' in fname_spaced or fname.startswith('NWOSFL')):
         pdf_type = 'Hartree BESS'
@@ -513,6 +520,10 @@ def extract_pdf_invoice(filepath: str) -> Optional[Dict]:
         r'(?:Invoice\s+)?Date[:\s]*(\d{1,2}[\s/.-]\w{3,9}[\s/.-]\d{2,4})',
         r'(?:Invoice\s+)?Date[:\s]*(\d{1,2}/\d{1,2}/\d{2,4})',
         r'(?:Invoice\s+)?Date[:\s]*(\d{4}-\d{2}-\d{2})',
+        # GridBeyond self-bills carry no "Date:" label at all — only a billing
+        # period, e.g. "for SFFR from 01 June 2026 to 30 June 2026". Take the
+        # period start so the row attributes to the right operational month.
+        r'from\s+(\d{1,2}\s+\w{3,9}\s+\d{4})\s+to\s+\d{1,2}\s+\w{3,9}\s+\d{4}',
     ]
     for pat in date_patterns:
         m = re.search(pat, full_text, re.IGNORECASE)
@@ -523,18 +534,43 @@ def extract_pdf_invoice(filepath: str) -> Optional[Dict]:
                 pass
             break
 
-    # Extract total amount
+    # Extract total amount.
+    #
+    # Ordered by label specificity, because re.search returns the FIRST match
+    # in the document, not the most meaningful one. On a GridBeyond self-bill
+    # the layout runs:
+    #     Sub Total  £12,668.76 ... NET REVENUE  £12,517.63 ... TOTAL  £15,021.16
+    # so a generic "Total|Net" pattern matched inside "Sub Total" and recorded
+    # the pre-adjustment figure — dropping the DUoS benefit and imbalance cost.
+    # "NET REVENUE" is preferred as it is the amount actually settled to the
+    # asset ex-VAT, which is what reconciles against the master revenue data.
     total_amount = None
-    amount_patterns = [
-        r'(?:Total|Net|Amount\s+Due|Balance\s+Due)[:\s]*[£$]?\s*([\d,]+\.\d{2})',
-        r'(?:Total|Net)[:\s]*-?\s*[£$]?\s*([\d,]+\.\d{2})',
-        r'[£]([\d,]+\.\d{2})',
+    amount_labels = [
+        r'NET\s+REVENUE',
+        r'Amount\s+Due',
+        r'Balance\s+Due',
+        r'TOTAL',
+        r'Net',
     ]
-    for pat in amount_patterns:
-        m = re.search(pat, full_text, re.IGNORECASE)
+    for label in amount_labels:
+        for m in re.finditer(
+            rf'{label}[:\s]*(-)?\s*[£$]?\s*([\d,]+\.\d{{2}})',
+            full_text, re.IGNORECASE,
+        ):
+            # Skip "Sub Total" / "Subtotal" — a running subtotal, not the total.
+            prefix = full_text[max(0, m.start() - 8):m.start()].upper()
+            if 'SUB' in prefix.replace(' ', ''):
+                continue
+            total_amount = float(m.group(2).replace(',', ''))
+            if m.group(1):
+                total_amount = -total_amount
+            break
+        if total_amount is not None:
+            break
+    if total_amount is None:
+        m = re.search(r'[£]([\d,]+\.\d{2})', full_text)
         if m:
             total_amount = float(m.group(1).replace(',', ''))
-            break
 
     # Extract line items from tables
     line_items = []

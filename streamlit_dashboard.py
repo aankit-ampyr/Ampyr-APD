@@ -3440,6 +3440,7 @@ def show_benchmark_comparison():
         'Sep 25': 64000, 'Oct 25': 70000, 'Nov 25': 49000,
         'Dec 25': 41000, 'Jan 26': 46000, 'Feb 26': 31000,
         'Mar 26': 66000, 'Apr 26': 61000, 'May 26': 39000,
+        'Jun 26': 63000,
     }
 
     # Source links per month. Now that everything comes from the API the
@@ -3455,6 +3456,7 @@ def show_benchmark_comparison():
         'Mar 26': 'https://modoenergy.com/research/en/me-bess-gb-revenues-rise-march-2026-balancing-mechanism-record-gas-prices-',
         'Apr 26': 'https://developers.modoenergy.com/reference/monthly-me-bess-gb',
         'May 26': 'https://developers.modoenergy.com/reference/monthly-me-bess-gb',
+        'Jun 26': 'https://developers.modoenergy.com/reference/monthly-me-bess-gb',
     }
 
     # Capacity Market payments (£) — source: EMR Settlement T062 CSVs
@@ -5296,20 +5298,22 @@ ME_BESS_GB_ALL = {
     'Sep 25': 64372, 'Oct 25': 69597, 'Nov 25': 48893,
     'Dec 25': 40774, 'Jan 26': 45557, 'Feb 26': 30527,
     'Mar 26': 65749, 'Apr 26': 60924, 'May 26': 38839,
+    'Jun 26': 62862,
 }
 ME_BESS_GB_1H = {
     'Sep 25': 49250, 'Oct 25': 52636, 'Nov 25': 36021,
     'Dec 25': 27935, 'Jan 26': 30560, 'Feb 26': 19958,
     'Mar 26': 40881, 'Apr 26': 42102, 'May 26': 28182,
+    'Jun 26': 46302,
 }
 ME_BESS_GB_2H = {
     'Sep 25': 74658, 'Oct 25': 82417, 'Nov 25': 58848,
     'Dec 25': 49158, 'Jan 26': 54916, 'Feb 26': 37140,
     'Mar 26': 79860, 'Apr 26': 72505, 'May 26': 44809,
+    'Jun 26': 71379,
 }
-# Jun 26 is deliberately absent: the ME-BESS-GB index had not been published
-# for June at the last pull (2026-07-21). Charts and tables must therefore
-# treat a missing month as "no data", never as zero.
+# Months absent from these dicts must plot as None, never 0 — a missing
+# benchmark is "not published", not "earned nothing".
 
 # Modo Terminal extract (Excel scrape, 12 May 2026) — 40 indices with P10/P50/
 # P90 percentiles across 30d / 90d / 1y windows. Includes GB regional cuts and
