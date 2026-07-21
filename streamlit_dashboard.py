@@ -595,26 +595,32 @@ def show_operations_summary(bess_df, northwold_df, bess_analysis, northwold_anal
         # Revenue Breakdown
         st.subheader("💵 Revenue Breakdown")
 
-        col1, col2, col3 = st.columns(3)
+        # Four traded streams on the first row, imbalance and the total on the
+        # second. IDC was previously omitted here despite being included in
+        # total_net_revenue, so the tiles did not add up to the total shown.
+        col1, col2, col3, col4 = st.columns(4)
 
         with col1:
             st.metric("SFFR Revenues", f"£{northwold_analysis['sffr_revenue']:,.2f}",
                      help="Static Firm Frequency Response - Largest revenue stream")
         with col2:
-            st.metric("IDA1 Revenue", f"£{northwold_analysis['ida1_revenue']:,.2f}",
-                     help="Intraday Auction 1 trading revenue")
-        with col3:
             st.metric("EPEX 30 DA Revenue", f"£{northwold_analysis['epex30_revenue']:,.2f}",
                      help="Day-ahead market revenue")
-
-        col4, col5, col6 = st.columns(3)
+        with col3:
+            st.metric("IDA1 Revenue", f"£{northwold_analysis['ida1_revenue']:,.2f}",
+                     help="Intraday Auction 1 trading revenue")
         with col4:
+            st.metric("IDC Revenue", f"£{northwold_analysis['idc_revenue']:,.2f}",
+                     help="Intraday Continuous trading revenue")
+
+        col5, col6, col7, col8 = st.columns(4)
+        with col5:
             st.metric("Imbalance Revenue", f"£{northwold_analysis['imbalance_revenue']:,.2f}",
                      help="Revenue from imbalance mechanism (negative indicates costs)")
-        with col5:
+        with col6:
             st.metric("Imbalance Charge", f"£{northwold_analysis['imbalance_charge']:,.2f}",
                      help="Charges from imbalance mechanism")
-        with col6:
+        with col7:
             st.metric("**TOTAL NET REVENUE**", f"£{northwold_analysis['total_net_revenue']:,.2f}",
                      help="Total net revenue for the month, after 5% GridBeyond fee")
 
@@ -680,10 +686,14 @@ def show_operations_summary(bess_df, northwold_df, bess_analysis, northwold_anal
         with col1:
             # Revenue breakdown pie chart
             st.subheader("Revenue Breakdown")
+            # IDC included so the slices account for the same streams as
+            # TOTAL NET REVENUE; it was previously left out of both the tiles
+            # and this chart while still counting toward the total.
             revenue_data = {
                 'SFFR': abs(northwold_analysis['sffr_revenue']),
                 'EPEX 30 DA': abs(northwold_analysis['epex30_revenue']),
                 'IDA1': abs(northwold_analysis['ida1_revenue']),
+                'IDC': abs(northwold_analysis['idc_revenue']),
                 'Imbalance (Net)': abs(northwold_analysis['net_imbalance'])
             }
 
