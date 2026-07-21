@@ -364,7 +364,15 @@ def load_scada_monitoring(raw_dir: str) -> pd.DataFrame:
         Daily_Import_kWh, Power_kW, RTE, SOH, Daily_Cycles, Availability
     """
     raw_path = Path(raw_dir)
-    month_pattern = re.compile(r'^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)-\d{2}-', re.IGNORECASE)
+    # Matches both naming conventions ASE has used: "jun-26-<stamp>.xlsx" and
+    # "June Month BESS-<stamp>.xlsx". The stricter "-\d{2}-" form silently
+    # excluded the June 2026 export, leaving scada_monitoring.parquet ending at
+    # 1 June and every SCADA-based reconciliation blank for that month. The
+    # same fix was applied to find_files() in loader.py — keep the two in step.
+    month_pattern = re.compile(
+        r'^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*[\s-]',
+        re.IGNORECASE,
+    )
     files = [f for f in raw_path.rglob("*.xlsx") if month_pattern.match(f.name)]
 
     if not files:
