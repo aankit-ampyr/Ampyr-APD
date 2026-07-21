@@ -2237,32 +2237,8 @@ def show_executive_comparison():
     st.caption(GB_NET_FOOTNOTE_SHORT)
     st.markdown("---")
 
-    # ==================== SECTION 3: GAP ANALYSIS TABLE ====================
-    st.header("3️⃣ Performance Gap Analysis")
-    st.caption("**Methodology:** Gap = Optimal - Actual. Optimal uses hindsight-based multi-market simulation. "
-               "Both Actual and Optimal are shown net of the 5% GridBeyond revenue share.")
-
-    gap_table = {'Metric': ['GridBeyond Revenue (£)', 'Capacity Market (£)',
-                            'DUoS Net Credit (£)', 'Total Revenue (£)',
-                            'Optimal Revenue (£)', 'Revenue Gap (£)',
-                            'Capture Rate (%)', 'Imbalance (£)']}
-    for m in months:
-        gap_table[m['short']] = [
-            f"£{m['actual']['total']:,.0f}",
-            f"£{m['cm']:,.0f}" if m['cm'] else '-',
-            f"£{m['duos_credit'] - m['duos_fixed']:,.0f}" if m['duos_credit'] else '-',
-            f"£{m['total_all']:,.0f}",
-            f"£{m['optimal']:,.0f}",
-            f"£{m['gap']:,.0f}",
-            f"{m['capture']:.1f}%",
-            f"£{m['actual']['imbalance']:,.0f}"
-        ]
-    st.dataframe(pd.DataFrame(gap_table), use_container_width=True, hide_index=True)
-    st.caption(GB_NET_FOOTNOTE_SHORT)
-    st.markdown("---")
-
-    # ==================== SECTION 4: MARKET MIX COMPARISON ====================
-    st.header("4️⃣ Revenue by Market")
+    # ==================== SECTION 3: MARKET MIX COMPARISON ====================
+    st.header("3️⃣ Revenue by Market")
 
     # Pie charts — up to 3 per row
     market_keys = ['sffr', 'epex', 'ida1', 'idc', 'imbalance']
@@ -2299,8 +2275,8 @@ def show_executive_comparison():
     st.caption(GB_NET_FOOTNOTE)
     st.markdown("---")
 
-    # ==================== SECTION 5: EXECUTIVE SUMMARY ====================
-    st.header("5️⃣ Executive Summary")
+    # ==================== SECTION 4: EXECUTIVE SUMMARY ====================
+    st.header("4️⃣ Executive Summary")
 
     best_m = max(months, key=lambda m: m['capture'])
     worst_m = min(months, key=lambda m: m['capture'])
