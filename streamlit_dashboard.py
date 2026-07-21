@@ -5968,7 +5968,9 @@ def _render_modo_daily_stack():
 
     m1, m2, m3, m4 = st.columns(4)
     m1.metric("Month mean", f"£{totals.mean():,.0f}",
-              help="Mean of daily annualised totals — Modo's headline index for this month")
+              help="Mean of daily annualised totals. Matches the headline index "
+                   "for settled months; the newest month may read low while "
+                   "settlement is still restating it.")
     m2.metric("Best day", f"£{totals.max():,.0f}", help=str(totals.idxmax()))
     m3.metric("Worst day", f"£{totals.min():,.0f}", help=str(totals.idxmin()))
     m4.metric("Negative days", int((totals < 0).sum()))
@@ -6011,10 +6013,10 @@ def _render_modo_daily_stack():
 
     st.caption(
         "Source: Modo `/pub/v1/indices/{id}/revenue/timeseries/` (daily, "
-        "market breakdown, annualised). Note this endpoint reports ~4% lower "
-        "than `monthly-index-live`, which is what the headline index dicts "
-        "above use because it matches Modo's published figures — an open "
-        "question with Modo. Use this chart for daily shape, not absolute level."
+        "market breakdown, annualised). This endpoint matches the headline "
+        "index above exactly for every settled month; the most recent month "
+        "can read a few percent low while Elexon settlement is still "
+        "restating it, so treat the newest month as provisional."
     )
 
 
