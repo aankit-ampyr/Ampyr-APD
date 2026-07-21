@@ -2281,35 +2281,77 @@ def show_executive_comparison():
     # ==================== SECTION 5: EXECUTIVE SUMMARY ====================
     st.header("5️⃣ Executive Summary")
 
-    best_m = max(months, key=lambda m: m['capture'])
-    worst_m = min(months, key=lambda m: m['capture'])
-    avg_capture = sum(m['capture'] for m in months) / len(months)
-    latest = months[-1]
+    # Ranked on actual £/MW/year, not capture rate. Capture is actual ÷
+    # hindsight optimiser, so in a flat month the ceiling collapses and
+    # mediocre revenue scores highly — it previously named Feb 26 the
+    # strongest month at 106% capture on £20.8k, ahead of Oct 25's £37.3k.
+    capacity_mw = config.P_IMP_MAX_MW  # 4.2 MW rated power
+
+    for m in months:
+        m['per_mw_yr'] = m['total_all'] / m['days'] * 365 / capacity_mw
+        peer = ME_BESS_GB_2H.get(m['short'])
+        m['peer'] = peer
+        m['vs_peer'] = (m['per_mw_yr'] / peer * 100) if peer else None
+
+    best_m = max(months, key=lambda m: m['per_mw_yr'])
+    worst_m = min(months, key=lambda m: m['per_mw_yr'])
+
+    def _peer_line(m):
+        return (f"- vs Modo 2H peer: **{m['vs_peer']:.0f}%** (peer £{m['peer']:,.0f})"
+                if m['vs_peer'] else "- vs Modo 2H peer: not published")
 
     col1, col2 = st.columns(2)
     with col1:
         st.error(f"""
         **Weakest Month — {worst_m['short']}:**
-        - Capture Rate: {worst_m['capture']:.1f}%
-        - Revenue Gap: £{worst_m['gap']:,.0f}
+        - Revenue: **£{worst_m['per_mw_yr']:,.0f}/MW/yr** (£{worst_m['total_all']:,.0f} in month)
+        {_peer_line(worst_m)}
         - Imbalance: £{worst_m['actual']['imbalance']:,.0f}
         """)
     with col2:
         st.success(f"""
         **Strongest Month — {best_m['short']}:**
-        - Capture Rate: {best_m['capture']:.1f}%
-        - Revenue Gap: £{best_m['gap']:,.0f}
+        - Revenue: **£{best_m['per_mw_yr']:,.0f}/MW/yr** (£{best_m['total_all']:,.0f} in month)
+        {_peer_line(best_m)}
         - Imbalance: £{best_m['actual']['imbalance']:,.0f}
         """)
 
-    st.info(f"""
-    **Key Recommendations:**
+    # Trailing three months rather than extrapolating a single month, which
+    # swings wildly — June alone would project ~£162k/yr off the worst month
+    # in the series.
+    window = months[-3:] if len(months) >= 3 else months
+    trailing = sum(m['per_mw_yr'] for m in window) / len(window)
+    peer_window = [m for m in window if m['peer']]
+    trailing_peer = (sum(m['peer'] for m in peer_window) / len(peer_window)) if peer_window else None
+    rated = [m for m in months if m['vs_peer']]
+    above_peer = [m['short'] for m in rated if m['vs_peer'] >= 100]
 
-    1. **Average Capture Rate**: {avg_capture:.1f}% across {len(months)} months
-    2. **Best Performance**: {best_m['short']} achieved {best_m['capture']:.1f}% — replicate this strategy
-    3. **Investigate**: {worst_m['short']} had largest gap (£{worst_m['gap']:,.0f})
-    4. **Annualized Projection**: Based on latest month ({latest['short']}): **£{latest['total_all'] / latest['days'] * 365:,.0f}/year** (incl. CM + DUoS)
-    """)
+    lines = [
+        f"1. **Trailing {len(window)}-month run rate**: **£{trailing:,.0f}/MW/yr** "
+        f"({window[0]['short']}–{window[-1]['short']}, incl. CM + DUoS)",
+    ]
+    if trailing_peer:
+        lines.append(
+            f"2. **vs Modo 2H peer over the same window**: **{trailing / trailing_peer * 100:.0f}%** "
+            f"(peer £{trailing_peer:,.0f}/MW/yr)"
+        )
+    lines.append(
+        f"{len(lines) + 1}. **Best month**: {best_m['short']} at £{best_m['per_mw_yr']:,.0f}/MW/yr"
+        + (f" — {best_m['vs_peer']:.0f}% of peer" if best_m['vs_peer'] else "")
+    )
+    lines.append(
+        f"{len(lines) + 1}. **Months at or above the 2H peer**: "
+        + (f"{len(above_peer)} of {len(rated)} — {', '.join(above_peer)}"
+           if above_peer else f"0 of {len(rated)}")
+    )
+
+    st.info("**Key Takeaways:**\n\n" + "\n".join(lines))
+    st.caption(
+        "Months are ranked by actual £/MW/year against the Modo ME-BESS-GB 2H "
+        "index — Northwold's duration peer — rather than by capture rate against "
+        "the hindsight optimiser, which rewards months where little was available "
+        "to capture."
+    )
 
 
 def show_market_price_analysis(month: str = "September 2025"):
