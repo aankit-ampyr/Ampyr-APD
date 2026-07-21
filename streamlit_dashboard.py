@@ -4169,8 +4169,9 @@ def show_benchmark_comparison():
             name='Northwold',
             x=month_labels,
             y=month_values,
-            mode='markers',
-            marker=dict(size=14, color=COLOR_ACTUAL,
+            mode='lines+markers',
+            line=dict(color=COLOR_ACTUAL, width=2.5),
+            marker=dict(size=11, color=COLOR_ACTUAL,
                         line=dict(width=1, color='white')),
             hovertemplate='%{x}: £%{y:,.0f}/MW/yr<extra></extra>',
         ))
