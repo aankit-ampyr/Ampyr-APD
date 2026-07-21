@@ -11,11 +11,29 @@ import numpy as np
 ASSET_NAME = "Northwold Solar Farm (Hall Farm)"
 
 # --- Power Constraints (Asymmetric) ---
-P_IMP_MAX_MW = 4.2   # Maximum Import (Charge) Rate in MW
-P_EXP_MAX_MW = 7.5   # Maximum Export (Discharge) Rate in MW
+#
+# IMPORTANT — which of these is the "rated power"?
+#
+#   P_IMP_MAX_MW (4.2 MW) is the battery's RATED POWER. It is the correct
+#   denominator for any £/MW normalisation, and the basis for the asset's
+#   duration: 8.4 MWh ÷ 4.2 MW = exactly 2.0 hours. That puts Northwold in
+#   Modo's 2H bracket (1.5–2.5h), which is its benchmark peer group.
+#
+#   P_EXP_MAX_MW (7.5 MW) is the EXPORT / GRID-CONNECTION limit, not the
+#   battery's rating. Using it as the denominator understates £/MW by 44%,
+#   and dividing capacity by it implies a 1.12h asset, which would place
+#   Northwold in the wrong benchmark bracket entirely.
+#
+# Both mistakes have been made in this codebase and reached the dashboard:
+# the Performance Report normalised by 7.5 MW and reported £20,230/MW/yr
+# where every other page said £36,627 for the same month, and the benchmark
+# pages briefly compared Northwold against the 1H peer index. Normalise by
+# P_IMP_MAX_MW unless you specifically mean the grid export constraint.
+P_IMP_MAX_MW = 4.2   # Rated power / charge rate (MW) — use for £/MW and duration
+P_EXP_MAX_MW = 7.5   # Export (grid connection) limit (MW) — NOT the power rating
 
 # --- Energy Capacity ---
-CAPACITY_MWH = 8.4   # Usable Energy Capacity in MWh
+CAPACITY_MWH = 8.4   # Usable Energy Capacity in MWh (= 4.2 MW × 2.0 h)
 
 # --- Efficiency ---
 EFF_ROUND_TRIP = 0.87  # Round-trip efficiency (87%)
