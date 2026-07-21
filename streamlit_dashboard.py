@@ -90,6 +90,37 @@ st.set_page_config(
     layout="wide"
 )
 
+# Streamlit's default heading sizes are oversized for a dense analytics
+# dashboard — st.title renders ~2.75rem and st.header ~1.75rem, which pushes
+# content off-screen and reads as shouting. Scale the whole hierarchy down to
+# report-like proportions while preserving the relative levels, so
+# title > header > subheader still reads correctly.
+st.markdown(
+    """
+    <style>
+      h1 { font-size: 1.75rem !important; }   /* st.title      */
+      h2 { font-size: 1.35rem !important; }   /* st.header     */
+      h3 { font-size: 1.12rem !important; }   /* st.subheader  */
+      h4 { font-size: 1.02rem !important; }
+      h1, h2, h3, h4 { padding-top: 0.4rem !important; padding-bottom: 0.2rem !important; }
+
+      /* st.metric renders its value at ~2rem, which overflows and visually
+         truncates once several metrics share a row. Scale value, label and
+         delta down so a full row of months stays legible, and allow the
+         value to wrap rather than clip. */
+      [data-testid="stMetricValue"] {
+          font-size: 1.15rem !important;
+          overflow-wrap: anywhere;
+          white-space: normal !important;
+      }
+      [data-testid="stMetricLabel"] p { font-size: 0.80rem !important; }
+      [data-testid="stMetricDelta"] { font-size: 0.75rem !important; }
+      [data-testid="stMetricDelta"] svg { display: none; }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 # Available months configuration
 AVAILABLE_MONTHS = {
     "September 2025": {
@@ -2088,18 +2119,20 @@ def show_executive_comparison():
         ('Mar 26', 'March', 31, 'Master_BESS_Analysis_Mar_2026.csv', 'Optimized_Results_Mar_2026.csv'),
         ('Apr 26', 'April', 30, 'Master_BESS_Analysis_Apr_2026.csv', 'Optimized_Results_Apr_2026.csv'),
         ('May 26', 'May', 31, 'Master_BESS_Analysis_May_2026.csv', 'Optimized_Results_May_2026.csv'),
+        ('Jun 26', 'June', 30, 'Master_BESS_Analysis_Jun_2026.csv', 'Optimized_Results_Jun_2026.csv'),
     ]
 
     # Capacity Market & DUoS actuals (same data as in Benchmarks)
     CM_ACTUALS_EXEC = {
         'Oct 25': 1704.17, 'Nov 25': 1884.42,
         'Dec 25': 1994.84, 'Jan 26': 2113.87,
-        'Feb 26': 1829.35,
+        'Feb 26': 1829.35, 'Mar 26': 1859.19,
     }
     DUOS_ACTUALS_EXEC = {
         'Sep 25': {'net_credit': 773.20, 'fixed': 3.58},
         'Oct 25': {'net_credit': 5807.68, 'fixed': 3.70},
         'Nov 25': {'net_credit': 5525.10, 'fixed': 3.58},
+        'Apr 26': {'net_credit': 6580.39, 'fixed': 3.86},
     }
 
     # ---- Load data for every available month ----
@@ -2157,15 +2190,22 @@ def show_executive_comparison():
     # ==================== SECTION 1: KEY METRICS ====================
     st.header("1️⃣ Key Performance Metrics")
 
-    cols = st.columns(len(months))
-    for col, m in zip(cols, months):
-        with col:
-            st.metric(
-                f"{m['short']} Actual",
-                f"£{m['actual']['total']:,.0f}",
-                delta=f"{m['capture']:.0f}% captured",
-                delta_color="off"
-            )
+    # Wrap into rows of at most METRICS_PER_ROW. A single row of ten leaves
+    # each column too narrow for a "£38,344" value to render without being
+    # clipped. Columns are always allocated at full width so a short final
+    # row keeps the same tile size as the rows above it.
+    METRICS_PER_ROW = 5
+    for start in range(0, len(months), METRICS_PER_ROW):
+        chunk = months[start:start + METRICS_PER_ROW]
+        cols = st.columns(METRICS_PER_ROW)
+        for col, m in zip(cols, chunk):
+            with col:
+                st.metric(
+                    f"{m['short']} Actual",
+                    f"£{m['actual']['total']:,.0f}",
+                    delta=f"{m['capture']:.0f}% captured",
+                    delta_color="off"
+                )
 
     # Revenue trend line
     first, last = months[0], months[-1]
@@ -3259,11 +3299,14 @@ def show_pdf_export_page(month: str = "September 2025"):
                     ('Mar 26', 'Master_BESS_Analysis_Mar_2026.csv', 'Optimized_Results_Mar_2026.csv'),
                     ('Apr 26', 'Master_BESS_Analysis_Apr_2026.csv', 'Optimized_Results_Apr_2026.csv'),
                     ('May 26', 'Master_BESS_Analysis_May_2026.csv', 'Optimized_Results_May_2026.csv'),
+                    ('Jun 26', 'Master_BESS_Analysis_Jun_2026.csv', 'Optimized_Results_Jun_2026.csv'),
                 ]
 
-                CM_EXPORT = {'Oct 25': 1704.17, 'Nov 25': 1884.42, 'Dec 25': 1994.84, 'Jan 26': 2113.87, 'Feb 26': 1829.35}
+                CM_EXPORT = {'Oct 25': 1704.17, 'Nov 25': 1884.42, 'Dec 25': 1994.84, 'Jan 26': 2113.87,
+                             'Feb 26': 1829.35, 'Mar 26': 1859.19}
                 DUOS_EXPORT = {
                     'Sep 25': {'net': 769.62}, 'Oct 25': {'net': 5803.98}, 'Nov 25': {'net': 5521.52},
+                    'Apr 26': {'net': 6576.53},
                 }
 
                 def calc_metrics(master_df, opt_df, short):
@@ -3383,6 +3426,7 @@ def show_benchmark_comparison():
         ('Mar 26', 31, 'Master_BESS_Analysis_Mar_2026.csv', 'Optimized_Results_Mar_2026.csv'),
         ('Apr 26', 30, 'Master_BESS_Analysis_Apr_2026.csv', 'Optimized_Results_Apr_2026.csv'),
         ('May 26', 31, 'Master_BESS_Analysis_May_2026.csv', 'Optimized_Results_May_2026.csv'),
+        ('Jun 26', 30, 'Master_BESS_Analysis_Jun_2026.csv', 'Optimized_Results_Jun_2026.csv'),
     ]
 
     # Modo Energy monthly benchmark (£/MW/year) — sourced from Modo Energy's
@@ -3550,16 +3594,18 @@ def show_benchmark_comparison():
 
         # --- Monthly £/MW (actual reality, no annualisation) ---
         actual_monthly = [m['total_revenue'] / capacity_mw for m in bm]
+        # None (not 0) for months Modo has not published yet — Plotly renders a
+        # gap, whereas 0 would read as "the benchmark measured zero revenue".
         modo_monthly = [
-            (MODO_BENCHMARKS.get(s, 0) * days_by_short[s] / 365)
-            if MODO_BENCHMARKS.get(s) else 0
+            (MODO_BENCHMARKS.get(s) * days_by_short[s] / 365)
+            if MODO_BENCHMARKS.get(s) else None
             for s in months
         ]
         iar_monthly = [iar_monthly_per_mw.get(s, 0) for s in months]
 
         # --- Annualised £/MW/year (board-level view) ---
         actual_annual = [m['total_annual_per_mw'] for m in bm]
-        modo_annual = [MODO_BENCHMARKS.get(s, 0) for s in months]
+        modo_annual = [MODO_BENCHMARKS.get(s) for s in months]
         iar_annual = [
             (iar_monthly_per_mw.get(s, 0) * 365 / days_by_short[s])
             if iar_monthly_per_mw.get(s) else 0
@@ -4054,8 +4100,13 @@ calculated per MW/month and multiplied by 4.2 MW for comparison. No indexation i
                 'Total': apply_gb_net(total),
             }
 
-        # Summary metrics row
-        metric_cols = st.columns(len(bm))
+        # Summary metrics, wrapped into rows of at most 5 — one row of ten
+        # squeezes each tile too narrow to render its value without clipping.
+        BM_PER_ROW = 5
+        metric_rows = [
+            st.columns(BM_PER_ROW)
+            for _ in range((len(bm) + BM_PER_ROW - 1) // BM_PER_ROW)
+        ]
         all_actuals = {}
         all_opts_bd = {}
         all_gaps = {}
@@ -4072,7 +4123,7 @@ calculated per MW/month and multiplied by 4.2 MW for comparison. No indexation i
             all_gaps[short] = gap
             all_captures[short] = capture
 
-            with metric_cols[idx]:
+            with metric_rows[idx // BM_PER_ROW][idx % BM_PER_ROW]:
                 st.metric(f"{short} Capture", f"{capture:.0f}%",
                           delta=f"{capture - 100:+.0f}%" if capture != 100 else None)
 
@@ -5237,25 +5288,28 @@ BENCHMARK_COMPARISON_MONTHS = [
 
 # Modo Energy ME-BESS-GB index — FCA-regulated GB BESS revenue benchmark.
 # Three duration cuts sourced from the live API (monthly-index-live endpoint,
-# market=total × 12), refreshed 2026-06-24. Re-pull anytime via:
+# market=total × 12), refreshed 2026-07-21. Re-pull anytime via:
 #   python -m src.data_cleaning.modo_client --from 2025-09 --to <YYYY-MM>
 # These values supersede the earlier AI-chat snapshot — the API is the
 # authoritative source for the FCA-regulated index.
 ME_BESS_GB_ALL = {
     'Sep 25': 64372, 'Oct 25': 69597, 'Nov 25': 48893,
-    'Dec 25': 40774, 'Jan 26': 45557, 'Feb 26': 30552,
-    'Mar 26': 66050, 'Apr 26': 60930, 'May 26': 39023,
+    'Dec 25': 40774, 'Jan 26': 45557, 'Feb 26': 30527,
+    'Mar 26': 65749, 'Apr 26': 60924, 'May 26': 38839,
 }
 ME_BESS_GB_1H = {
     'Sep 25': 49250, 'Oct 25': 52636, 'Nov 25': 36021,
-    'Dec 25': 27935, 'Jan 26': 30560, 'Feb 26': 19932,
-    'Mar 26': 40830, 'Apr 26': 42102, 'May 26': 28168,
+    'Dec 25': 27935, 'Jan 26': 30560, 'Feb 26': 19958,
+    'Mar 26': 40881, 'Apr 26': 42102, 'May 26': 28182,
 }
 ME_BESS_GB_2H = {
     'Sep 25': 74658, 'Oct 25': 82417, 'Nov 25': 58848,
-    'Dec 25': 49158, 'Jan 26': 54916, 'Feb 26': 37201,
-    'Mar 26': 80403, 'Apr 26': 72511, 'May 26': 45126,
+    'Dec 25': 49158, 'Jan 26': 54916, 'Feb 26': 37140,
+    'Mar 26': 79860, 'Apr 26': 72505, 'May 26': 44809,
 }
+# Jun 26 is deliberately absent: the ME-BESS-GB index had not been published
+# for June at the last pull (2026-07-21). Charts and tables must therefore
+# treat a missing month as "no data", never as zero.
 
 # Modo Terminal extract (Excel scrape, 12 May 2026) — 40 indices with P10/P50/
 # P90 percentiles across 30d / 90d / 1y windows. Includes GB regional cuts and
@@ -5558,7 +5612,7 @@ market prices. It's the most honest theoretical ceiling for *this asset*.
             if east:
                 region_rows.append({
                     'Window': period,
-                    'Northwold (7-mo avg actual)': f"£{round(nw_avg_actual):,}",
+                    f'Northwold ({len(rows)}-mo avg actual)': f"£{round(nw_avg_actual):,}",
                     f'{NORTHWOLD_REGION} P10 / P50 / P90': f"£{east['P10']:,} / £{east['P50']:,} / £{east['P90']:,}",
                     f'{NORTHWOLD_REGION} Summary': f"£{east['Value (Summary)']:,}" if east.get('Value (Summary)') else '—',
                     'GB All Summary': f"£{gb['Value (Summary)']:,}" if gb and gb.get('Value (Summary)') else '—',
@@ -5603,7 +5657,7 @@ market prices. It's the most honest theoretical ceiling for *this asset*.
             else:
                 pct_position = "above P90 — top decile of region"
                 pct_emoji = "🟢"
-            st.markdown(f"{pct_emoji} Northwold's 7-month average sits **{pct_position}**.")
+            st.markdown(f"{pct_emoji} Northwold's {len(rows)}-month average sits **{pct_position}**.")
             st.caption(
                 "Caveat: these P10/P50/P90 describe **temporal** variation of the regional "
                 "index over the period — not cross-sectional ranking of individual assets in the "
@@ -5764,7 +5818,7 @@ market prices. It's the most honest theoretical ceiling for *this asset*.
     avg_all = sum(ME_BESS_GB_ALL.values()) / len(ME_BESS_GB_ALL)
     avg_2h = sum(ME_BESS_GB_2H.values()) / len(ME_BESS_GB_2H)
     peer_rows.append({
-        'Month': '**7-mo avg**',
+        'Month': f'**{len(rows)}-mo avg**',
         'Northwold': f"**£{round(avg_actual):,}**",
         'ME-BESS 1H': f"**£{round(avg_1h):,}**",
         'ME-BESS All': f"**£{round(avg_all):,}**",
@@ -5838,6 +5892,239 @@ market prices. It's the most honest theoretical ceiling for *this asset*.
         """)
 
 
+# ============================================================================
+# BESS Cycles Dashboard (portfolio view, month-independent)
+# ============================================================================
+# Distinct from the month-scoped "BESS Health" page under Monthly Analysis:
+# this one trends cycling across every loaded month at once.
+#
+# Cycling benchmark note: Modo publishes no cycles metric — its API exposes
+# revenue indices only (verified 2026-07-21: /monthly-cycles and /cycles both
+# 404). The reference here is therefore the OEM warranty cap from
+# asset_config (1.5 cyc/day) plus the industry band already used on the
+# Benchmarks page, not a Modo figure.
+CYCLE_INDUSTRY_LOW = 1.0
+CYCLE_INDUSTRY_HIGH = 3.0
+
+
+def _bh_month_short(label):
+    """'September 2025' -> 'Sep 25'."""
+    parts = label.split()
+    return f"{parts[0][:3]} {parts[1][-2:]}" if len(parts) == 2 else label
+
+
+def _bh_find_power_col(df):
+    """Locate the actual-power column and its interval length in hours."""
+    for col in df.columns:
+        if 'Physical_Power_MW' in col or col == 'Power_MW':
+            return col, 0.5
+    for col in df.columns:
+        if 'Battery MWh' in col:
+            return col, 1.0
+    return None, 0.5
+
+
+def show_bess_cycles_dashboard():
+    """Cross-month BESS cycling view: optimised vs actual against warranty."""
+    st.title("🔋 BESS Cycles")
+    st.markdown(
+        "Battery cycling across every loaded month — how hard the asset is "
+        "actually worked versus how hard the optimiser says it could be, "
+        "with the warranty ceiling as the binding constraint."
+    )
+
+    capacity_mwh = config.CAPACITY_MWH
+    warranty = config.CYCLES_PER_DAY
+
+    # ---- Build per-month cycling stats ----
+    stats = []
+    for label, cfg in AVAILABLE_MONTHS.items():
+        master_f = cfg.get('master_file')
+        opt_f = cfg.get('optimization_file')
+        if not master_f:
+            continue
+        try:
+            master = pd.read_csv(os.path.join(DATA_DIR, master_f))
+        except FileNotFoundError:
+            continue
+
+        # September 2025 is the legacy format and carries no timestamp column,
+        # so fall back to calendar length. Such months still trend correctly in
+        # section 1 but cannot be broken down day-by-day in section 2.
+        has_daily = 'Timestamp' in master.columns
+        if has_daily:
+            master['Timestamp'] = pd.to_datetime(master['Timestamp'], errors='coerce')
+            n_days = master['Timestamp'].dt.date.nunique()
+        else:
+            try:
+                n_days = pd.Period(label, freq='M').days_in_month
+            except Exception:
+                n_days = 0
+        if not n_days:
+            continue
+
+        pcol, pdt = _bh_find_power_col(master)
+        actual_daily = None
+        if pcol:
+            actual_daily = calculate_cycles(
+                master, pcol, capacity_mwh, dt_hours=pdt
+            )['cycles_full'] / n_days
+
+        opt_daily = None
+        if opt_f:
+            try:
+                opt = pd.read_csv(os.path.join(DATA_DIR, opt_f))
+                if 'Optimised_Net_MWh_Multi' in opt.columns:
+                    opt_daily = calculate_cycles(
+                        opt, 'Optimised_Net_MWh_Multi', capacity_mwh, dt_hours=1.0
+                    )['cycles_full'] / n_days
+            except FileNotFoundError:
+                pass
+
+        stats.append({
+            'label': label,
+            'short': _bh_month_short(label),
+            'days': n_days,
+            'actual': actual_daily,
+            'optimised': opt_daily,
+            'has_daily': has_daily,
+        })
+
+    if not stats:
+        st.error("No monthly data files found — cannot render cycling history.")
+        return
+
+    # ---- Headline metrics ----
+    acts = [s['actual'] for s in stats if s['actual'] is not None]
+    opts_ = [s['optimised'] for s in stats if s['optimised'] is not None]
+    latest = stats[-1]
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric(f"{latest['short']} actual", f"{latest['actual']:.2f}" if latest['actual'] is not None else "—",
+              help="Average daily equivalent full cycles in the most recent month")
+    c2.metric("Avg actual (all months)", f"{sum(acts)/len(acts):.2f}" if acts else "—")
+    c3.metric("Avg optimised", f"{sum(opts_)/len(opts_):.2f}" if opts_ else "—",
+              help="What the multi-market optimiser would have cycled")
+    c4.metric("Warranty cap", f"{warranty:.2f}", help="Maximum cycles/day permitted under the OEM warranty")
+
+    headroom = (warranty - (sum(acts) / len(acts))) if acts else None
+    if headroom is not None and headroom > 0:
+        st.info(
+            f"Northwold is averaging **{sum(acts)/len(acts):.2f} cycles/day** against a "
+            f"**{warranty:.2f}** warranty cap — **{headroom:.2f} cycles/day of unused headroom**. "
+            "Under-cycling is a revenue constraint, not a health risk."
+        )
+
+    st.markdown("---")
+
+    # ================================================================
+    # 1. Monthly average daily cycles
+    # ================================================================
+    st.header("1. Monthly average daily cycles")
+    st.caption(
+        "Equivalent full cycles (Method B: (discharge + charge) ÷ 2 ÷ capacity), "
+        "divided by days in month."
+    )
+
+    shorts = [s['short'] for s in stats]
+    fig = go.Figure()
+
+    # Industry band as a shaded region behind the bars
+    fig.add_hrect(y0=CYCLE_INDUSTRY_LOW, y1=CYCLE_INDUSTRY_HIGH,
+                  fillcolor='rgba(120,160,200,0.10)', line_width=0, layer='below',
+                  annotation_text='Industry range 1.0–3.0', annotation_position='top left',
+                  annotation_font_size=11)
+
+    fig.add_bar(name='GridBeyond actual', x=shorts,
+                y=[s['actual'] for s in stats],
+                marker_color='#1f77b4',
+                text=[f"{s['actual']:.2f}" if s['actual'] is not None else '' for s in stats],
+                textposition='outside', textfont_size=10)
+    fig.add_bar(name='Optimised (multi-market)', x=shorts,
+                y=[s['optimised'] for s in stats],
+                marker_color='#2ca02c',
+                text=[f"{s['optimised']:.2f}" if s['optimised'] is not None else '' for s in stats],
+                textposition='outside', textfont_size=10)
+
+    fig.add_hline(y=warranty, line=dict(color='#d62728', width=2, dash='dash'),
+                  annotation_text=f'Warranty cap {warranty:.1f}/day',
+                  annotation_position='top right', annotation_font_size=11)
+
+    fig.update_layout(barmode='group', height=430,
+                      yaxis_title='Cycles per day', xaxis_title='Month',
+                      legend=dict(orientation='h', y=-0.18),
+                      margin=dict(t=40))
+    st.plotly_chart(fig, use_container_width=True)
+
+    table = pd.DataFrame([{
+        'Month': s['short'],
+        'Days': s['days'],
+        'Actual (cyc/day)': f"{s['actual']:.2f}" if s['actual'] is not None else '—',
+        'Optimised (cyc/day)': f"{s['optimised']:.2f}" if s['optimised'] is not None else '—',
+        'Unused vs warranty': f"{warranty - s['actual']:.2f}" if s['actual'] is not None else '—',
+        'Warranty used': f"{s['actual'] / warranty * 100:.0f}%" if s['actual'] is not None else '—',
+    } for s in stats])
+    st.dataframe(table, use_container_width=True, hide_index=True)
+
+    st.markdown("---")
+
+    # ================================================================
+    # 2. Daily cycles within a selected month
+    # ================================================================
+    st.header("2. Daily cycles — selected month")
+
+    # Only months with real timestamps can be split by day.
+    daily_capable = [s for s in stats if s['has_daily']]
+    skipped = [s['short'] for s in stats if not s['has_daily']]
+    if not daily_capable:
+        st.warning("No month in the dataset carries timestamps — daily breakdown unavailable.")
+        return
+    if skipped:
+        st.caption(f"Not selectable (legacy format, no timestamps): {', '.join(skipped)}")
+
+    month_labels = [s['label'] for s in daily_capable]
+    picked = st.selectbox("Month", month_labels, index=len(month_labels) - 1,
+                          key='bess_cycles_month')
+    picked_stat = next(s for s in daily_capable if s['label'] == picked)
+
+    master = pd.read_csv(os.path.join(DATA_DIR, AVAILABLE_MONTHS[picked]['master_file']))
+    master['Timestamp'] = pd.to_datetime(master['Timestamp'], errors='coerce')
+    pcol, pdt = _bh_find_power_col(master)
+
+    if not pcol:
+        st.warning(f"No power column found in {AVAILABLE_MONTHS[picked]['master_file']} — cannot compute daily cycles.")
+        return
+
+    power = pd.to_numeric(master[pcol], errors='coerce').fillna(0)
+    energy = power * pdt
+    daily = pd.DataFrame({
+        'date': master['Timestamp'].dt.date,
+        'discharge': energy.clip(lower=0),
+        'charge': energy.clip(upper=0).abs(),
+    }).groupby('date', as_index=False).sum()
+    daily['cycles'] = (daily['discharge'] + daily['charge']) / 2 / capacity_mwh
+
+    d1, d2, d3 = st.columns(3)
+    d1.metric("Mean", f"{daily['cycles'].mean():.2f}")
+    d2.metric("Best day", f"{daily['cycles'].max():.2f}")
+    d3.metric("Days above warranty", int((daily['cycles'] > warranty).sum()))
+
+    fig2 = go.Figure()
+    fig2.add_bar(name='Daily cycles', x=daily['date'], y=daily['cycles'],
+                 marker_color=['#d62728' if c > warranty else '#1f77b4' for c in daily['cycles']])
+    fig2.add_hline(y=warranty, line=dict(color='#d62728', width=2, dash='dash'),
+                   annotation_text=f'Warranty {warranty:.1f}', annotation_position='top right',
+                   annotation_font_size=11)
+    if picked_stat['actual'] is not None:
+        fig2.add_hline(y=picked_stat['actual'], line=dict(color='#6b7280', width=1, dash='dot'),
+                       annotation_text=f"Month mean {picked_stat['actual']:.2f}",
+                       annotation_position='bottom right', annotation_font_size=11)
+    fig2.update_layout(height=400, yaxis_title='Cycles', xaxis_title='Date',
+                       showlegend=False, margin=dict(t=30))
+    st.plotly_chart(fig2, use_container_width=True)
+    st.caption("Bars turn red on any day that exceeds the warranty cap.")
+
+
 def main():
     """Main application with sidebar navigation"""
 
@@ -5849,33 +6136,40 @@ def main():
     # Default to Executive Comparison on first load so the app opens on the
     # portfolio overview rather than a month-specific page.
     if 'active_general_page' not in st.session_state:
-        st.session_state.active_general_page = 'tinte_solar'
-
-    st.sidebar.markdown("### General")
+        st.session_state.active_general_page = 'exec_comparison'
 
     def _set_general_page(page_name):
         st.session_state.active_general_page = page_name
 
-    show_asset_page = st.sidebar.button("🏭 Asset Details", use_container_width=True,
-                                         on_click=_set_general_page, args=('asset_details',))
-    show_import_page = st.sidebar.button("📥 Data Import", use_container_width=True,
-                                          on_click=_set_general_page, args=('data_import',))
-    show_exec_comparison = st.sidebar.button("📊 Executive Comparison", use_container_width=True,
-                                              on_click=_set_general_page, args=('exec_comparison',))
-    show_benchmark_page = st.sidebar.button("📈 Benchmarks", use_container_width=True,
-                                             on_click=_set_general_page, args=('benchmarks',))
-    show_benchmark_sources_page = st.sidebar.button("🗂️ Benchmark Sources", use_container_width=True,
-                                                     on_click=_set_general_page, args=('benchmark_sources',))
-    show_benchmark_dashboard_page = st.sidebar.button("🎯 Benchmark Comparison", use_container_width=True,
-                                                       on_click=_set_general_page, args=('benchmark_dashboard',))
-    show_export_page = st.sidebar.button("📄 Export Reports", use_container_width=True,
-                                          on_click=_set_general_page, args=('export_reports',))
-    show_invoice_page = st.sidebar.button("🧾 Invoice Analysis", use_container_width=True,
-                                           on_click=_set_general_page, args=('invoice_analysis',))
-    show_checklist_page = st.sidebar.button("📋 Monthly Checklist", use_container_width=True,
-                                             on_click=_set_general_page, args=('monthly_checklist',))
-    show_tinte_page = st.sidebar.button("🌅 Tinte Solar Dashboard", use_container_width=True,
-                                         on_click=_set_general_page, args=('tinte_solar',))
+    # --- Section 1: Dashboard — the headline, decision-making views ---
+    st.sidebar.markdown("### 📊 Dashboard")
+    st.sidebar.button("📊 Executive Comparison", use_container_width=True,
+                      on_click=_set_general_page, args=('exec_comparison',))
+    st.sidebar.button("📈 Benchmarks", use_container_width=True,
+                      on_click=_set_general_page, args=('benchmarks',))
+    st.sidebar.button("🧾 Invoice Analysis", use_container_width=True,
+                      on_click=_set_general_page, args=('invoice_analysis',))
+    st.sidebar.button("🔋 BESS Cycles", use_container_width=True,
+                      on_click=_set_general_page, args=('bess_cycles',))
+    st.sidebar.button("🌅 Tinte Dashboard", use_container_width=True,
+                      on_click=_set_general_page, args=('tinte_solar',))
+    st.sidebar.button("📄 Export", use_container_width=True,
+                      on_click=_set_general_page, args=('export_reports',))
+
+    st.sidebar.markdown("---")
+
+    # --- Section 2: General — reference, config and supporting detail ---
+    st.sidebar.markdown("### ⚙️ General")
+    st.sidebar.button("🏭 Asset Details", use_container_width=True,
+                      on_click=_set_general_page, args=('asset_details',))
+    st.sidebar.button("📥 Data Import", use_container_width=True,
+                      on_click=_set_general_page, args=('data_import',))
+    st.sidebar.button("🗂️ Benchmark Sources", use_container_width=True,
+                      on_click=_set_general_page, args=('benchmark_sources',))
+    st.sidebar.button("🎯 Benchmark Comparison", use_container_width=True,
+                      on_click=_set_general_page, args=('benchmark_dashboard',))
+    st.sidebar.button("📋 Monthly Checklist", use_container_width=True,
+                      on_click=_set_general_page, args=('monthly_checklist',))
 
     st.sidebar.markdown("---")
 
@@ -5884,7 +6178,7 @@ def main():
     selected_month = st.sidebar.selectbox(
         "Select Month",
         list(AVAILABLE_MONTHS.keys()),
-        index=0
+        index=len(AVAILABLE_MONTHS) - 1,  # default to the most recent month
     )
 
     # Navigation menu for month-dependent pages
@@ -5951,6 +6245,9 @@ def main():
         return
     if active == 'benchmark_dashboard':
         show_benchmark_dashboard()
+        return
+    if active == 'bess_cycles':
+        show_bess_cycles_dashboard()
         return
     if active == 'export_reports':
         show_pdf_export_page(selected_month)
