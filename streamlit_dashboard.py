@@ -3547,6 +3547,45 @@ DUOS_ACTUALS = {
     'Jun 26': {'red': -2475.14, 'amber': -109.73, 'green': -6.03,
                'fixed': 3.86, 'net_credit': 2587.04},
 }
+# DUoS COST on the battery's import (supply) connection, MPAN 1050003291202.
+# Same tracker, sheet REVENUE columns R-V ("BESS Supply" block), rows 65-74.
+# All values POSITIVE = money Northwold pays, ex-VAT.
+#
+# 'capacity' is the big one: a standing charge for holding 4,180 kVA of agreed
+# import capacity whether or not it is used — 5.09 p/kVA/day to 31 Mar 2026,
+# 5.31 p from 1 Apr (DUoS tariff years start 1 April). It is ~£6.4-6.9k every
+# month and is what the IAR's "DUoS Fixed Charges" line actually projects.
+# red/amber/green are volumetric charges on energy imported to CHARGE the
+# battery, so they move with how hard it traded.
+#
+# Until this dict existed the dashboard booked the DUoS credit but none of the
+# DUoS bill, overstating net revenue by £74k across Sep 25 - Jun 26.
+# Validated: export credit - import volumetric - all fixed reproduces the
+# tracker's own ex-VAT net cash position (col AA / 1.2) to the penny for all
+# nine months that carry no Triad. Jul 26 is not invoiced yet.
+DUOS_SUPPLY_COST = {
+    'Sep 25': {'red': 759.99, 'amber': 393.72, 'green': 78.03,
+               'fixed': 50.67, 'capacity': 6595.52},
+    'Oct 25': {'red': 2735.17, 'amber': 186.71, 'green': 9.84,
+               'fixed': 49.03, 'capacity': 6382.76},
+    'Nov 25': {'red': 66.2, 'amber': 178.48, 'green': 102.9,
+               'fixed': 49.03, 'capacity': 6382.76},
+    'Dec 25': {'red': 93.35, 'amber': 116.93, 'green': 102.2,
+               'fixed': 50.67, 'capacity': 6595.52},
+    'Jan 26': {'red': 191.14, 'amber': 250.59, 'green': 97.86,
+               'fixed': 50.67, 'capacity': 6595.52},
+    'Feb 26': {'red': 88.43, 'amber': 150.53, 'green': 115.98,
+               'fixed': 45.76, 'capacity': 5957.24},
+    'Mar 26': {'red': 0.29, 'amber': 607.38, 'green': 100.78,
+               'fixed': 50.67, 'capacity': 6595.52},
+    'Apr 26': {'red': 234.74, 'amber': 701.1, 'green': 65.26,
+               'fixed': 54.51, 'capacity': 6658.44},
+    'May 26': {'red': 64.04, 'amber': 489.59, 'green': 32.68,
+               'fixed': 56.33, 'capacity': 6880.39},
+    'Jun 26': {'red': 43.19, 'amber': 245.05, 'green': 18.82,
+               'fixed': 54.51, 'capacity': 6658.44},
+}
+
 # Source: raw/July 2026/NWOSFL_000_Revenue Tracker.xlsx (Tinvia), sheet
 # REVENUE rows 59-74: columns Red/Amber/Green DUoS + DNO fee, i.e. the
 # same Hartree generation invoices these four months were keyed from by
@@ -3618,12 +3657,25 @@ def show_iar_vs_actual():
         except FileNotFoundError:
             continue
         duos = DUOS_ACTUALS.get(short) or {}
+        sup = DUOS_SUPPLY_COST.get(short) or {}
+        # DUoS has three distinct parts and they used to be conflated:
+        #   export credit  - paid TO Northwold for exporting (generation MPAN)
+        #   import charge  - paid BY Northwold to charge the battery (supply MPAN)
+        #   fixed/capacity - standing charges on both MPANs, mostly the 4,180 kVA
+        #                    agreed-capacity charge, ~£6.6k/month regardless of use
+        # 'duos_credit' is taken GROSS here (red+amber+green, before the
+        # generation standing charge) because that standing charge is now shown
+        # in the fixed row. The old code used net_credit AND subtracted the
+        # standing charge again, double-counting it — £4/month, small but wrong.
         bm.append({
             'short': short,
             'days': days,
             'cm': CM_ACTUALS.get(short, 0),
-            'duos_credit': duos.get('net_credit', 0),
-            'duos_fixed': duos.get('fixed', 0),
+            'duos_credit': -(duos.get('red', 0) + duos.get('amber', 0)
+                             + duos.get('green', 0)),
+            'duos_import': sup.get('red', 0) + sup.get('amber', 0) + sup.get('green', 0),
+            'duos_fixed': (duos.get('fixed', 0) + sup.get('fixed', 0)
+                           + sup.get('capacity', 0)),
         })
     data_loaded = len(bm) > 0
     if not data_loaded:
@@ -3647,15 +3699,29 @@ def show_iar_vs_actual():
         "fair like-for-like variance, and *all streams* to see the gap "
         "including streams the asset does not access."
     )
+    st.caption(
+        "**DUoS is three rows.** *Export credit* is paid to Northwold for "
+        "exporting. *Import (charging)* is what it pays to draw power in to "
+        "charge. *Fixed + Capacity* is dominated by the standing charge on "
+        "4,180 kVA of agreed import capacity — roughly £6.6k every month "
+        "whether the battery trades or not, and the line the IAR projects at "
+        "≈ −£6,500. Only the export credit used to be shown, which overstated "
+        "net revenue by about £7k a month."
+    )
 
     # Revenue stream labels
     # "Wholesale Intraday" carries IDA1 + IDC together, matching the single
     # intraday line the IAR models. The label says so, so nobody has to guess
     # where IDC went.
+    # DUoS is three rows, not two. "DUoS Import" has no IAR counterpart (the
+    # model never projected a charging cost) so its IAR cell shows "-".
     streams = [
         'Wholesale Day Ahead', 'Wholesale Intraday (IDA1 + IDC)', 'Balancing Mechanism',
-        'Frequency Response', 'Capacity Market', 'DUoS Battery',
-        'DUoS Fixed Charges', 'TNUoS', 'Imbalance Revenue', 'Imbalance Charge',
+        'Frequency Response', 'Capacity Market',
+        'DUoS Battery (export credit)',
+        'DUoS Import (charging)',
+        'DUoS Fixed + Capacity',
+        'TNUoS', 'Imbalance Revenue', 'Imbalance Charge',
         'TOTAL (excl. BM, TNUoS)', 'TOTAL (all streams)'
     ]
 
@@ -3687,13 +3753,18 @@ def show_iar_vs_actual():
             # TOTAL (all streams)
             total_all = sum(vals[:8])
             vals.extend([total_excl, total_all])
-            IAR_PROJ[short] = [f"{v:,}" if v >= 0 else f"-{abs(v):,}" for v in vals]
+            row = [f"{v:,}" if v >= 0 else f"-{abs(v):,}" for v in vals]
+            # index 6 = 'DUoS Import (charging)'. The IAR models a single DUoS
+            # benefit and a fixed charge; it never projected the cost of
+            # importing to charge, so this stays blank rather than showing 0.
+            row.insert(6, '-')
+            IAR_PROJ[short] = row
         iar_wb.close()
     except Exception:
         # Fallback hardcoded if Excel not available
         IAR_PROJ = {
-            'Sep 25': ['14,343', '4,246', '1,863', '1,383', '4,438', '9,188', '-6,462', '835', '0', '0', '27,136', '29,834'],
-            'Oct 25': ['17,178', '4,918', '4,237', '1,038', '4,586', '10,088', '-6,678', '863', '0', '0', '31,130', '36,230'],
+            'Sep 25': ['14,343', '4,246', '1,863', '1,383', '4,438', '9,188', '-', '-6,462', '835', '0', '0', '27,136', '29,834'],
+            'Oct 25': ['17,178', '4,918', '4,237', '1,038', '4,586', '10,088', '-', '-6,678', '863', '0', '0', '31,130', '36,230'],
         }
 
     # Actual values from GridBeyond + invoice data
@@ -3728,8 +3799,9 @@ def show_iar_vs_actual():
             imb_rev = apply_gb_net(safe_sum_b(df, 'Imbalance Revenue'))
             imb_charge = apply_gb_net(safe_sum_b(df, 'Imbalance Charge'))
             cm = m['cm']
-            duos_cr = m['duos_credit']
-            duos_fx = m['duos_fixed']
+            duos_cr = m['duos_credit']      # export credit, gross (positive)
+            duos_im = m['duos_import']      # import volumetric cost (positive)
+            duos_fx = m['duos_fixed']       # standing + capacity cost (positive)
 
             # Intraday = IDA1 + IDC. Both are intraday products and the IAR
             # models them as a single "Wholesale Intraday" line, so they must
@@ -3743,7 +3815,10 @@ def show_iar_vs_actual():
             # full_total = + Capacity Market and DUoS, which Northwold is paid
             #              directly for (EMR / Hartree), so they carry no GB fee.
             gb_total = sffr + epex + intraday + imb_rev - imb_charge
-            full_total = gb_total + cm + duos_cr - duos_fx
+            # DUoS now nets properly: credit earned exporting, less the cost of
+            # importing to charge, less the standing/capacity charges. That last
+            # term is ~£6.6k/month and was missing entirely.
+            full_total = gb_total + cm + duos_cr - duos_im - duos_fx
 
             # Both TOTAL rows carry the SAME actual figure, and that is correct:
             # Northwold earns nothing from the Balancing Mechanism or TNUoS, so
@@ -3762,6 +3837,7 @@ def show_iar_vs_actual():
                 epex, intraday, None,  # BM not tracked in GridBeyond
                 sffr, cm if cm else None,
                 duos_cr if duos_cr else None,
+                -duos_im if duos_im else None,
                 -duos_fx if duos_fx else None,
                 None,  # TNUoS not available
                 imb_rev if imb_rev != 0 else None,
