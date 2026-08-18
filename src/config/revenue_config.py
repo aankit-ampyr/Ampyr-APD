@@ -85,6 +85,14 @@ NETWORK_GROSS_FOOTNOTE: str = (
     "**2️⃣ Revenue IAR vs Actual** on Executive Comparison.*"
 )
 
+NETWORK_HYBRID_FOOTNOTE: str = (
+    "*Includes Capacity Market and the **DUoS export credit**, but **not** the "
+    "DUoS import and capacity charges (~£6.0-6.9k a month). That makes this a "
+    "part-netted figure: it picks up the favourable half of DUoS only. For the "
+    "fully netted position see **2️⃣ Revenue IAR vs Actual** on Executive "
+    "Comparison; for the untouched trading figure see the capture-rate metrics.*"
+)
+
 NETWORK_NET_FOOTNOTE: str = (
     "*Revenue shown **net of network charges** — DUoS export credit, import "
     "cost and the capacity standing charge are all included, so this differs "

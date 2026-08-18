@@ -21,6 +21,7 @@ from config import (
     GB_NET_FOOTNOTE_SHORT,
     NETWORK_GROSS_FOOTNOTE,
     NETWORK_GROSS_FOOTNOTE_SHORT,
+    NETWORK_HYBRID_FOOTNOTE,
     NETWORK_NET_FOOTNOTE,
     apply_gb_net,
 )
@@ -2232,6 +2233,12 @@ def show_executive_comparison():
         'Apr 26': {'net_credit': 6580.39, 'fixed': 3.86},
         'May 26': {'net_credit': 4274.22, 'fixed': 3.99},
         'Jun 26': {'net_credit': 2587.04, 'fixed': 3.86},
+        # Jul 26 PROVISIONAL, mirroring module-level DUOS_ACTUALS: no export
+        # credit yet (the volumetric bands need the invoice) but the generation
+        # standing charge is arithmetic. Without this key July silently booked
+        # ZERO DUoS here while table 2 booked the provisional figure, so the two
+        # pages disagreed on the same month.
+        'Jul 26': {'net_credit': 0.0, 'fixed': 3.99},
     }
 
     # ---- Load data for every available month ----
@@ -3459,6 +3466,9 @@ def show_pdf_export_page(month: str = "September 2025"):
                     'Dec 25': {'net': 6983.06}, 'Jan 26': {'net': 4225.35}, 'Feb 26': {'net': 6653.71},
                     'Mar 26': {'net': 7337.09}, 'Apr 26': {'net': 6576.53}, 'May 26': {'net': 4270.23},
                     'Jun 26': {'net': 2583.18},
+                    # Jul 26 provisional — keeps the exported PDF in step
+                    # with the dashboard rather than silently dropping DUoS.
+                    'Jul 26': {'net': -3.99},
                 }
 
                 def calc_metrics(master_df, opt_df, short):
@@ -4370,11 +4380,15 @@ def show_benchmark_comparison():
         tile_cols[2].metric("Best · worst vs Modo", best_worst)
 
         st.caption(GB_NET_FOOTNOTE)
-        # Most important place to state the basis. Modo's ME-BESS-GB is a GROSS
-        # revenue index, so Northwold must be quoted gross too. Netting DUoS off
-        # our side alone would understate the asset by ~£19,700/MW/yr against an
-        # index running £43-77k/MW/yr — an artefact, not underperformance.
-        st.caption(NETWORK_GROSS_FOOTNOTE)
+        # This page plots m['total_revenue'] (:4239), which is
+        # revenue + cm + duos_credit - duos_fixed — so it ALREADY carries CM and
+        # the DUoS export credit (~£62k across the window, ~20%). It is the
+        # hybrid basis, not gross, and was briefly mislabelled as gross.
+        # Deliberately NOT fully netted: Modo's ME-BESS-GB is a gross revenue
+        # index, so subtracting our capacity charge while peers are quoted gross
+        # would understate Northwold by ~£19,700/MW/yr against an index running
+        # £43-77k/MW/yr — an artefact, not underperformance.
+        st.caption(NETWORK_HYBRID_FOOTNOTE)
 
         # ---- Historical industry range (demoted to expander) ----
         with st.expander("Historical industry range (Modo 2024–25 envelope)"):

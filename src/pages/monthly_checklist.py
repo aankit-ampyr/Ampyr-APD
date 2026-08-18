@@ -22,7 +22,7 @@ import openpyxl
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 from config import (GB_REVENUE_NET_SHARE, GB_NET_FOOTNOTE_SHORT,
-                    NETWORK_GROSS_FOOTNOTE_SHORT, apply_gb_net)
+                    NETWORK_HYBRID_FOOTNOTE, apply_gb_net)
 from data_cleaning.process_invoices import (
     read_emr_capacity_market,
     read_summary_statement,
@@ -336,9 +336,11 @@ def _show_header_metrics(short, full_name, revenue, total_revenue, annual_per_mw
                           total_annual_per_mw, modo, daily_cycles, scada):
     """Top-level KPI row."""
     cols = st.columns(6)
-    # 'DUoS' here is the export CREDIT only — the import and capacity charges
-    # (~£6.0-6.9k/month) are NOT deducted. Kept gross so the £/MW/year beside
-    # it stays comparable to Modo, which is a gross revenue index.
+    # total_revenue (:303) = gb_total + cm + duos_credit - duos_fixed, so this
+    # carries CM and the DUoS export CREDIT but not the import/capacity charges
+    # (~£6.0-6.9k/month). That is the hybrid basis — labelled as such below.
+    # Not fully netted on purpose: the £/MW/year beside it is compared to Modo,
+    # which is a gross revenue index.
     cols[0].metric("Total Revenue", f"£{total_revenue:,.0f}",
                    help="GridBeyond + CM + DUoS export credit. Gross of DUoS "
                         "import and capacity charges.")
@@ -362,7 +364,7 @@ def _show_header_metrics(short, full_name, revenue, total_revenue, annual_per_mw
     cols[5].metric("SOH", f"{soh:.2f}%" if soh else "N/A")
 
     st.caption(GB_NET_FOOTNOTE_SHORT)
-    st.caption(NETWORK_GROSS_FOOTNOTE_SHORT)
+    st.caption(NETWORK_HYBRID_FOOTNOTE)
 
 
 # ─────────────────────────────────────────────────────────────
