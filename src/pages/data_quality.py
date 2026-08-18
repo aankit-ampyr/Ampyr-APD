@@ -15,17 +15,13 @@ import sys
 # Add parent directory to path for imports
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
-from data_cleaning import (
-    find_files,
-    load_gridbeyond,
-    load_scada,
-    resample_scada,
-    calculate_missing_soc,
-    merge_data,
-    align_timestamps,
-    generate_quality_report,
-    DataQualityReport
-)
+# Import the submodules directly, never the data_cleaning package facade —
+# see the note in data_cleaning/__init__.py. Mixing parent-package and
+# direct-submodule imports is what deadlocked the app under Python 3.14.
+from data_cleaning.loader import find_files, load_gridbeyond, load_scada
+from data_cleaning.transformer import resample_scada, calculate_missing_soc
+from data_cleaning.merger import merge_data, align_timestamps
+from data_cleaning.report import generate_quality_report, DataQualityReport
 
 
 def show_data_quality_page():

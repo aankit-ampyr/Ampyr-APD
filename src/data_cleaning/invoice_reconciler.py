@@ -12,7 +12,10 @@ import numpy as np
 from typing import Dict, Optional, List
 
 try:
-    from config.revenue_config import GB_REVENUE_NET_SHARE
+    # Via the config package facade, not config.revenue_config directly.
+    # config/__init__ imports its children, so reaching into a child from
+    # here gave two threads opposite lock orders (see pages/__init__.py).
+    from config import GB_REVENUE_NET_SHARE
 except ImportError:  # pragma: no cover — path/import variations across entry points
     GB_REVENUE_NET_SHARE = 0.95
 

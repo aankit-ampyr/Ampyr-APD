@@ -9,70 +9,30 @@ This module handles two pipelines:
    - Merges into Master_BESS_Analysis_*.csv (in data/)
 
 2. Invoice ETL (batch, run via CLI):
-   - process_invoices.run() reads raw/New/ once and writes
+   - process_invoices.run() reads raw/ once and writes
      pre-processed parquet/json files to data/invoices/
    - Streamlit pages then read from data/invoices/ via the
      process_invoices.read_* functions
 
-Pages MUST NOT import from invoice_loader directly. The boundary is
-enforced here by re-exporting only the read_* readers, not the live
-load_* parsers. Live raw access is restricted to ETL only.
+Pages MUST NOT import from invoice_loader directly. That boundary still
+stands: pages import the read_* readers from process_invoices, never the
+live load_* parsers.
+
+Deliberately NO eager submodule imports in this file.
+
+It used to re-export loader / transformer / merger / report / pipeline /
+process_invoices / invoice_reconciler. Other modules import those submodules
+directly (e.g. ``from data_cleaning.process_tinte import read_daily``), so
+the package lock and the child locks were being acquired in opposite orders
+by the concurrent Streamlit session threads — Streamlit runs each session's
+script in its own thread. Python 3.14 detects the resulting cycle and kills
+the app with ``_DeadlockError`` / ``KeyError: 'data_cleaning'``.
+
+Keeping this module inert means importing one submodule never drags in the
+rest, and no thread ever holds the package lock while taking a child lock.
+
+Import the submodules directly instead::
+
+    from data_cleaning.loader import find_files, load_gridbeyond
+    from data_cleaning.process_invoices import read_pdf_invoices
 """
-
-from .loader import load_gridbeyond, load_scada, find_files, get_data_info
-from .transformer import resample_scada, convert_units, calculate_missing_soc
-from .merger import merge_data, align_timestamps, create_master_dataset
-from .report import DataQualityReport, generate_quality_report
-from .pipeline import process_monthly_data, process_files_direct
-from .process_invoices import (
-    run as run_invoice_etl,
-    read_emr_capacity_market,
-    read_emr_invoice_totals,
-    read_summary_statement,
-    read_hartree_bess_readings,
-    read_hartree_pv_readings,
-    read_solar_generation,
-    read_scada_monitoring,
-    read_pdf_invoices,
-)
-from .invoice_reconciler import (
-    reconcile_bess_energy,
-    reconcile_solar_pv,
-    reconcile_revenue,
-    compute_aggregator_fee_breakdown,
-    reconcile_capacity_market,
-)
-
-__all__ = [
-    # GridBeyond/SCADA pipeline (interactive)
-    'load_gridbeyond',
-    'load_scada',
-    'find_files',
-    'get_data_info',
-    'resample_scada',
-    'convert_units',
-    'calculate_missing_soc',
-    'merge_data',
-    'align_timestamps',
-    'create_master_dataset',
-    'DataQualityReport',
-    'generate_quality_report',
-    'process_monthly_data',
-    'process_files_direct',
-    # Invoice ETL — readers used by pages, run() used by CLI
-    'run_invoice_etl',
-    'read_emr_capacity_market',
-    'read_emr_invoice_totals',
-    'read_summary_statement',
-    'read_hartree_bess_readings',
-    'read_hartree_pv_readings',
-    'read_solar_generation',
-    'read_scada_monitoring',
-    'read_pdf_invoices',
-    # Invoice reconciliation (operates on read_* outputs)
-    'reconcile_bess_energy',
-    'reconcile_solar_pv',
-    'reconcile_revenue',
-    'compute_aggregator_fee_breakdown',
-    'reconcile_capacity_market',
-]

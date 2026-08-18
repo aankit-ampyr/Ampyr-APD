@@ -6,8 +6,11 @@ Please import from src.config instead:
     from config import CAPACITY_MWH, P_IMP_MAX_MW, ...
 """
 
-# Re-export everything from the new config location
-from config.asset_config import (
+# Re-export everything from the new config location. Via the `config`
+# package facade, not config.asset_config directly — config/__init__ imports
+# its own children, so reaching past it gave concurrent Streamlit session
+# threads opposite module-lock orders (see pages/__init__.py for the full note).
+from config import (
     ASSET_NAME,
     P_IMP_MAX_MW,
     P_EXP_MAX_MW,
