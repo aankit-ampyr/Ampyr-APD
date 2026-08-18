@@ -252,6 +252,99 @@ def reconcile_revenue(
     return result
 
 
+def parse_gridbeyond_self_bill(raw_text: str) -> Optional[Dict]:
+    """
+    Parse a GridBeyond "Self Billing Invoice/Revenue Share" PDF (its extracted
+    text, as stored in pdf_invoices.parquet) into the same dict shape as the
+    Summary Statement, so reconcile_revenue() and
+    compute_aggregator_fee_breakdown() work on either source unchanged.
+
+    The bill's structure is:
+        per-stream revenue lines (already net of the 5% GB share)
+        Sub Total                       <- what the master CSV x 0.95 reconciles to
+        DuOS Benefit M-1, GB Share      <- below the line, not in the master
+        Imbalance Cost                  <- == master 'Imbalance Charge', unscaled
+        [one-off lines, e.g. Aug-25 'Setup Fee- GridBeyond Hardware']
+        NET REVENUE
+
+    Returns None if the text does not look like a self-bill (no Sub Total or
+    NET REVENUE line). 'adjustments' carries the below-the-line items; 'other'
+    is NET - Sub Total - DUoS - Imbalance Cost, which absorbs any one-off line
+    without needing to know its label.
+    """
+    import re
+    if not raw_text:
+        return None
+
+    def amount(label: str) -> Optional[float]:
+        # "SFFR Revenue £17,196.07" / "Imbalance Revenue -£1,620.97" /
+        # "EPEX DAM Revenue 0" / blank line ("EPEX IDC Revenue") -> None.
+        # The £ may arrive as U+FFFD depending on the PDF font encoding.
+        m = re.search(
+            label + r'[ \t]+(-?)[£�]?\s*(-?)([\d,]*\.\d{2}|\d+)[ \t]*$',
+            raw_text, re.MULTILINE,
+        )
+        if not m:
+            return None
+        v = float(m.group(3).replace(',', ''))
+        return -v if (m.group(1) or m.group(2)) else v
+
+    sub_total = amount(r'^Sub Total')
+    net = amount(r'^NET REVENUE')
+    if sub_total is None or net is None:
+        return None
+
+    m = re.search(r'from\s+(\d{1,2}\s+\w+\s+\d{4})\s+to\s+(\d{1,2}\s+\w+\s+\d{4})', raw_text)
+    period = {}
+    if m:
+        period = {'from': pd.to_datetime(m.group(1), dayfirst=True),
+                  'to': pd.to_datetime(m.group(2), dayfirst=True)}
+
+    energy = {
+        'EPEX DAM 60': amount(r'^EPEX DAM Revenue') or 0.0,
+        'EPEX DAM 30': amount(r'^EPEX 30-min DAM Revenue') or 0.0,
+        'EPEX IDA1': amount(r'^EPEX IDA1 Revenue') or 0.0,
+        'EPEX IDC': amount(r'^EPEX IDC Revenue') or 0.0,
+        'Imbalance': amount(r'^Imbalance Revenue') or 0.0,
+    }
+    ancillary = {
+        'SFFR': amount(r'^SFFR Revenue') or 0.0,
+        'DC': amount(r'^DC Revenue') or 0.0,
+        'DR': amount(r'^DR Revenue') or 0.0,
+        'DM': amount(r'^DM Revenue') or 0.0,
+    }
+    energy['_total'] = sum(energy.values())
+    ancillary['_total'] = sum(ancillary.values())
+    energy['_sub_total'] = sub_total
+
+    # Sep/Oct-25 bills print two DUoS lines: "DuOS Benefit M-1 £0.00" above
+    # Sub Total and "DuOS Benefit M-1, GB Share -£14.20" below it (which
+    # GridBeyond listed but did not apply to NET — 'other' surfaces that).
+    # From Nov-25 only the ", GB Share" line exists and it is applied.
+    duos = amount(r'^DuOS Benefit M-1, GB Share')
+    if duos is None:
+        duos = amount(r'^DuOS Benefit M-1') or 0.0
+    imbalance_cost = amount(r'^Imbalance Cost') or 0.0
+    other = round(net - sub_total - duos - imbalance_cost, 2)
+
+    return {
+        'source': 'GridBeyond self-bill',
+        'period': period,
+        'summary': {
+            'energy_revenue': energy,
+            'ancillary_revenue': ancillary,
+            'net_percentage': GB_REVENUE_NET_SHARE,
+        },
+        'adjustments': {
+            'sub_total': sub_total,
+            'duos_benefit': duos,
+            'imbalance_cost': imbalance_cost,
+            'other': other,
+            'net_revenue': net,
+        },
+    }
+
+
 def compute_aggregator_fee_breakdown(
     master_df: Optional[pd.DataFrame],
     summary_statement: Optional[Dict],

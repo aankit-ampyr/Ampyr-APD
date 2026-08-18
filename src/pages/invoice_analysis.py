@@ -40,7 +40,9 @@ from data_cleaning.invoice_reconciler import (
     reconcile_bess_energy,
     reconcile_solar_pv,
     reconcile_revenue,
+    parse_gridbeyond_self_bill,
     compute_aggregator_fee_breakdown,
+    GB_REVENUE_NET_SHARE,
     reconcile_capacity_market,
     build_cross_month_summary,
     variance_status,
@@ -116,6 +118,35 @@ def _load_scada():
 @st.cache_data
 def _load_pdfs():
     return read_pdf_invoices()
+
+
+@st.cache_data
+def _revenue_statements() -> dict:
+    """Every month with an aggregator revenue statement, oldest first.
+
+    {'January 2026': statement_dict, ...}. The statement is either the
+    GridBeyond Summary Statement workbook (only Jan-26 exists) or a GridBeyond
+    self-bill PDF parsed from pdf_invoices.parquet — both in the shape
+    reconcile_revenue() consumes. Where a month has both, the workbook wins:
+    it carries commentary and is the richer document. Previously this tab was
+    pinned to the single Summary Statement, so eight self-billed months were
+    never reconciled.
+    """
+    found = {}
+    pdfs = _load_pdfs()
+    if pdfs is not None and not pdfs.empty and 'type' in pdfs.columns:
+        for _, row in pdfs[pdfs['type'] == 'GridBeyond'].iterrows():
+            parsed = parse_gridbeyond_self_bill(row.get('raw_text'))
+            if parsed and parsed['period'].get('from') is not None:
+                parsed['source_file'] = row.get('source_file')
+                found[parsed['period']['from'].strftime('%B %Y')] = parsed
+    summary = _load_summary()
+    if summary and summary.get('period', {}).get('from') is not None:
+        summary = dict(summary)
+        summary.setdefault('source', 'GridBeyond Summary Statement')
+        found[summary['period']['from'].strftime('%B %Y')] = summary
+    return dict(sorted(found.items(),
+                       key=lambda kv: datetime.strptime(kv[0], '%B %Y')))
 
 
 def _data_dir() -> str:
@@ -493,33 +524,86 @@ def _show_energy_tab():
 # Tab 3: Revenue Reconciliation
 # ─────────────────────────────────────────────────────────────
 
+def _render_self_bill_below_the_line(summary: dict, master_imb_charge) -> None:
+    """Self-bill lines after the revenue-share Sub Total, down to NET REVENUE."""
+    adj = summary['adjustments']
+    st.subheader("Below the Line → Net Revenue")
+    st.caption(
+        "Items on the self-bill after the revenue-share Sub Total. DUoS "
+        "benefit and one-offs have no counterpart in the master CSV; "
+        "Imbalance Cost is the master's 'Imbalance Charge' passed through "
+        "unscaled."
+    )
+    rows = [
+        ('Sub Total (revenue share)', adj['sub_total'], None),
+        ('DUoS Benefit M-1, GB Share', adj['duos_benefit'], None),
+        ('Imbalance Cost', adj['imbalance_cost'], master_imb_charge),
+    ]
+    if abs(adj['other']) >= 0.01:
+        rows.append(('Other adjustments (one-offs)', adj['other'], None))
+    rows.append(('NET REVENUE', adj['net_revenue'], None))
+    btl = pd.DataFrame(rows, columns=['Line', 'Self-bill (£)', 'Master CSV (£)'])
+    btl['Self-bill (£)'] = btl['Self-bill (£)'].apply(lambda x: f"£{x:,.2f}")
+    btl['Master CSV (£)'] = btl['Master CSV (£)'].apply(
+        lambda x: '—' if x is None or pd.isna(x) else f"£{x:,.2f}")
+    st.dataframe(btl, use_container_width=True, hide_index=True)
+
+
 def _show_revenue_tab():
     """Revenue reconciliation: gross vs net, per stream."""
     st.subheader("Revenue Reconciliation")
 
-    summary = _load_summary()
+    statements = _revenue_statements()
 
-    if not summary:
-        st.warning("No Summary Statement found. Revenue reconciliation requires "
-                   "a `Northwold - *.xlsx` Summary Statement to be present in raw/New/ "
-                   "and the ETL to have been run "
+    if not statements:
+        st.warning("No aggregator revenue statement found. Revenue reconciliation "
+                   "needs a GridBeyond self-bill PDF or a `Northwold - *.xlsx` "
+                   "Summary Statement under raw/ and the ETL to have been run "
                    "(`python -m src.data_cleaning.process_invoices`).")
-        st.info("Currently only January 2026 Summary Statement is available.")
         return
 
-    # Load master data for the summary period
-    period = summary.get('period', {})
-    month_label = 'January 2026'
-    if period.get('from'):
-        month_label = period['from'].strftime('%B %Y')
+    month_options = list(statements.keys())
+    month_label = st.selectbox(
+        "Select Month",
+        options=month_options,
+        index=len(month_options) - 1,
+        key="revenue_recon_month",
+        help="Months with a GridBeyond self-bill or Summary Statement on file",
+    )
+    summary = statements[month_label]
+    is_self_bill = 'adjustments' in summary
+    source_name = summary.get('source', 'GridBeyond statement')
+    net_pct = int(round(GB_REVENUE_NET_SHARE * 100))
 
-    st.caption(f"Comparing Master CSV (gross) vs Summary Statement (net 95%, after 5% GridBeyond fee) for **{month_label}**")
+    st.caption(
+        f"Comparing Master CSV (gross) vs {source_name} (net {net_pct}%, after "
+        f"{100 - net_pct}% GridBeyond fee) for **{month_label}**"
+        + (f" — `{summary['source_file']}`" if summary.get('source_file') else "")
+    )
 
     master_df = _load_month_master(month_label)
 
     if master_df is None:
-        st.warning(f"Could not load Master CSV data for {month_label}")
+        st.info(f"No Master CSV for {month_label} (before the data pipeline "
+                f"starts), so there is nothing to reconcile against — the "
+                f"self-bill is shown on its own.")
+        if is_self_bill:
+            lines = {**summary['summary']['energy_revenue'],
+                     **summary['summary']['ancillary_revenue']}
+            lines = {k: v for k, v in lines.items() if not k.startswith('_')}
+            tbl = pd.DataFrame(
+                [(k, f"£{v:,.2f}") for k, v in lines.items()],
+                columns=['Stream', 'Reported Net (£)'])
+            st.dataframe(tbl, use_container_width=True, hide_index=True)
+            _render_self_bill_below_the_line(summary, None)
         return
+
+    if is_self_bill and 'Imbalance Charge' in master_df.columns:
+        # The self-bill's per-stream 'Imbalance Revenue' is the fee-shared line;
+        # the master's 'Imbalance Charge' is passed through unscaled below the
+        # line as 'Imbalance Cost'. Compare each with its like (see the
+        # below-the-line table further down), not both against one number.
+        master_df = master_df.drop(columns=['Imbalance Charge'])
 
     # Revenue reconciliation table
     recon = reconcile_revenue(master_df, summary)
@@ -588,7 +672,7 @@ def _show_revenue_tab():
         display_recon[col] = display_recon[col].apply(lambda x: f"£{x:,.2f}")
     display_recon['variance_pct'] = display_recon['variance_pct'].apply(lambda x: f"{x:.1f}%")
 
-    display_recon.columns = ['Stream', 'Gross Revenue', 'Expected Net (×0.93)',
+    display_recon.columns = ['Stream', 'Gross Revenue', f'Expected Net (×{GB_REVENUE_NET_SHARE:.2f})',
                               'Reported Net', 'Variance (£)', 'Variance %', 'Status']
     st.dataframe(display_recon, use_container_width=True, hide_index=True)
     st.download_button(
@@ -609,7 +693,7 @@ def _show_revenue_tab():
         marker_color=COLOR_ACTUAL,
     ))
     fig.add_trace(go.Bar(
-        name='Expected Net (×0.93)',
+        name=f'Expected Net (×{GB_REVENUE_NET_SHARE:.2f})',
         x=recon_no_total['stream'],
         y=recon_no_total['expected_net'],
         marker_color=COLOR_EPEX,
@@ -628,6 +712,15 @@ def _show_revenue_tab():
         legend=dict(orientation='h', yanchor='top', y=-0.18),
     )
     st.plotly_chart(fig, use_container_width=True)
+
+    # Below the line: Sub Total -> NET REVENUE (self-bills only)
+    if is_self_bill:
+        master_imb_charge = None
+        full_master = _load_month_master(month_label)
+        if full_master is not None and 'Imbalance Charge' in full_master.columns:
+            master_imb_charge = float(pd.to_numeric(
+                full_master['Imbalance Charge'], errors='coerce').fillna(0).sum())
+        _render_self_bill_below_the_line(summary, master_imb_charge)
 
     # Market Commentary
     if summary.get('commentary'):

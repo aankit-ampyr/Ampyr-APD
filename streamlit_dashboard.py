@@ -2337,9 +2337,11 @@ def show_executive_comparison():
     market_keys = ['sffr', 'epex', 'ida1', 'idc', 'imbalance']
     market_labels = ['SFFR', 'EPEX', 'IDA1', 'IDC', 'Imbalance']
 
-    # Render pie charts in rows of 3
-    for row_start in range(0, len(months), 3):
-        row_months = months[row_start:row_start + 3]
+    # Render pie charts in rows of 3, latest month first — the current month
+    # is what management looks at; older months trail off below the fold.
+    pie_months = list(reversed(months))
+    for row_start in range(0, len(pie_months), 3):
+        row_months = pie_months[row_start:row_start + 3]
         pie_cols = st.columns(min(len(row_months), 3))
         for col, m in zip(pie_cols, row_months):
             with col:
