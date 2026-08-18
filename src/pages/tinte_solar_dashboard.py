@@ -18,24 +18,19 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-try:  # shared solar-KPI data layer (KPI universe + survey tally)
-    from data_cleaning.solar_kpi import load_responses, build_tally, KPI_BY_ID, CATEGORIES
-except ImportError:  # pragma: no cover
-    from src.data_cleaning.solar_kpi import load_responses, build_tally, KPI_BY_ID, CATEGORIES
+# One module name only — never a `src.`-prefixed fallback. Importing
+# `src.data_cleaning.X` loads a SECOND copy of the package under a different
+# name, and the two copies then race each other's partially initialised
+# modules across the concurrent Streamlit session threads (see the note in
+# data_cleaning/__init__.py). streamlit_dashboard.py puts src/ on sys.path,
+# so the canonical name always resolves.
+from data_cleaning.solar_kpi import load_responses, build_tally, KPI_BY_ID, CATEGORIES
 
-try:
-    from data_cleaning.process_tinte import (
-        read_daily, read_inverter_daily, read_meta, REPORT_APR26,
-    )
-except ImportError:  # pragma: no cover
-    from src.data_cleaning.process_tinte import (
-        read_daily, read_inverter_daily, read_meta, REPORT_APR26,
-    )
+from data_cleaning.process_tinte import (
+    read_daily, read_inverter_daily, read_meta, REPORT_APR26,
+)
 
-try:
-    from data_cleaning.solar_data_requirements import SOLAR_DATA_REQUIREMENTS, MODO_FINDING
-except ImportError:  # pragma: no cover
-    from src.data_cleaning.solar_data_requirements import SOLAR_DATA_REQUIREMENTS, MODO_FINDING
+from data_cleaning.solar_data_requirements import SOLAR_DATA_REQUIREMENTS, MODO_FINDING
 
 # Confidential, local-only EPC contract parameters (git-ignored). Absent on any
 # fresh clone — the dashboard degrades gracefully when it is not present.
