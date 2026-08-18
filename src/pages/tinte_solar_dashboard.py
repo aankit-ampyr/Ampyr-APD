@@ -39,13 +39,17 @@ except ImportError:  # pragma: no cover
 
 # Confidential, local-only EPC contract parameters (git-ignored). Absent on any
 # fresh clone — the dashboard degrades gracefully when it is not present.
+#
+# Deliberately NO `from src.data_cleaning...` fallback here. This module is
+# always missing on Streamlit Cloud, so that fallback always ran, and importing
+# `src.data_cleaning` loads the whole package a SECOND time under a different
+# module name. With two Streamlit sessions re-running concurrently the two
+# copies race each other's partially-initialised modules and Python 3.14 aborts
+# the app with _DeadlockError / KeyError: 'data_cleaning'. One name only.
 try:
     from data_cleaning.tinte_contract import TINTE_EPC, warranty_output_curve
 except ImportError:
-    try:
-        from src.data_cleaning.tinte_contract import TINTE_EPC, warranty_output_curve
-    except ImportError:
-        TINTE_EPC, warranty_output_curve = None, None
+    TINTE_EPC, warranty_output_curve = None, None
 
 ORANGE = "#F4A300"
 BLUE = "#2C7FB8"
