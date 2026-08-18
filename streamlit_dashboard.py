@@ -3634,10 +3634,26 @@ def show_iar_vs_actual():
     st.caption("Comparison of Internal Appraisal Report (IAR) projections against actual GridBeyond revenues. "
                "Both columns are shown **net of the 5% GridBeyond revenue share** so they are directly comparable "
                "to the GridBeyond invoice.")
+    # Reading notes for whoever opens this table cold — these two points caused
+    # real confusion: a table that did not add up, and two totals that looked
+    # like a mistake.
+    st.caption(
+        "**Reading this table.** *Wholesale Intraday* combines IDA1 and IDC — "
+        "IDC is often negative (Jan 26: −£5,217), so a thin intraday row can "
+        "hide a sizeable loss. The two TOTAL rows show the **same** actual: "
+        "Northwold earns nothing from the Balancing Mechanism or TNUoS, so "
+        "excluding them changes nothing on the actual side. They differ only "
+        "in the IAR they are measured against — use *excl. BM, TNUoS* for the "
+        "fair like-for-like variance, and *all streams* to see the gap "
+        "including streams the asset does not access."
+    )
 
     # Revenue stream labels
+    # "Wholesale Intraday" carries IDA1 + IDC together, matching the single
+    # intraday line the IAR models. The label says so, so nobody has to guess
+    # where IDC went.
     streams = [
-        'Wholesale Day Ahead', 'Wholesale Intraday', 'Balancing Mechanism',
+        'Wholesale Day Ahead', 'Wholesale Intraday (IDA1 + IDC)', 'Balancing Mechanism',
         'Frequency Response', 'Capacity Market', 'DUoS Battery',
         'DUoS Fixed Charges', 'TNUoS', 'Imbalance Revenue', 'Imbalance Charge',
         'TOTAL (excl. BM, TNUoS)', 'TOTAL (all streams)'
@@ -3715,18 +3731,42 @@ def show_iar_vs_actual():
             duos_cr = m['duos_credit']
             duos_fx = m['duos_fixed']
 
-            gb_total = sffr + epex + ida1 + idc + imb_rev - imb_charge
+            # Intraday = IDA1 + IDC. Both are intraday products and the IAR
+            # models them as a single "Wholesale Intraday" line, so they must
+            # be added together to compare like with like. IDC used to be
+            # summed into the totals WITHOUT a row of its own, so the visible
+            # rows did not add up to the total printed beneath them — Jan 26
+            # was out by £5,217 (a real IDC loss the table hid).
+            intraday = ida1 + idc
+
+            # gb_total  = streams GridBeyond settles and takes its 5% of.
+            # full_total = + Capacity Market and DUoS, which Northwold is paid
+            #              directly for (EMR / Hartree), so they carry no GB fee.
+            gb_total = sffr + epex + intraday + imb_rev - imb_charge
             full_total = gb_total + cm + duos_cr - duos_fx
 
+            # Both TOTAL rows carry the SAME actual figure, and that is correct:
+            # Northwold earns nothing from the Balancing Mechanism or TNUoS, so
+            # "excluding BM and TNUoS" removes nothing from the actual side. The
+            # two rows differ only in what they are compared against — the IAR
+            # column beside them does carry BM and TNUoS projections. So read
+            # the "excl." row as the fair like-for-like variance, and the "all
+            # streams" row as the gap including the streams we do not access.
+            # Previously this row held gb_total, which silently dropped Capacity
+            # Market and DUoS — the two rows shown directly above it — while the
+            # IAR it was measured against included them. Oct 25 read +14% vs
+            # IAR; on a matched basis it is +38%.
+            total_excl_bm_tnuos = full_total
+
             actual_data[short] = [
-                epex, ida1, None,  # BM not tracked in GridBeyond
+                epex, intraday, None,  # BM not tracked in GridBeyond
                 sffr, cm if cm else None,
                 duos_cr if duos_cr else None,
                 -duos_fx if duos_fx else None,
                 None,  # TNUoS not available
                 imb_rev if imb_rev != 0 else None,
                 -imb_charge if imb_charge != 0 else None,
-                gb_total, full_total
+                total_excl_bm_tnuos, full_total
             ]
 
     # Build table
