@@ -21,8 +21,20 @@ maxUploadSize = 200
 # Max message size in MB
 maxMessageSize = 200
 
-# Enable file watching
-fileWatcherType = "auto"
+# File watching is OFF.
+#
+# "auto" uses inotify on Linux and made Streamlit Cloud log a wall of
+#   OSError: [Errno 28] inotify watch limit reached
+# on every boot. The watcher schedules a RECURSIVE watch per source folder,
+# so it walks the whole checkout — raw/ (92 files of Excel), data/, and .git
+# (255 dirs / 787 files) — and exhausts the container's inotify budget. It
+# also re-scans sys.modules on every rerun from the script thread, i.e.
+# exactly while other session threads are importing.
+#
+# A deployed app does not need hot reload: pushing to the branch redeploys.
+# Locally this means the app no longer picks up edits automatically — restart
+# it to load changes.
+fileWatcherType = "none"
 
 [browser]
 # Whether to send usage statistics
