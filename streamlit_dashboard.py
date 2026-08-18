@@ -2219,10 +2219,16 @@ def show_executive_comparison():
         'Feb 26': 1829.35, 'Mar 26': 1859.19,
     }
     DUOS_ACTUALS_EXEC = {
-        'Sep 25': {'net_credit': 773.20, 'fixed': 3.58},
-        'Oct 25': {'net_credit': 5807.68, 'fixed': 3.70},
-        'Nov 25': {'net_credit': 5525.10, 'fixed': 3.58},
+        'Sep 25': {'net_credit': 773.2, 'fixed': 3.58},
+        'Oct 25': {'net_credit': 5807.68, 'fixed': 3.7},
+        'Nov 25': {'net_credit': 5525.1, 'fixed': 3.58},
+        'Dec 25': {'net_credit': 6986.76, 'fixed': 3.7},
+        'Jan 26': {'net_credit': 4229.05, 'fixed': 3.7},
+        'Feb 26': {'net_credit': 6657.05, 'fixed': 3.34},
+        'Mar 26': {'net_credit': 7340.79, 'fixed': 3.7},
         'Apr 26': {'net_credit': 6580.39, 'fixed': 3.86},
+        'May 26': {'net_credit': 4274.22, 'fixed': 3.99},
+        'Jun 26': {'net_credit': 2587.04, 'fixed': 3.86},
     }
 
     # ---- Load data for every available month ----
@@ -3420,7 +3426,9 @@ def show_pdf_export_page(month: str = "September 2025"):
                              'Feb 26': 1829.35, 'Mar 26': 1859.19}
                 DUOS_EXPORT = {
                     'Sep 25': {'net': 769.62}, 'Oct 25': {'net': 5803.98}, 'Nov 25': {'net': 5521.52},
-                    'Apr 26': {'net': 6576.53},
+                    'Dec 25': {'net': 6983.06}, 'Jan 26': {'net': 4225.35}, 'Feb 26': {'net': 6653.71},
+                    'Mar 26': {'net': 7337.09}, 'Apr 26': {'net': 6576.53}, 'May 26': {'net': 4270.23},
+                    'Jun 26': {'net': 2583.18},
                 }
 
                 def calc_metrics(master_df, opt_df, short):
@@ -3519,14 +3527,35 @@ CM_ACTUALS = {
 # GDuos credits (Red+Amber+Green) are revenue; DNO Fixed is a cost.
 DUOS_ACTUALS = {
     'Sep 25': {'red': -322.81, 'amber': -410.03, 'green': -43.94,
-               'fixed': 3.58, 'net_credit': 773.20},
+               'fixed': 3.58, 'net_credit': 773.2},
     'Oct 25': {'red': -5500.11, 'amber': -268.35, 'green': -42.92,
-               'fixed': 3.70, 'net_credit': 5807.68},
+               'fixed': 3.7, 'net_credit': 5807.68},
     'Nov 25': {'red': -5379.73, 'amber': -106.41, 'green': -42.54,
-               'fixed': 3.58, 'net_credit': 5525.10},
+               'fixed': 3.58, 'net_credit': 5525.1},
+    'Dec 25': {'red': -6926.5, 'amber': -39.81, 'green': -24.15,
+               'fixed': 3.7, 'net_credit': 6986.76},
+    'Jan 26': {'red': -4051.69, 'amber': -153.69, 'green': -27.37,
+               'fixed': 3.7, 'net_credit': 4229.05},
+    'Feb 26': {'red': -6514.96, 'amber': -105.99, 'green': -39.44,
+               'fixed': 3.34, 'net_credit': 6657.05},
+    'Mar 26': {'red': -6949.08, 'amber': -344.92, 'green': -50.49,
+               'fixed': 3.7, 'net_credit': 7340.79},
     'Apr 26': {'red': -5974.31, 'amber': -572.72, 'green': -37.22,
                'fixed': 3.86, 'net_credit': 6580.39},
+    'May 26': {'red': -4010.35, 'amber': -243.98, 'green': -23.88,
+               'fixed': 3.99, 'net_credit': 4274.22},
+    'Jun 26': {'red': -2475.14, 'amber': -109.73, 'green': -6.03,
+               'fixed': 3.86, 'net_credit': 2587.04},
 }
+# Source: raw/July 2026/NWOSFL_000_Revenue Tracker.xlsx (Tinvia), sheet
+# REVENUE rows 59-74: columns Red/Amber/Green DUoS + DNO fee, i.e. the
+# same Hartree generation invoices these four months were keyed from by
+# hand -- all four reproduce to the penny. net_credit = red+amber+green
+# - fixed, signed so a credit to Northwold is positive. Tracker figures
+# are ex-VAT here (the workbook's Gross columns add 20%).
+# NOTE Jun 26: the tracker's 'GDUOS + Triad' cell also carries a
+# -14,786.98 Triad element, zero-rated for VAT and NOT part of DUoS. It
+# is excluded here; it belongs to TNUoS. Jul 26 not yet invoiced.
 
 
 def _iar_col_map(ws):
