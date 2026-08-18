@@ -3583,6 +3583,36 @@ DUOS_ACTUALS = {
     'Jul 26': {'red': 0.0, 'amber': 0.0, 'green': 0.0,
                'fixed': 3.99, 'net_credit': 0.0, 'provisional': True},
 }
+# TNUoS / Triad revenue, paid to Northwold for exporting during the three
+# Triad half-hours (the highest GB system demand periods between November and
+# February, at least ten clear days apart).
+#
+# Timing looks odd but is normal: NESO can only identify which half-hours were
+# the Triads after the season closes, confirming them around March, so the
+# money lands months later as a single lump. The 2025-2026 season was credited
+# on the June 2026 invoice — it is NOT June earnings.
+#
+# Source: raw/Jun 2026/Northwold_Bess_Gen_June_26_Including_Triad_Revenue.pdf
+# (Nwld_Gen_Inv_15), which carries the line verbatim:
+#     Triad Revenue 2025-2026   -£14,786.98   (VAT @ 0%)
+# Hartree bills it SEPARATELY from DUoS on the same invoice ("Total Passthrough
+# Costs -£2,587.04" vs "Total Triad Revenue -£14,786.98"), which is why it is
+# not folded into DUOS_ACTUALS. Zero-rated for VAT; our figures are ex-VAT
+# anyway, so the invoice number is used as-is.
+#
+# Booked in the month it was invoiced (cash basis), per the asset owner:
+# "June you need to add TNUOS revenue in". Note this flatters June, which was
+# the weakest trading month of the year — the IAR by contrast smooths its TNUoS
+# projection at roughly £900/month across all twelve. If a like-for-like
+# monthly view is ever wanted, this is the number to spread.
+#
+# No Triad line appears on the June SOLAR generation invoice
+# (Nwld_Solar_Gen_Inv_15) despite sharing the same export MPAN — the benefit
+# was booked entirely to the BESS.
+TNUOS_ACTUALS = {
+    'Jun 26': 14786.98,
+}
+
 # DUoS COST on the battery's import (supply) connection, MPAN 1050003291202.
 # Same tracker, sheet REVENUE columns R-V ("BESS Supply" block), rows 65-74.
 # All values POSITIVE = money Northwold pays, ex-VAT.
@@ -3721,6 +3751,7 @@ def show_iar_vs_actual():
             # than read off an invoice — drives the '*' in the table.
             'duos_provisional': bool(duos.get('provisional') or sup.get('provisional')),
             'cm': CM_ACTUALS.get(short, 0),
+            'tnuos': TNUOS_ACTUALS.get(short, 0),
             'duos_credit': -(duos.get('red', 0) + duos.get('amber', 0)
                              + duos.get('green', 0)),
             'duos_import': sup.get('red', 0) + sup.get('amber', 0) + sup.get('green', 0),
@@ -3742,12 +3773,22 @@ def show_iar_vs_actual():
     st.caption(
         "**Reading this table.** *Wholesale Intraday* combines IDA1 and IDC — "
         "IDC is often negative (Jan 26: −£5,217), so a thin intraday row can "
-        "hide a sizeable loss. The two TOTAL rows show the **same** actual: "
-        "Northwold earns nothing from the Balancing Mechanism or TNUoS, so "
-        "excluding them changes nothing on the actual side. They differ only "
-        "in the IAR they are measured against — use *excl. BM, TNUoS* for the "
-        "fair like-for-like variance, and *all streams* to see the gap "
-        "including streams the asset does not access."
+        "hide a sizeable loss. The two TOTAL rows are identical in most months "
+        "— Northwold earns nothing from the Balancing Mechanism, so there is "
+        "nothing to exclude — and diverge only where TNUoS lands, currently "
+        "**Jun 26** with its £14,787 Triad. They also differ in the IAR they "
+        "are measured against: use *excl. BM, TNUoS* for the fair "
+        "like-for-like variance, and *all streams* for the gap including "
+        "streams the asset does not access."
+    )
+    st.caption(
+        "**Jun 26 TNUoS is Triad revenue for the 2025-26 season**, not June "
+        "earnings. The three Triad half-hours are only confirmed after the "
+        "winter closes, so the money is invoiced months later as one lump — "
+        "it lands on the June invoice and is booked there on a cash basis. "
+        "It flatters what was otherwise the weakest trading month of the year; "
+        "the IAR by contrast spreads its TNUoS projection at roughly £900 a "
+        "month across all twelve."
     )
     st.caption(
         "**DUoS is three rows.** *Export credit* is paid to Northwold for "
@@ -3853,6 +3894,7 @@ def show_iar_vs_actual():
             duos_cr = m['duos_credit']      # export credit, gross (positive)
             duos_im = m['duos_import']      # import volumetric cost (positive)
             duos_fx = m['duos_fixed']       # standing + capacity cost (positive)
+            tnuos = m['tnuos']              # Triad revenue (positive), lumpy
 
             # Intraday = IDA1 + IDC. Both are intraday products and the IAR
             # models them as a single "Wholesale Intraday" line, so they must
@@ -3869,20 +3911,21 @@ def show_iar_vs_actual():
             # DUoS now nets properly: credit earned exporting, less the cost of
             # importing to charge, less the standing/capacity charges. That last
             # term is ~£6.6k/month and was missing entirely.
-            full_total = gb_total + cm + duos_cr - duos_im - duos_fx
+            full_total = gb_total + cm + duos_cr - duos_im - duos_fx + tnuos
 
-            # Both TOTAL rows carry the SAME actual figure, and that is correct:
-            # Northwold earns nothing from the Balancing Mechanism or TNUoS, so
-            # "excluding BM and TNUoS" removes nothing from the actual side. The
-            # two rows differ only in what they are compared against — the IAR
-            # column beside them does carry BM and TNUoS projections. So read
-            # the "excl." row as the fair like-for-like variance, and the "all
-            # streams" row as the gap including the streams we do not access.
-            # Previously this row held gb_total, which silently dropped Capacity
-            # Market and DUoS — the two rows shown directly above it — while the
-            # IAR it was measured against included them. Oct 25 read +14% vs
-            # IAR; on a matched basis it is +38%.
-            total_excl_bm_tnuos = full_total
+            # The "excl. BM, TNUoS" row strips TNUoS back out, so the two TOTAL
+            # rows diverge exactly where TNUoS lands — currently Jun 26 alone,
+            # by its £14,786.98 Triad. In every other month they are identical,
+            # which is correct rather than a bug: Northwold earns nothing from
+            # the Balancing Mechanism, so there is nothing else to exclude on
+            # the actual side. The rows still differ in what they are measured
+            # against, since the IAR column carries BM and TNUoS projections
+            # every month. Read "excl." as the fair like-for-like variance and
+            # "all streams" as the gap including streams we do not access.
+            # (This row once held gb_total, which silently dropped Capacity
+            # Market and DUoS while the IAR beside it included them — Oct 25
+            # read +14% vs IAR when on a matched basis it is +38%.)
+            total_excl_bm_tnuos = full_total - tnuos
 
             actual_data[short] = [
                 epex, intraday, None,  # BM not tracked in GridBeyond
@@ -3890,7 +3933,7 @@ def show_iar_vs_actual():
                 duos_cr if duos_cr else None,
                 -duos_im if duos_im else None,
                 -duos_fx if duos_fx else None,
-                None,  # TNUoS not available
+                tnuos if tnuos else None,  # Triad; blank in months with none
                 imb_rev if imb_rev != 0 else None,
                 -imb_charge if imb_charge != 0 else None,
                 total_excl_bm_tnuos, full_total
