@@ -2383,7 +2383,14 @@ def show_executive_comparison():
         vals.append(f"£{duos_net:,.0f}" if m['duos_credit'] else '-')
         vals.append(f"£{m['total_all']:,.0f}")
         mkt_table[m['short']] = vals
-    st.dataframe(pd.DataFrame(mkt_table), use_container_width=True, hide_index=True)
+    # Same treatment as table 2 — same page, same month-wide shape, so leaving
+    # this one unpinned would just look broken next to it.
+    st.dataframe(
+        pd.DataFrame(mkt_table),
+        use_container_width=True,
+        hide_index=True,
+        column_config={'Market': st.column_config.Column(pinned=True)},
+    )
     st.caption(GB_NET_FOOTNOTE)
     # This table is on a THIRD basis and it is worth being blunt about it: the
     # 'DUoS Net' row carries the export CREDIT only, so TOTAL (All Streams)
@@ -3973,7 +3980,19 @@ def show_iar_vs_actual():
         return [''] * len(row)
 
     styled_iar_df = iar_df.style.apply(highlight_total, axis=1)
-    st.dataframe(styled_iar_df, use_container_width=True, hide_index=True, height=460)
+    # 'Revenue Stream' is pinned so it stays visible while the month columns
+    # scroll — the table is 34 columns wide (11 months x IAR / Actual / Var)
+    # and without this you lose track of which row you are reading by about
+    # February. Needs Streamlit >= 1.41 for column_config pinned.
+    st.dataframe(
+        styled_iar_df,
+        use_container_width=True,
+        hide_index=True,
+        height=460,
+        column_config={
+            'Revenue Stream': st.column_config.Column(pinned=True),
+        },
+    )
     # The one place in the dashboard that is net of network charges.
     st.caption(NETWORK_NET_FOOTNOTE)
 
