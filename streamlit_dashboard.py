@@ -3694,6 +3694,9 @@ def show_iar_vs_actual():
         bm.append({
             'short': short,
             'days': days,
+            # True when this month's DUoS is derived from the tariff rather
+            # than read off an invoice — drives the '*' in the table.
+            'duos_provisional': bool(duos.get('provisional') or sup.get('provisional')),
             'cm': CM_ACTUALS.get(short, 0),
             'duos_credit': -(duos.get('red', 0) + duos.get('amber', 0)
                              + duos.get('green', 0)),
@@ -3732,14 +3735,7 @@ def show_iar_vs_actual():
         "≈ −£6,500. Only the export credit used to be shown, which overstated "
         "net revenue by about £7k a month."
     )
-    st.caption(
-        ":orange[**Jul 26 DUoS is provisional.**] The Hartree invoice has not "
-        "arrived, so only the standing charges are booked — capacity "
-        "(4,180 kVA × 5.3098 p/kVA/day × 31 days) plus the fixed fees. Those "
-        "are arithmetic and match May 26 to the penny. The red/amber/green "
-        "volumetric parts show blank rather than a made-up number; on July's "
-        "traded volumes they are worth under £220 either way."
-    )
+
 
     # Revenue stream labels
     # "Wholesale Intraday" carries IDA1 + IDC together, matching the single
@@ -3887,7 +3883,18 @@ def show_iar_vs_actual():
         if iar_proj:
             iar_table[f'{short} IAR (£)'] = iar_proj
         if actuals:
-            iar_table[f'{short} Actual (£)'] = [_fmt(v) for v in actuals]
+            cells = [_fmt(v) for v in actuals]
+            # Asterisk the cells that are PROJECTED rather than invoiced.
+            # Only the DUoS standing charge is projected for a provisional
+            # month — that month's revenue, SFFR and imbalance figures are all
+            # real, so asterisking the whole column would be a lie. The two
+            # TOTAL rows carry the projected figure through, so they are marked
+            # too. Footnote is printed under the table.
+            if m.get('duos_provisional'):
+                for i in (7, 11, 12):   # DUoS Fixed + Capacity, both TOTALs
+                    if cells[i] != '-':
+                        cells[i] += ' *'
+            iar_table[f'{short} Actual (£)'] = cells
         if iar_proj and actuals:
             iar_table[f'{short} Var'] = [_var(actuals[i], iar_proj[i]) for i in range(len(streams))]
 
@@ -3901,6 +3908,24 @@ def show_iar_vs_actual():
 
     styled_iar_df = iar_df.style.apply(highlight_total, axis=1)
     st.dataframe(styled_iar_df, use_container_width=True, hide_index=True, height=460)
+
+    # Footnote for the '*' cells. Sits directly under the table so the marker
+    # is explained where it is seen.
+    if any(x.get('duos_provisional') for x in bm):
+        flagged = ', '.join(x['short'] for x in bm if x.get('duos_provisional'))
+        st.caption(
+            # "\\*" so markdown renders a literal asterisk instead of reading
+            # it as emphasis — it must match the '*' appended to the cells.
+            f":orange[**\\* {flagged} DUoS is PROJECTED, not actual.**] The Hartree "
+            "invoice has not arrived. The figure shown is the standing charge "
+            "only and is arithmetic rather than an estimate — capacity "
+            "(4,180 kVA × 5.3098 p/kVA/day × days in month) plus the fixed "
+            "fees — matching May 26, the other 31-day month in this tariff "
+            "year, to the penny. The red/amber/green volumetric parts are left "
+            "blank rather than invented; on July's traded volumes (3,967 kWh "
+            "exported vs 292,614 in April) they are worth under £220 either "
+            "way. Every other figure in that column is actual."
+        )
 
     st.caption("*IAR projections based on 4.2 MW capacity with indexation factor 1.073. "
                "Wholesale DA/ID, Frequency Response and Imbalance actuals are shown net of the 5% GridBeyond revenue share. "
