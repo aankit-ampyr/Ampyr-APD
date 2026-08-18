@@ -193,6 +193,13 @@ AVAILABLE_MONTHS = {
         "optimization_file": "Optimized_Results_Jun_2026.csv",
         "use_master": True,
     },
+    "July 2026": {
+        "bess_file": None,
+        "northwold_file": None,
+        "master_file": "Master_BESS_Analysis_Jul_2026.csv",
+        "optimization_file": "Optimized_Results_Jul_2026.csv",
+        "use_master": True,
+    },
 }
 
 @st.cache_data
@@ -2202,6 +2209,7 @@ def show_executive_comparison():
         ('Apr 26', 'April', 30, 'Master_BESS_Analysis_Apr_2026.csv', 'Optimized_Results_Apr_2026.csv'),
         ('May 26', 'May', 31, 'Master_BESS_Analysis_May_2026.csv', 'Optimized_Results_May_2026.csv'),
         ('Jun 26', 'June', 30, 'Master_BESS_Analysis_Jun_2026.csv', 'Optimized_Results_Jun_2026.csv'),
+        ('Jul 26', 'July', 31, 'Master_BESS_Analysis_Jul_2026.csv', 'Optimized_Results_Jul_2026.csv'),
     ]
 
     # Capacity Market & DUoS actuals (same data as in Benchmarks)
@@ -3403,6 +3411,7 @@ def show_pdf_export_page(month: str = "September 2025"):
                     ('Apr 26', 'Master_BESS_Analysis_Apr_2026.csv', 'Optimized_Results_Apr_2026.csv'),
                     ('May 26', 'Master_BESS_Analysis_May_2026.csv', 'Optimized_Results_May_2026.csv'),
                     ('Jun 26', 'Master_BESS_Analysis_Jun_2026.csv', 'Optimized_Results_Jun_2026.csv'),
+                    ('Jul 26', 'Master_BESS_Analysis_Jul_2026.csv', 'Optimized_Results_Jul_2026.csv'),
                 ]
 
                 CM_EXPORT = {'Oct 25': 1704.17, 'Nov 25': 1884.42, 'Dec 25': 1994.84, 'Jan 26': 2113.87,
@@ -3824,11 +3833,13 @@ def show_benchmark_comparison():
         ('Apr 26', 30, 'Master_BESS_Analysis_Apr_2026.csv', 'Optimized_Results_Apr_2026.csv'),
         ('May 26', 31, 'Master_BESS_Analysis_May_2026.csv', 'Optimized_Results_May_2026.csv'),
         ('Jun 26', 30, 'Master_BESS_Analysis_Jun_2026.csv', 'Optimized_Results_Jun_2026.csv'),
+        ('Jul 26', 31, 'Master_BESS_Analysis_Jul_2026.csv', 'Optimized_Results_Jul_2026.csv'),
     ]
 
     # Modo Energy monthly benchmark (£/MW/year) — sourced from Modo Energy's
-    # ME-BESS-GB monthly-index-live API (market=total × 12), refreshed
-    # 2026-06-24. Refresh anytime via:
+    # ME-BESS-GB monthly-index-live API (all durations, rounded to £1k),
+    # refreshed 2026-08-18 (Jul 26 added; Jun 26 restated 70k→71k by the
+    # live index). Refresh anytime via:
     #   python -m src.data_cleaning.modo_client --from 2025-09 --to <YYYY-MM>
     # Historical months differ from prior article-headline values (which appear
     # to use a different aggregation); API values are the FCA-regulated
@@ -3837,7 +3848,7 @@ def show_benchmark_comparison():
         'Sep 25': 71000, 'Oct 25': 77000, 'Nov 25': 59000,
         'Dec 25': 50000, 'Jan 26': 55000, 'Feb 26': 43000,
         'Mar 26': 73000, 'Apr 26': 69000, 'May 26': 45000,
-        'Jun 26': 70000,
+        'Jun 26': 71000, 'Jul 26': 65000,
     }
 
     # Source links per month. Now that everything comes from the API the
@@ -3854,6 +3865,7 @@ def show_benchmark_comparison():
         'Apr 26': 'https://developers.modoenergy.com/reference/monthly-me-bess-gb',
         'May 26': 'https://developers.modoenergy.com/reference/monthly-me-bess-gb',
         'Jun 26': 'https://developers.modoenergy.com/reference/monthly-me-bess-gb',
+        'Jul 26': 'https://developers.modoenergy.com/reference/monthly-me-bess-gb',
     }
 
     # CM_ACTUALS and DUOS_ACTUALS now live at module level (see near
@@ -4360,15 +4372,16 @@ def show_benchmark_comparison():
         st.markdown("---")
         with st.expander("📰 Modo Energy source articles (click month to open)"):
             st.caption(
-                "Each month's benchmark is the headline GBP/MW/year figure from "
-                "Modo Energy's monthly ME BESS GB article. March 2026 is "
-                "API-derived pending the article's publication."
+                "Each month's benchmark is the ME-BESS-GB all-durations index "
+                "from Modo Energy's monthly-index-live API. Months with an "
+                "article link are also covered by Modo's monthly write-up; "
+                "the rest are API-only."
             )
-            for short in ['Sep 25', 'Oct 25', 'Nov 25', 'Dec 25', 'Jan 26', 'Feb 26', 'Mar 26']:
+            for short in MODO_BENCHMARKS:
                 val = MODO_BENCHMARKS.get(short)
                 url = MODO_SOURCE_LINKS.get(short)
                 if val and url:
-                    suffix = " *(API — article pending)*" if short == 'Mar 26' else ""
+                    suffix = " *(API only)*" if 'developers.modoenergy.com' in url else ""
                     st.markdown(f"- **{short}** — £{val:,}/MW/yr — [{url.split('/')[-1][:80]}]({url}){suffix}")
 
         st.caption("""
@@ -5424,7 +5437,7 @@ benchmarks:
 # Sources gated behind paid subscriptions are shown as placeholders so the
 # procurement case for unlocking them is visible at a glance.
 
-# Months currently in the data pipeline (Sep 25 → Mar 26).
+# Months currently in the data pipeline (Sep 25 → Jul 26).
 BENCHMARK_COMPARISON_MONTHS = [
     ('Sep 25', 30, 'Master_BESS_Analysis_Sept_2025.csv', 'Optimized_Results_Sept_2025.csv'),
     ('Oct 25', 31, 'Master_BESS_Analysis_Oct_2025.csv', 'Optimized_Results_Oct_2025.csv'),
@@ -5436,13 +5449,16 @@ BENCHMARK_COMPARISON_MONTHS = [
     ('Apr 26', 30, 'Master_BESS_Analysis_Apr_2026.csv', 'Optimized_Results_Apr_2026.csv'),
     ('May 26', 31, 'Master_BESS_Analysis_May_2026.csv', 'Optimized_Results_May_2026.csv'),
     ('Jun 26', 30, 'Master_BESS_Analysis_Jun_2026.csv', 'Optimized_Results_Jun_2026.csv'),
+    ('Jul 26', 31, 'Master_BESS_Analysis_Jul_2026.csv', 'Optimized_Results_Jul_2026.csv'),
 ]
 
 # Modo Energy ME-BESS-GB index — FCA-regulated GB BESS revenue benchmark.
 # Three duration cuts sourced from the live API (monthly-index-live endpoint,
 # sum of all six market streams, annualised ×365/days-in-month), refreshed
-# 2026-07-21. Earlier pulls used market='total' × 12, which omitted Capacity
-# Market and under-annualised — understating every month by £5k-£12k/MW/yr.
+# 2026-08-18 (Jul 26 added; Jun 26 restated by the live index: ALL
+# 70287→70565, 1H 54302→54698, 2H 78350→78529). Earlier pulls used
+# market='total' × 12, which omitted Capacity Market and under-annualised —
+# understating every month by £5k-£12k/MW/yr.
 # Re-pull anytime via:
 #   python -m src.data_cleaning.modo_client --from 2025-09 --to <YYYY-MM>
 # These values supersede the earlier AI-chat snapshot — the API is the
@@ -5451,19 +5467,19 @@ ME_BESS_GB_ALL = {
     'Sep 25': 71188, 'Oct 25': 76603, 'Nov 25': 58979,
     'Dec 25': 49626, 'Jan 26': 54648, 'Feb 26': 42599,
     'Mar 26': 73029, 'Apr 26': 69150, 'May 26': 44809,
-    'Jun 26': 70287,
+    'Jun 26': 70565, 'Jul 26': 64588,
 }
 ME_BESS_GB_1H = {
     'Sep 25': 56696, 'Oct 25': 60704, 'Nov 25': 46749,
     'Dec 25': 37628, 'Jan 26': 40719, 'Feb 26': 31800,
     'Mar 26': 49308, 'Apr 26': 50846, 'May 26': 35145,
-    'Jun 26': 54302,
+    'Jun 26': 54698, 'Jul 26': 51177,
 }
 ME_BESS_GB_2H = {
     'Sep 25': 81121, 'Oct 25': 88541, 'Nov 25': 68489,
     'Dec 25': 57503, 'Jan 26': 63369, 'Feb 26': 49296,
     'Mar 26': 86352, 'Apr 26': 80317, 'May 26': 50100,
-    'Jun 26': 78350,
+    'Jun 26': 78529, 'Jul 26': 71036,
 }
 # Months absent from these dicts must plot as None, never 0 — a missing
 # benchmark is "not published", not "earned nothing".
@@ -5503,7 +5519,7 @@ BENCHMARK_DATA_AVAILABILITY = [
         'source': 'Modo ME-BESS-GB index (all-duration, 1H, 2H)',
         'lens': 'B (Peer)',
         'access': 'Via Modo AI chat (Ankit\'s account); equivalent dataset on Professional GB Benchmarking subscription',
-        'months_have': 'Sep 25 → Mar 26 (7 months) for all-duration, 1H, and 2H cuts',
+        'months_have': 'Sep 25 → Jul 26 (11 months) for all-duration, 1H, and 2H cuts',
         'months_missing': 'None at current cadence',
         'status': 'available',
         'procurement_unlock': 'Paid Modo Professional subscription would automate the monthly refresh + add asset-level peer ranking (currently we must ask the AI chat each month)',
@@ -5539,7 +5555,7 @@ BENCHMARK_DATA_AVAILABILITY = [
         'source': 'In-house LP optimised ceiling (Northwold-specific)',
         'lens': 'A (Gap)',
         'access': 'Already computed (Optimized_Results_*.csv)',
-        'months_have': 'Sep 25 → Mar 26 (7 months)',
+        'months_have': 'Sep 25 → Jul 26 (11 months)',
         'months_missing': 'None',
         'status': 'available',
         'procurement_unlock': 'No procurement needed — this is the in-house multi-market LP optimiser',
@@ -6373,7 +6389,7 @@ traded split meaningful.
 
 Expect the Executive Summary to read **higher** in months where Capacity Market
 and DUoS credits landed, and to converge with this section in months where they
-did not — June 2026 has neither, so the two agree there.
+did not — June and July 2026 have neither, so the two agree there.
 
 **One open question**: Northwold is shown net of the 5% GridBeyond share, for
 consistency with the rest of the dashboard and with the GridBeyond invoice.
@@ -6396,6 +6412,7 @@ _MODO_STACK_MONTHS = [
     {'label': 'April 2026', 'start': '2026-04-01', 'end': '2026-04-30'},
     {'label': 'May 2026', 'start': '2026-05-01', 'end': '2026-05-31'},
     {'label': 'June 2026', 'start': '2026-06-01', 'end': '2026-06-30'},
+    {'label': 'July 2026', 'start': '2026-07-01', 'end': '2026-07-31'},
 ]
 
 

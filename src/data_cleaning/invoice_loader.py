@@ -421,16 +421,23 @@ def load_scada_monitoring(raw_dir: str) -> pd.DataFrame:
         Daily_Import_kWh, Power_kW, RTE, SOH, Daily_Cycles, Availability
     """
     raw_path = Path(raw_dir)
-    # Matches both naming conventions ASE has used: "jun-26-<stamp>.xlsx" and
-    # "June Month BESS-<stamp>.xlsx". The stricter "-\d{2}-" form silently
-    # excluded the June 2026 export, leaving scada_monitoring.parquet ending at
-    # 1 June and every SCADA-based reconciliation blank for that month. The
-    # same fix was applied to find_files() in loader.py — keep the two in step.
+    # Matches every naming convention ASE has used: "jun-26-<stamp>.xlsx",
+    # "June Month BESS-<stamp>.xlsx" and "monthly-<stamp>.xlsx". The stricter
+    # "-\d{2}-" form silently excluded the June 2026 export, leaving
+    # scada_monitoring.parquet ending at 1 June and every SCADA-based
+    # reconciliation blank for that month; the July 2026 "monthly-" name then
+    # missed the month-prefix form too. The export timestamp "YYYYMMDDTHHMMSS"
+    # is the one constant across all three, and nothing else in raw/ carries
+    # it. Same rule lives in find_files() in loader.py — keep the two in step.
     month_pattern = re.compile(
         r'^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*[\s-]',
         re.IGNORECASE,
     )
-    files = [f for f in raw_path.rglob("*.xlsx") if month_pattern.match(f.name)]
+    stamp_pattern = re.compile(r'\d{8}T\d{6}')
+    files = [
+        f for f in raw_path.rglob("*.xlsx")
+        if month_pattern.match(f.name) or stamp_pattern.search(f.name)
+    ]
 
     if not files:
         return pd.DataFrame()

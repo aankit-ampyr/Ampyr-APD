@@ -42,14 +42,20 @@ def find_files(folder_path: str) -> dict:
         elif 'northwold' in filename and files['gridbeyond'] is None:
             files['gridbeyond'] = str(file)
 
-        # SCADA files: export-*.xlsx (legacy), mon-yy-*.xlsx, or
-        # "{Month} Month BESS-*.xlsx" (as sent by ASE ops)
+        # SCADA files: export-*.xlsx (legacy), mon-yy-*.xlsx,
+        # "{Month} Month BESS-*.xlsx", or "monthly-*.xlsx" (as sent by ASE ops)
         elif filename.startswith('export-') and files['scada'] is None:
             files['scada'] = str(file)
         elif re.match(
             r'^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*[\s-]',
             filename
         ) and files['scada'] is None:
+            files['scada'] = str(file)
+        # ASE has now used three naming conventions; the one constant is the
+        # export timestamp "-YYYYMMDDTHHMMSS" in the name (e.g.
+        # "monthly-20260701T000000.xlsx"). Nothing else in raw/ carries it.
+        # Same rule lives in invoice_loader.load_scada_monitoring — keep in step.
+        elif re.search(r'\d{8}T\d{6}', filename, re.IGNORECASE) and files['scada'] is None:
             files['scada'] = str(file)
 
     return files

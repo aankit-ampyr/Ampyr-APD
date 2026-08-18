@@ -58,15 +58,20 @@ MONTH_CONFIG = [
     ('Mar 26', 'March 2026', 31, 'Master_BESS_Analysis_Mar_2026.csv', 'Optimized_Results_Mar_2026.csv'),
     ('Apr 26', 'April 2026', 30, 'Master_BESS_Analysis_Apr_2026.csv', 'Optimized_Results_Apr_2026.csv'),
     ('May 26', 'May 2026', 31, 'Master_BESS_Analysis_May_2026.csv', 'Optimized_Results_May_2026.csv'),
+    ('Jun 26', 'June 2026', 30, 'Master_BESS_Analysis_Jun_2026.csv', 'Optimized_Results_Jun_2026.csv'),
+    ('Jul 26', 'July 2026', 31, 'Master_BESS_Analysis_Jul_2026.csv', 'Optimized_Results_Jul_2026.csv'),
 ]
 
 # Modo Energy monthly benchmark (£/MW/year) — FCA-regulated ME-BESS-GB
-# monthly-index-live API (market=total × 12), refreshed 2026-06-24 to match
-# the main dashboard's authoritative values.
+# monthly-index-live API (all durations, sum of all six streams, annualised,
+# rounded to £1k), refreshed 2026-08-18. Must stay identical to
+# MODO_BENCHMARKS in streamlit_dashboard.py — the earlier market='total'×12
+# series left this page showing different Modo numbers from the main dashboard.
 MODO_BENCHMARKS = {
-    'Sep 25': 64000, 'Oct 25': 70000, 'Nov 25': 49000,
-    'Dec 25': 41000, 'Jan 26': 46000, 'Feb 26': 31000,
-    'Mar 26': 66000, 'Apr 26': 61000, 'May 26': 39000,
+    'Sep 25': 71000, 'Oct 25': 77000, 'Nov 25': 59000,
+    'Dec 25': 50000, 'Jan 26': 55000, 'Feb 26': 43000,
+    'Mar 26': 73000, 'Apr 26': 69000, 'May 26': 45000,
+    'Jun 26': 71000, 'Jul 26': 65000,
 }
 
 # CM actuals from EMR Settlement
@@ -131,7 +136,7 @@ def _load_iar_projections():
         ws = wb['Sheet1']
         iar_mw = 4.2
 
-        col_map = {11: 'Sep 25', 12: 'Oct 25', 13: 'Nov 25', 14: 'Dec 25', 15: 'Jan 26', 16: 'Feb 26', 17: 'Mar 26', 18: 'Apr 26', 19: 'May 26'}
+        col_map = {11: 'Sep 25', 12: 'Oct 25', 13: 'Nov 25', 14: 'Dec 25', 15: 'Jan 26', 16: 'Feb 26', 17: 'Mar 26', 18: 'Apr 26', 19: 'May 26', 20: 'Jun 26', 21: 'Jul 26'}
         stream_rows = [4, 5, 6, 7, 8, 9, 10, 11]
 
         result = {}
