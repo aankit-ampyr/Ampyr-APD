@@ -3546,6 +3546,19 @@ DUOS_ACTUALS = {
                'fixed': 3.99, 'net_credit': 4274.22},
     'Jun 26': {'red': -2475.14, 'amber': -109.73, 'green': -6.03,
                'fixed': 3.86, 'net_credit': 2587.04},
+    # PROVISIONAL — July's Hartree invoices (Nwld_BESS_Gen_Inv_16 /
+    # BESS_POW_16) have not arrived. 'fixed' is arithmetic, not a guess:
+    # the generation standing charge is £0.1287/day and July has 31 days,
+    # so £3.99 — identical to May 26, the other 31-day month in this tariff
+    # year, whose invoice confirms exactly that. The red/amber/green
+    # volumetric credit is left at zero because it depends on WHEN the
+    # battery exported, which the invoice has not yet told us. July's whole
+    # export was 3,967 kWh (vs 292,614 kWh in April), so the true figure is
+    # bounded between £2 (all green band) and £217 (all red) — immaterial
+    # against the £6,880 capacity charge, and better shown blank than
+    # invented. Replace all four numbers when the invoice lands.
+    'Jul 26': {'red': 0.0, 'amber': 0.0, 'green': 0.0,
+               'fixed': 3.99, 'net_credit': 0.0, 'provisional': True},
 }
 # DUoS COST on the battery's import (supply) connection, MPAN 1050003291202.
 # Same tracker, sheet REVENUE columns R-V ("BESS Supply" block), rows 65-74.
@@ -3584,6 +3597,17 @@ DUOS_SUPPLY_COST = {
                'fixed': 56.33, 'capacity': 6880.39},
     'Jun 26': {'red': 43.19, 'amber': 245.05, 'green': 18.82,
                'fixed': 54.51, 'capacity': 6658.44},
+    # PROVISIONAL — same missing invoice. Both figures here are arithmetic:
+    #   capacity = 4,180 kVA x 5.3098 p/kVA/day x 31 days = £6,880.39
+    #   fixed    = £1.8170/day x 31 days                  = £56.33
+    # Both equal May 26 to the penny (also 31 days, same tariff year) and
+    # that month's invoice confirms them. Back-tested by deriving May and
+    # June from April's tariff alone: capacity landed within 5p, the fixed
+    # charges to the penny. The import volumetric is left at zero pending
+    # the invoice; July imported 27,319 kWh against April's 332,247, so it
+    # is worth well under £100.
+    'Jul 26': {'red': 0.0, 'amber': 0.0, 'green': 0.0,
+               'fixed': 56.33, 'capacity': 6880.39, 'provisional': True},
 }
 
 # Source: raw/July 2026/NWOSFL_000_Revenue Tracker.xlsx (Tinvia), sheet
@@ -3707,6 +3731,14 @@ def show_iar_vs_actual():
         "whether the battery trades or not, and the line the IAR projects at "
         "≈ −£6,500. Only the export credit used to be shown, which overstated "
         "net revenue by about £7k a month."
+    )
+    st.caption(
+        ":orange[**Jul 26 DUoS is provisional.**] The Hartree invoice has not "
+        "arrived, so only the standing charges are booked — capacity "
+        "(4,180 kVA × 5.3098 p/kVA/day × 31 days) plus the fixed fees. Those "
+        "are arithmetic and match May 26 to the penny. The red/amber/green "
+        "volumetric parts show blank rather than a made-up number; on July's "
+        "traded volumes they are worth under £220 either way."
     )
 
     # Revenue stream labels
