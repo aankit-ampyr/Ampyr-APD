@@ -19,6 +19,9 @@ from config import (
     GB_REVENUE_NET_SHARE,
     GB_NET_FOOTNOTE,
     GB_NET_FOOTNOTE_SHORT,
+    NETWORK_GROSS_FOOTNOTE,
+    NETWORK_GROSS_FOOTNOTE_SHORT,
+    NETWORK_NET_FOOTNOTE,
     apply_gb_net,
 )
 from pages.data_quality import show_data_quality_page
@@ -2308,6 +2311,11 @@ def show_executive_comparison():
     total_change = last['actual']['total'] - first['actual']['total']
     total_pct = (total_change / first['actual']['total'] * 100) if first['actual']['total'] != 0 else 0
     st.success(f"📈 **Trend ({first['short']} → {last['short']})**: Revenue changed by **£{total_change:,.0f}** ({total_pct:+.0f}%)")
+    # These headline figures and the capture % beside them are GROSS of network
+    # charges — see the note in config/revenue_config.py for why capture rate
+    # must stay on that basis. Table 2 below is net, so the two legitimately
+    # differ; saying so here stops that reading as an error.
+    st.caption(NETWORK_GROSS_FOOTNOTE)
     st.markdown("---")
 
     # ==================== SECTION 2: IAR VS ACTUAL ====================
@@ -2334,6 +2342,9 @@ def show_executive_comparison():
     fig_bar.update_layout(yaxis_title="Revenue (£)", xaxis_title="", showlegend=True, height=450)
     st.plotly_chart(fig_bar, use_container_width=True)
     st.caption(GB_NET_FOOTNOTE_SHORT)
+    # Actual vs optimiser: both sides must be gross, since the LP models no
+    # network cost. Netting only the actual would read as a trading failure.
+    st.caption(NETWORK_GROSS_FOOTNOTE_SHORT)
     st.markdown("---")
 
     # ==================== SECTION 4: MARKET MIX COMPARISON ====================
@@ -2374,6 +2385,18 @@ def show_executive_comparison():
         mkt_table[m['short']] = vals
     st.dataframe(pd.DataFrame(mkt_table), use_container_width=True, hide_index=True)
     st.caption(GB_NET_FOOTNOTE)
+    # This table is on a THIRD basis and it is worth being blunt about it: the
+    # 'DUoS Net' row carries the export CREDIT only, so TOTAL (All Streams)
+    # picks up the favourable half of DUoS and none of the ~£6.6k/month cost.
+    # Left as-is rather than changed, because the row is labelled 'DUoS Net'
+    # and people read it against the GridBeyond invoice — but flagged, because
+    # it is the least defensible of the three bases in this dashboard.
+    st.caption(
+        ":orange[**Basis note.**] The *DUoS Net* row is the **export credit "
+        "only** — it excludes the DUoS import and capacity charges (~£6.0-6.9k "
+        "a month), so *TOTAL (All Streams)* here is higher than the net figure "
+        "in **2️⃣ Revenue IAR vs Actual**, which carries the full DUoS cost."
+    )
     st.markdown("---")
 
     # ==================== SECTION 5: EXECUTIVE SUMMARY ====================
@@ -3908,6 +3931,8 @@ def show_iar_vs_actual():
 
     styled_iar_df = iar_df.style.apply(highlight_total, axis=1)
     st.dataframe(styled_iar_df, use_container_width=True, hide_index=True, height=460)
+    # The one place in the dashboard that is net of network charges.
+    st.caption(NETWORK_NET_FOOTNOTE)
 
     # Footnote for the '*' cells. Sits directly under the table so the marker
     # is explained where it is seen.
@@ -4283,6 +4308,11 @@ def show_benchmark_comparison():
         tile_cols[2].metric("Best · worst vs Modo", best_worst)
 
         st.caption(GB_NET_FOOTNOTE)
+        # Most important place to state the basis. Modo's ME-BESS-GB is a GROSS
+        # revenue index, so Northwold must be quoted gross too. Netting DUoS off
+        # our side alone would understate the asset by ~£19,700/MW/yr against an
+        # index running £43-77k/MW/yr — an artefact, not underperformance.
+        st.caption(NETWORK_GROSS_FOOTNOTE)
 
         # ---- Historical industry range (demoted to expander) ----
         with st.expander("Historical industry range (Modo 2024–25 envelope)"):

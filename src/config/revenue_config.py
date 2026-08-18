@@ -50,6 +50,49 @@ GB_NET_FOOTNOTE_SHORT: str = (
     "*All revenue values shown net of the 5% GridBeyond revenue share.*"
 )
 
+# ─────────────────────────────────────────────────────────────
+# Network charges (DUoS / TNUoS) — the GROSS vs NET basis
+# ─────────────────────────────────────────────────────────────
+# Two different questions get asked of these numbers and they need different
+# bases. Saying which one is on screen is the whole point of these footnotes.
+#
+#   GROSS of network charges — the right basis for:
+#     * capture rate (actual / optimiser). The LP models a trading ceiling and
+#       carries no DUoS, so netting the numerator only would show a fixed cost
+#       as if it were bad trading. Jul 26 would read 25% instead of 44%.
+#     * the Modo ME-BESS-GB peer index, which is a gross revenue index. Netting
+#       Northwold alone would understate it by roughly £19,700/MW/yr against an
+#       index running £43-77k/MW/yr.
+#
+#   NET of network charges — the right basis for:
+#     * the IAR comparison, because the IAR explicitly projects a DUoS line;
+#     * any question of the form "what did the asset actually make".
+#
+# DUoS costs about £6.0-6.9k a month, most of it a capacity standing charge
+# that is payable whether or not the battery trades, so the two bases can
+# differ by a factor of two in a quiet month.
+NETWORK_GROSS_FOOTNOTE_SHORT: str = (
+    "*Gross of network charges — DUoS and TNUoS excluded. See "
+    "**2️⃣ Revenue IAR vs Actual** on Executive Comparison for the net position.*"
+)
+
+NETWORK_GROSS_FOOTNOTE: str = (
+    "*Revenue shown **gross of network charges** (DUoS and TNUoS excluded). "
+    "This is deliberate: capture rate is measured against an optimiser that "
+    "carries no network cost, and the Modo index is a gross revenue benchmark, "
+    "so netting one side only would distort both. DUoS runs about £6.0-6.9k a "
+    "month, mostly a fixed capacity charge. For the net position see "
+    "**2️⃣ Revenue IAR vs Actual** on Executive Comparison.*"
+)
+
+NETWORK_NET_FOOTNOTE: str = (
+    "*Revenue shown **net of network charges** — DUoS export credit, import "
+    "cost and the capacity standing charge are all included, so this differs "
+    "from the headline revenue elsewhere in the dashboard, which is gross. "
+    "Still excluded: O&M, insurance, business rates and asset-management fees, "
+    "so this is a network-adjusted revenue figure, not a P&L.*"
+)
+
 # Master CSV columns that are GB-traded and therefore subject to the fee.
 GB_FEE_COLUMNS: tuple[str, ...] = (
     'EPEX 30 DA Revenue',
