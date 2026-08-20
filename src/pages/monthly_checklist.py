@@ -19,7 +19,18 @@ import os
 import sys
 import openpyxl
 
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+# insert(0), not append: this repo ships TOP-LEVEL module names that are
+# about as collision-prone as they get — `config`, `pages`, `data_cleaning`.
+# Appending puts them LAST, so any same-named module earlier on sys.path
+# (site-packages, a namespace package, or Streamlit's own `pages`
+# convention) shadows ours and `from config import ...` then fails with
+# ImportError on names that plainly exist. Inserting guarantees the
+# vendored src/ wins. data_cleaning/process_invoices.py already did this;
+# the entry point and the pages did not.
+_SRC = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _SRC not in sys.path:
+    sys.path.insert(0, _SRC)
+
 
 from config import (GB_REVENUE_NET_SHARE, GB_NET_FOOTNOTE_SHORT,
                     NETWORK_HYBRID_FOOTNOTE, apply_gb_net)
