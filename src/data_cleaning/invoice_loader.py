@@ -22,6 +22,12 @@ import glob
 # 1. EMR Capacity Market
 # ─────────────────────────────────────────────────────────────
 
+# Asset folders under raw/ that belong to other assets. Each has its own ETL
+# (process_tinte, process_elsterheide) and holds EPC / O&M contracts, which
+# must never be swept into a committed parquet by the Northwold invoice scan.
+NON_NORTHWOLD_ASSET_DIRS = {'Tinte', 'Elsterheide', 'Gorgast'}
+
+
 def load_emr_capacity_market(raw_dir: str) -> pd.DataFrame:
     """
     Load EMR Capacity Market invoices from T062 CSV files.
@@ -679,7 +685,10 @@ def load_all_pdfs(raw_dir: str) -> pd.DataFrame:
         DataFrame with columns: source_file, type, invoice_number, date, total, raw_text
     """
     raw_path = Path(raw_dir)
-    pdf_files = list(raw_path.rglob("*.pdf"))
+    pdf_files = [
+        f for f in raw_path.rglob("*.pdf")
+        if f.relative_to(raw_path).parts[0] not in NON_NORTHWOLD_ASSET_DIRS
+    ]
 
     if not pdf_files:
         return pd.DataFrame()

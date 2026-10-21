@@ -72,18 +72,21 @@ MONTH_CONFIG = [
     ('May 26', 'May 2026', 31, 'Master_BESS_Analysis_May_2026.csv', 'Optimized_Results_May_2026.csv'),
     ('Jun 26', 'June 2026', 30, 'Master_BESS_Analysis_Jun_2026.csv', 'Optimized_Results_Jun_2026.csv'),
     ('Jul 26', 'July 2026', 31, 'Master_BESS_Analysis_Jul_2026.csv', 'Optimized_Results_Jul_2026.csv'),
+    ('Aug 26', 'August 2026', 31, 'Master_BESS_Analysis_Aug_2026.csv', 'Optimized_Results_Aug_2026.csv'),
+    ('Sep 26', 'September 2026', 30, 'Master_BESS_Analysis_Sep_2026.csv', 'Optimized_Results_Sep_2026.csv'),
 ]
 
 # Modo Energy monthly benchmark (£/MW/year) — FCA-regulated ME-BESS-GB
 # monthly-index-live API (all durations, sum of all six streams, annualised,
-# rounded to £1k), refreshed 2026-08-18. Must stay identical to
+# rounded to £1k), refreshed 2026-10-16. Must stay identical to
 # MODO_BENCHMARKS in streamlit_dashboard.py — the earlier market='total'×12
 # series left this page showing different Modo numbers from the main dashboard.
 MODO_BENCHMARKS = {
     'Sep 25': 71000, 'Oct 25': 77000, 'Nov 25': 59000,
-    'Dec 25': 50000, 'Jan 26': 55000, 'Feb 26': 43000,
-    'Mar 26': 73000, 'Apr 26': 69000, 'May 26': 45000,
-    'Jun 26': 71000, 'Jul 26': 65000,
+    'Dec 25': 49000, 'Jan 26': 55000, 'Feb 26': 42000,
+    'Mar 26': 73000, 'Apr 26': 69000, 'May 26': 44000,
+    'Jun 26': 70000, 'Jul 26': 64000, 'Aug 26': 56000,
+    'Sep 26': 97000,
 }
 
 # CM actuals from EMR Settlement
@@ -115,6 +118,15 @@ DUOS_ACTUALS = {
                'fixed': 3.99, 'net_credit': 4274.22},
     'Jun 26': {'red': -2475.14, 'amber': -109.73, 'green': -6.03,
                'fixed': 3.86, 'net_credit': 2587.04},
+    # PROVISIONAL — Hartree invoices for Jul-Sep 26 not yet received. Mirrors
+    # streamlit_dashboard.DUOS_ACTUALS: only the generation standing charge
+    # (£0.1287/day: 31 days £3.99, 30 days £3.86) is booked, no export credit.
+    'Jul 26': {'red': 0.0, 'amber': 0.0, 'green': 0.0,
+               'fixed': 3.99, 'net_credit': 0.0, 'provisional': True},
+    'Aug 26': {'red': 0.0, 'amber': 0.0, 'green': 0.0,
+               'fixed': 3.99, 'net_credit': 0.0, 'provisional': True},
+    'Sep 26': {'red': 0.0, 'amber': 0.0, 'green': 0.0,
+               'fixed': 3.86, 'net_credit': 0.0, 'provisional': True},
 }
 # Source: raw/July 2026/NWOSFL_000_Revenue Tracker.xlsx (Tinvia), sheet
 # REVENUE rows 59-74: columns Red/Amber/Green DUoS + DNO fee, i.e. the
@@ -124,7 +136,7 @@ DUOS_ACTUALS = {
 # are ex-VAT here (the workbook's Gross columns add 20%).
 # NOTE Jun 26: the tracker's 'GDUOS + Triad' cell also carries a
 # -14,786.98 Triad element, zero-rated for VAT and NOT part of DUoS. It
-# is excluded here; it belongs to TNUoS. Jul 26 not yet invoiced.
+# is excluded here; it belongs to TNUoS. Jul-Sep 26 not yet invoiced.
 
 # IAR stream names
 IAR_STREAMS = [
@@ -169,7 +181,7 @@ def _load_iar_projections():
         ws = wb['Sheet1']
         iar_mw = 4.2
 
-        col_map = {11: 'Sep 25', 12: 'Oct 25', 13: 'Nov 25', 14: 'Dec 25', 15: 'Jan 26', 16: 'Feb 26', 17: 'Mar 26', 18: 'Apr 26', 19: 'May 26', 20: 'Jun 26', 21: 'Jul 26'}
+        col_map = {11: 'Sep 25', 12: 'Oct 25', 13: 'Nov 25', 14: 'Dec 25', 15: 'Jan 26', 16: 'Feb 26', 17: 'Mar 26', 18: 'Apr 26', 19: 'May 26', 20: 'Jun 26', 21: 'Jul 26', 22: 'Aug 26', 23: 'Sep 26'}
         stream_rows = [4, 5, 6, 7, 8, 9, 10, 11]
 
         result = {}
@@ -244,11 +256,17 @@ def _calculate_cycles(df, capacity_mwh=CAPACITY_MWH, dt_hours=0.5):
 def _get_scada_metrics(df):
     """Extract SCADA health metrics from Master CSV."""
     metrics = {}
+    # Point-in-time readings (SOH, RTE) are taken from the last half-hour in
+    # which the feed was actually live (a power reading exists). In Sep 2026
+    # the logger restarted inside a five-day outage and logged SOH 99.73 — a
+    # +0.30 step with no data behind it — which the plain last-non-NaN rule
+    # would have reported as a health recovery.
+    live = df['Power_MW'].notna() if 'Power_MW' in df.columns else pd.Series(True, index=df.index)
     if 'SCADA_RTE' in df.columns:
-        rte = pd.to_numeric(df['SCADA_RTE'], errors='coerce').dropna()
+        rte = pd.to_numeric(df.loc[live, 'SCADA_RTE'], errors='coerce').dropna()
         metrics['rte'] = rte.iloc[-1] if len(rte) > 0 else None
     if 'SCADA_SOH' in df.columns:
-        soh = pd.to_numeric(df['SCADA_SOH'], errors='coerce').dropna()
+        soh = pd.to_numeric(df.loc[live, 'SCADA_SOH'], errors='coerce').dropna()
         metrics['soh'] = soh.iloc[-1] if len(soh) > 0 else None
     if 'SCADA_Availability' in df.columns:
         avail = pd.to_numeric(df['SCADA_Availability'], errors='coerce').dropna()
@@ -258,7 +276,12 @@ def _get_scada_metrics(df):
         metrics['inverter_availability'] = inv_avail.mean() if len(inv_avail) > 0 else None
     if 'SCADA_Cumulative_Cycles' in df.columns:
         cum = pd.to_numeric(df['SCADA_Cumulative_Cycles'], errors='coerce').dropna()
-        metrics['cumulative_cycles'] = cum.iloc[-1] if len(cum) > 0 else None
+        # A lifetime counter cannot fall, so the month's max IS the month-end
+        # reading. The last non-NaN value is not: on 25 Sep 2026 the SCADA
+        # counter dropped 223.3 -> 113.6 (a half-site reading as battery
+        # availability stepped 100% -> 50%) and then went dark to month end,
+        # which would have shown a 108-cycle fall against August.
+        metrics['cumulative_cycles'] = cum.max() if len(cum) > 0 else None
     return metrics
 
 
@@ -407,6 +430,22 @@ def _show_scada_section(short, full_name, master_df, scada, daily_cycles, total_
     col4.metric("Total Cycles (Month)",
                 f"{total_cycles:.1f}" if total_cycles else "N/A",
                 help=f"Full equivalent cycles in {full_name}")
+
+    # Say so when the SCADA feed went dark: availability is averaged over the
+    # whole month (the tag reads 0% while the logger is down, which is not the
+    # same as the battery being unavailable), and the per-day cycle figure is
+    # diluted by the dark days.
+    if 'Power_MW' in master_df.columns and 'Timestamp' in master_df.columns:
+        dark = pd.to_numeric(master_df['Power_MW'], errors='coerce').isna()
+        if dark.any():
+            ts = pd.to_datetime(master_df['Timestamp'], errors='coerce')
+            st.caption(
+                f"⚠ SCADA feed carried no power reading for {int(dark.sum())} of "
+                f"{len(master_df)} half-hours ({dark.mean() * 100:.0f}% of the month; "
+                f"{ts[dark].min():%d %b %H:%M} → {ts[dark].max():%d %b %H:%M}). Availability "
+                "is averaged over the whole month including the gap; SOH, RTE and the "
+                "cumulative counter are taken from readings made while the feed was live."
+            )
 
     # Daily cycles chart
     if 'Timestamp' in master_df.columns and daily_cycles is not None:
@@ -656,6 +695,9 @@ def _show_invoice_section(short, full_name, emr, summary, duos):
         col1.metric("Net Credit", f"£{duos['net_credit']:,.2f}")
         col2.metric("Fixed Charges", f"£{duos['fixed']:,.2f}")
         col3.metric("Red Band", f"£{abs(duos['red']):,.2f}")
+        if duos.get('provisional'):
+            st.caption("Provisional — Hartree invoice not yet received; only the "
+                       "generation standing charge is booked, no export credit.")
     else:
         st.markdown("**DUoS**: Not available for this month")
 
@@ -814,7 +856,12 @@ def _show_checklist(short, full_name, revenue, scada, daily_cycles, modo,
                            f"(£{abs(month_emr.iloc[0]['invoice_total']):,.2f})."))
 
     if duos:
-        checks.append(('ok', 'Invoice', f"DUoS data available — net credit £{duos['net_credit']:,.2f}."))
+        if duos.get('provisional'):
+            checks.append(('warning', 'Invoice',
+                           f"DUoS provisional — Hartree invoice not yet received; only the "
+                           f"£{duos['fixed']:,.2f} standing charge is booked, no export credit."))
+        else:
+            checks.append(('ok', 'Invoice', f"DUoS data available — net credit £{duos['net_credit']:,.2f}."))
     elif short in ('Sep 25', 'Oct 25', 'Nov 25'):
         checks.append(('warning', 'Invoice',
                        "DUoS invoice expected but not available. Chase Hartree Partners."))

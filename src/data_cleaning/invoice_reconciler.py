@@ -105,7 +105,18 @@ def reconcile_bess_energy(
 
     # 4. SCADA Monitoring
     if scada_df is not None and not scada_df.empty:
-        filtered = _filter_to_month(scada_df, month_label)
+        # The daily counters are period-end labelled: the 00:00 row still holds
+        # the previous day's end-of-day total and the reset happens at 00:10.
+        # Shift the stamps back a minute so each reading groups with the day it
+        # accumulates, then filter to the month. Grouped on the raw stamp, every
+        # day's max picked up the previous day's total whenever that was higher
+        # (Aug 2026 export read 3.38 MWh instead of 0.64; Jul 2026 import 38.3
+        # instead of 27.1).
+        shifted = scada_df
+        if isinstance(scada_df.index, pd.DatetimeIndex):
+            shifted = scada_df.copy()
+            shifted.index = shifted.index - pd.Timedelta(minutes=1)
+        filtered = _filter_to_month(shifted, month_label)
         if not filtered.empty:
             # Daily export/import are cumulative within each day, take max per day
             if 'Daily_Export_kWh' in filtered.columns:

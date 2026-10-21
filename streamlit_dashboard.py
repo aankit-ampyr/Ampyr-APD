@@ -40,6 +40,7 @@ from pages.data_quality import show_data_quality_page
 from pages.invoice_analysis import show_invoice_analysis
 from pages.monthly_checklist import show_monthly_checklist
 from pages.tinte_solar_dashboard import show_tinte_solar_dashboard
+from pages.elsterheide_dashboard import show_elsterheide_dashboard
 
 # =============================================================================
 # GLOBAL COLOR PALETTE — Colorblind-friendly, consistent across all charts
@@ -213,6 +214,20 @@ AVAILABLE_MONTHS = {
         "northwold_file": None,
         "master_file": "Master_BESS_Analysis_Jul_2026.csv",
         "optimization_file": "Optimized_Results_Jul_2026.csv",
+        "use_master": True,
+    },
+    "August 2026": {
+        "bess_file": None,
+        "northwold_file": None,
+        "master_file": "Master_BESS_Analysis_Aug_2026.csv",
+        "optimization_file": "Optimized_Results_Aug_2026.csv",
+        "use_master": True,
+    },
+    "September 2026": {
+        "bess_file": None,
+        "northwold_file": None,
+        "master_file": "Master_BESS_Analysis_Sep_2026.csv",
+        "optimization_file": "Optimized_Results_Sep_2026.csv",
         "use_master": True,
     },
 }
@@ -2225,6 +2240,8 @@ def show_executive_comparison():
         ('May 26', 'May', 31, 'Master_BESS_Analysis_May_2026.csv', 'Optimized_Results_May_2026.csv'),
         ('Jun 26', 'June', 30, 'Master_BESS_Analysis_Jun_2026.csv', 'Optimized_Results_Jun_2026.csv'),
         ('Jul 26', 'July', 31, 'Master_BESS_Analysis_Jul_2026.csv', 'Optimized_Results_Jul_2026.csv'),
+        ('Aug 26', 'August', 31, 'Master_BESS_Analysis_Aug_2026.csv', 'Optimized_Results_Aug_2026.csv'),
+        ('Sep 26', 'September', 30, 'Master_BESS_Analysis_Sep_2026.csv', 'Optimized_Results_Sep_2026.csv'),
     ]
 
     # Capacity Market & DUoS actuals (same data as in Benchmarks)
@@ -2244,12 +2261,14 @@ def show_executive_comparison():
         'Apr 26': {'net_credit': 6580.39, 'fixed': 3.86},
         'May 26': {'net_credit': 4274.22, 'fixed': 3.99},
         'Jun 26': {'net_credit': 2587.04, 'fixed': 3.86},
-        # Jul 26 PROVISIONAL, mirroring module-level DUOS_ACTUALS: no export
+        # Jul-Sep 26 PROVISIONAL, mirroring module-level DUOS_ACTUALS: no export
         # credit yet (the volumetric bands need the invoice) but the generation
-        # standing charge is arithmetic. Without this key July silently booked
-        # ZERO DUoS here while table 2 booked the provisional figure, so the two
-        # pages disagreed on the same month.
+        # standing charge is arithmetic (GBP 0.1287/day). Without these keys the
+        # months silently booked ZERO DUoS here while table 2 booked the
+        # provisional figure, so the two pages disagreed on the same month.
         'Jul 26': {'net_credit': 0.0, 'fixed': 3.99},
+        'Aug 26': {'net_credit': 0.0, 'fixed': 3.99},
+        'Sep 26': {'net_credit': 0.0, 'fixed': 3.86},
     }
 
     # ---- Load data for every available month ----
@@ -2345,9 +2364,9 @@ def show_executive_comparison():
     bar_rows = []
     for m in months:
         bar_rows.append({'Scenario': f"{m['short']} Actual", 'Revenue': m['actual']['total'],
-                         'Type': 'Actual', 'Month': m['full']})
+                         'Type': 'Actual', 'Month': m['short']})
         bar_rows.append({'Scenario': f"{m['short']} Optimal", 'Revenue': m['optimal'],
-                         'Type': 'Optimal', 'Month': m['full']})
+                         'Type': 'Optimal', 'Month': m['short']})
     comparison_data = pd.DataFrame(bar_rows)
 
     fig_bar = px.bar(
@@ -2398,7 +2417,7 @@ def show_executive_comparison():
         vals.append(f"£{m['actual']['total']:,.0f}")
         vals.append(f"£{m['cm']:,.0f}" if m['cm'] else '-')
         duos_net = m['duos_credit'] - m['duos_fixed']
-        vals.append(f"£{duos_net:,.0f}" if m['duos_credit'] else '-')
+        vals.append(f"£{duos_net:,.0f}" if (m['duos_credit'] or m['duos_fixed']) else '-')
         vals.append(f"£{m['total_all']:,.0f}")
         mkt_table[m['short']] = vals
     # Same treatment as table 2 — same page, same month-wide shape, so leaving
@@ -3468,6 +3487,8 @@ def show_pdf_export_page(month: str = "September 2025"):
                     ('May 26', 'Master_BESS_Analysis_May_2026.csv', 'Optimized_Results_May_2026.csv'),
                     ('Jun 26', 'Master_BESS_Analysis_Jun_2026.csv', 'Optimized_Results_Jun_2026.csv'),
                     ('Jul 26', 'Master_BESS_Analysis_Jul_2026.csv', 'Optimized_Results_Jul_2026.csv'),
+                    ('Aug 26', 'Master_BESS_Analysis_Aug_2026.csv', 'Optimized_Results_Aug_2026.csv'),
+                    ('Sep 26', 'Master_BESS_Analysis_Sep_2026.csv', 'Optimized_Results_Sep_2026.csv'),
                 ]
 
                 CM_EXPORT = {'Oct 25': 1704.17, 'Nov 25': 1884.42, 'Dec 25': 1994.84, 'Jan 26': 2113.87,
@@ -3477,9 +3498,11 @@ def show_pdf_export_page(month: str = "September 2025"):
                     'Dec 25': {'net': 6983.06}, 'Jan 26': {'net': 4225.35}, 'Feb 26': {'net': 6653.71},
                     'Mar 26': {'net': 7337.09}, 'Apr 26': {'net': 6576.53}, 'May 26': {'net': 4270.23},
                     'Jun 26': {'net': 2583.18},
-                    # Jul 26 provisional — keeps the exported PDF in step
+                    # Jul-Sep 26 provisional — keeps the exported PDF in step
                     # with the dashboard rather than silently dropping DUoS.
                     'Jul 26': {'net': -3.99},
+                    'Aug 26': {'net': -3.99},
+                    'Sep 26': {'net': -3.86},
                 }
 
                 def calc_metrics(master_df, opt_df, short):
@@ -3610,6 +3633,17 @@ DUOS_ACTUALS = {
     # invented. Replace all four numbers when the invoice lands.
     'Jul 26': {'red': 0.0, 'amber': 0.0, 'green': 0.0,
                'fixed': 3.99, 'net_credit': 0.0, 'provisional': True},
+    # PROVISIONAL — the August and September 2026 invoices have not arrived
+    # either; same arithmetic. Aug has 31 days (£3.99, = May/Jul), Sep has 30
+    # (£3.86, = Apr/Jun 26, both invoice-confirmed). Both months were SFFR-only
+    # with almost no export — 639 kWh in Aug and 237 kWh in Sep on the SCADA
+    # end-of-day export counter — so the volumetric credit is bounded under
+    # £40 and £15 respectively. Replace all four numbers when each invoice
+    # lands.
+    'Aug 26': {'red': 0.0, 'amber': 0.0, 'green': 0.0,
+               'fixed': 3.99, 'net_credit': 0.0, 'provisional': True},
+    'Sep 26': {'red': 0.0, 'amber': 0.0, 'green': 0.0,
+               'fixed': 3.86, 'net_credit': 0.0, 'provisional': True},
 }
 # TNUoS / Triad revenue, paid to Northwold for exporting during the three
 # Triad half-hours (the highest GB system demand periods between November and
@@ -3656,7 +3690,7 @@ TNUOS_ACTUALS = {
 # DUoS bill, overstating net revenue by £74k across Sep 25 - Jun 26.
 # Validated: export credit - import volumetric - all fixed reproduces the
 # tracker's own ex-VAT net cash position (col AA / 1.2) to the penny for all
-# nine months that carry no Triad. Jul 26 is not invoiced yet.
+# nine months that carry no Triad. Jul-Sep 26 are not invoiced yet.
 DUOS_SUPPLY_COST = {
     'Sep 25': {'red': 759.99, 'amber': 393.72, 'green': 78.03,
                'fixed': 50.67, 'capacity': 6595.52},
@@ -3689,6 +3723,15 @@ DUOS_SUPPLY_COST = {
     # is worth well under £100.
     'Jul 26': {'red': 0.0, 'amber': 0.0, 'green': 0.0,
                'fixed': 56.33, 'capacity': 6880.39, 'provisional': True},
+    # PROVISIONAL — Aug/Sep 26 likewise. Aug (31 days) repeats May/Jul to the
+    # penny; Sep (30 days) repeats Apr/Jun: capacity 4,180 kVA x 5.3098 p x 30
+    # = £6,658.44, fixed £1.8170 x 30 = £54.51. Import volumetric left at zero
+    # pending the invoices: 11,896 kWh imported in Aug and 12,347 kWh in Sep
+    # (end-of-day SCADA counters), both worth well under £100.
+    'Aug 26': {'red': 0.0, 'amber': 0.0, 'green': 0.0,
+               'fixed': 56.33, 'capacity': 6880.39, 'provisional': True},
+    'Sep 26': {'red': 0.0, 'amber': 0.0, 'green': 0.0,
+               'fixed': 54.51, 'capacity': 6658.44, 'provisional': True},
 }
 
 # Source: raw/July 2026/NWOSFL_000_Revenue Tracker.xlsx (Tinvia), sheet
@@ -3699,7 +3742,7 @@ DUOS_SUPPLY_COST = {
 # are ex-VAT here (the workbook's Gross columns add 20%).
 # NOTE Jun 26: the tracker's 'GDUOS + Triad' cell also carries a
 # -14,786.98 Triad element, zero-rated for VAT and NOT part of DUoS. It
-# is excluded here; it belongs to TNUoS. Jul 26 not yet invoiced.
+# is excluded here; it belongs to TNUoS. Jul-Sep 26 not yet invoiced.
 
 
 def _iar_col_map(ws):
@@ -4002,7 +4045,7 @@ def show_iar_vs_actual():
 
     styled_iar_df = iar_df.style.apply(highlight_total, axis=1)
     # 'Revenue Stream' is pinned so it stays visible while the month columns
-    # scroll — the table is 34 columns wide (11 months x IAR / Actual / Var)
+    # scroll — the table is 1 + 3 x months wide (40 columns at 13 months: IAR / Actual / Var)
     # and without this you lose track of which row you are reading by about
     # February. Needs Streamlit >= 1.41 for column_config pinned.
     st.dataframe(
@@ -4025,14 +4068,15 @@ def show_iar_vs_actual():
             # "\\*" so markdown renders a literal asterisk instead of reading
             # it as emphasis — it must match the '*' appended to the cells.
             f":orange[**\\* {flagged} DUoS is PROJECTED, not actual.**] The Hartree "
-            "invoice has not arrived. The figure shown is the standing charge "
+            "invoices have not arrived. The figure shown is the standing charge "
             "only and is arithmetic rather than an estimate — capacity "
             "(4,180 kVA × 5.3098 p/kVA/day × days in month) plus the fixed "
-            "fees — matching May 26, the other 31-day month in this tariff "
-            "year, to the penny. The red/amber/green volumetric parts are left "
-            "blank rather than invented; on July's traded volumes (3,967 kWh "
-            "exported vs 292,614 in April) they are worth under £220 either "
-            "way. Every other figure in that column is actual."
+            "fees — and matches the invoice-confirmed month with the same day "
+            "count (May 26 for 31-day months, Apr/Jun 26 for 30-day months) to "
+            "the penny. The red/amber/green volumetric parts are left blank "
+            "rather than invented; on these months' near-zero export (under "
+            "4 MWh a month against 293 MWh in April) they are worth under £220 "
+            "either way. Every other figure in those columns is actual."
         )
 
     st.caption("*IAR projections based on 4.2 MW capacity with indexation factor 1.073. "
@@ -4146,21 +4190,25 @@ def show_benchmark_comparison():
         ('May 26', 31, 'Master_BESS_Analysis_May_2026.csv', 'Optimized_Results_May_2026.csv'),
         ('Jun 26', 30, 'Master_BESS_Analysis_Jun_2026.csv', 'Optimized_Results_Jun_2026.csv'),
         ('Jul 26', 31, 'Master_BESS_Analysis_Jul_2026.csv', 'Optimized_Results_Jul_2026.csv'),
+        ('Aug 26', 31, 'Master_BESS_Analysis_Aug_2026.csv', 'Optimized_Results_Aug_2026.csv'),
+        ('Sep 26', 30, 'Master_BESS_Analysis_Sep_2026.csv', 'Optimized_Results_Sep_2026.csv'),
     ]
 
     # Modo Energy monthly benchmark (£/MW/year) — sourced from Modo Energy's
     # ME-BESS-GB monthly-index-live API (all durations, rounded to £1k),
-    # refreshed 2026-08-18 (Jul 26 added; Jun 26 restated 70k→71k by the
-    # live index). Refresh anytime via:
+    # refreshed 2026-10-16 (Aug 26 + Sep 26 added; the live index restated
+    # Dec 25 50k→49k, Feb 26 43k→42k, May 26 45k→44k, Jun 26 71k→70k and
+    # Jul 26 65k→64k as settlement data landed). Refresh anytime via:
     #   python -m src.data_cleaning.modo_client --from 2025-09 --to <YYYY-MM>
     # Historical months differ from prior article-headline values (which appear
     # to use a different aggregation); API values are the FCA-regulated
     # ME-BESS-GB index used by Modo and are the authoritative source going forward.
     MODO_BENCHMARKS = {
         'Sep 25': 71000, 'Oct 25': 77000, 'Nov 25': 59000,
-        'Dec 25': 50000, 'Jan 26': 55000, 'Feb 26': 43000,
-        'Mar 26': 73000, 'Apr 26': 69000, 'May 26': 45000,
-        'Jun 26': 71000, 'Jul 26': 65000,
+        'Dec 25': 49000, 'Jan 26': 55000, 'Feb 26': 42000,
+        'Mar 26': 73000, 'Apr 26': 69000, 'May 26': 44000,
+        'Jun 26': 70000, 'Jul 26': 64000, 'Aug 26': 56000,
+        'Sep 26': 97000,
     }
 
     # Source links per month. Now that everything comes from the API the
@@ -4178,6 +4226,8 @@ def show_benchmark_comparison():
         'May 26': 'https://developers.modoenergy.com/reference/monthly-me-bess-gb',
         'Jun 26': 'https://developers.modoenergy.com/reference/monthly-me-bess-gb',
         'Jul 26': 'https://developers.modoenergy.com/reference/monthly-me-bess-gb',
+        'Aug 26': 'https://developers.modoenergy.com/reference/monthly-me-bess-gb',
+        'Sep 26': 'https://developers.modoenergy.com/reference/monthly-me-bess-gb',
     }
 
     # CM_ACTUALS and DUOS_ACTUALS now live at module level (see near
@@ -5758,7 +5808,7 @@ benchmarks:
 # Sources gated behind paid subscriptions are shown as placeholders so the
 # procurement case for unlocking them is visible at a glance.
 
-# Months currently in the data pipeline (Sep 25 → Jul 26).
+# Months currently in the data pipeline (Sep 25 → Sep 26).
 BENCHMARK_COMPARISON_MONTHS = [
     ('Sep 25', 30, 'Master_BESS_Analysis_Sept_2025.csv', 'Optimized_Results_Sept_2025.csv'),
     ('Oct 25', 31, 'Master_BESS_Analysis_Oct_2025.csv', 'Optimized_Results_Oct_2025.csv'),
@@ -5771,13 +5821,17 @@ BENCHMARK_COMPARISON_MONTHS = [
     ('May 26', 31, 'Master_BESS_Analysis_May_2026.csv', 'Optimized_Results_May_2026.csv'),
     ('Jun 26', 30, 'Master_BESS_Analysis_Jun_2026.csv', 'Optimized_Results_Jun_2026.csv'),
     ('Jul 26', 31, 'Master_BESS_Analysis_Jul_2026.csv', 'Optimized_Results_Jul_2026.csv'),
+    ('Aug 26', 31, 'Master_BESS_Analysis_Aug_2026.csv', 'Optimized_Results_Aug_2026.csv'),
+    ('Sep 26', 30, 'Master_BESS_Analysis_Sep_2026.csv', 'Optimized_Results_Sep_2026.csv'),
 ]
 
 # Modo Energy ME-BESS-GB index — FCA-regulated GB BESS revenue benchmark.
 # Three duration cuts sourced from the live API (monthly-index-live endpoint,
 # sum of all six market streams, annualised ×365/days-in-month), refreshed
-# 2026-08-18 (Jul 26 added; Jun 26 restated by the live index: ALL
-# 70287→70565, 1H 54302→54698, 2H 78350→78529). Earlier pulls used
+# 2026-10-16 (Aug 26 + Sep 26 added; the live index restated Dec 25 - Jul 26
+# as settlement data landed: ALL -0.1% to -1.5%, 1H -1.6% to +0.9%, 2H -2.1%
+# to -0.1%, e.g. ALL Jul 26 64588→64491, Jun 26 70565→70427, May 26
+# 44809→44145; Sep-Nov 25 unchanged). Earlier pulls used
 # market='total' × 12, which omitted Capacity Market and under-annualised —
 # understating every month by £5k-£12k/MW/yr.
 # Re-pull anytime via:
@@ -5786,21 +5840,24 @@ BENCHMARK_COMPARISON_MONTHS = [
 # authoritative source for the FCA-regulated index.
 ME_BESS_GB_ALL = {
     'Sep 25': 71188, 'Oct 25': 76603, 'Nov 25': 58979,
-    'Dec 25': 49626, 'Jan 26': 54648, 'Feb 26': 42599,
-    'Mar 26': 73029, 'Apr 26': 69150, 'May 26': 44809,
-    'Jun 26': 70565, 'Jul 26': 64588,
+    'Dec 25': 49443, 'Jan 26': 54586, 'Feb 26': 42152,
+    'Mar 26': 72698, 'Apr 26': 68607, 'May 26': 44145,
+    'Jun 26': 70427, 'Jul 26': 64491, 'Aug 26': 56478,
+    'Sep 26': 96563,
 }
 ME_BESS_GB_1H = {
     'Sep 25': 56696, 'Oct 25': 60704, 'Nov 25': 46749,
-    'Dec 25': 37628, 'Jan 26': 40719, 'Feb 26': 31800,
-    'Mar 26': 49308, 'Apr 26': 50846, 'May 26': 35145,
-    'Jun 26': 54698, 'Jul 26': 51177,
+    'Dec 25': 37650, 'Jan 26': 41099, 'Feb 26': 31786,
+    'Mar 26': 49221, 'Apr 26': 50962, 'May 26': 35121,
+    'Jun 26': 54645, 'Jul 26': 50347, 'Aug 26': 47414,
+    'Sep 26': 73117,
 }
 ME_BESS_GB_2H = {
     'Sep 25': 81121, 'Oct 25': 88541, 'Nov 25': 68489,
-    'Dec 25': 57503, 'Jan 26': 63369, 'Feb 26': 49296,
-    'Mar 26': 86352, 'Apr 26': 80317, 'May 26': 50100,
-    'Jun 26': 78529, 'Jul 26': 71036,
+    'Dec 25': 57159, 'Jan 26': 63002, 'Feb 26': 48545,
+    'Mar 26': 85844, 'Apr 26': 79349, 'May 26': 49038,
+    'Jun 26': 78145, 'Jul 26': 70988, 'Aug 26': 59743,
+    'Sep 26': 106670,
 }
 # Months absent from these dicts must plot as None, never 0 — a missing
 # benchmark is "not published", not "earned nothing".
@@ -5840,7 +5897,7 @@ BENCHMARK_DATA_AVAILABILITY = [
         'source': 'Modo ME-BESS-GB index (all-duration, 1H, 2H)',
         'lens': 'B (Peer)',
         'access': 'Via Modo AI chat (Ankit\'s account); equivalent dataset on Professional GB Benchmarking subscription',
-        'months_have': 'Sep 25 → Jul 26 (11 months) for all-duration, 1H, and 2H cuts',
+        'months_have': 'Sep 25 → Sep 26 (13 months) for all-duration, 1H, and 2H cuts',
         'months_missing': 'None at current cadence',
         'status': 'available',
         'procurement_unlock': 'Paid Modo Professional subscription would automate the monthly refresh + add asset-level peer ranking (currently we must ask the AI chat each month)',
@@ -5876,7 +5933,7 @@ BENCHMARK_DATA_AVAILABILITY = [
         'source': 'In-house LP optimised ceiling (Northwold-specific)',
         'lens': 'A (Gap)',
         'access': 'Already computed (Optimized_Results_*.csv)',
-        'months_have': 'Sep 25 → Jul 26 (11 months)',
+        'months_have': 'Sep 25 → Sep 26 (13 months)',
         'months_missing': 'None',
         'status': 'available',
         'procurement_unlock': 'No procurement needed — this is the in-house multi-market LP optimiser',
@@ -6710,7 +6767,8 @@ traded split meaningful.
 
 Expect the Executive Summary to read **higher** in months where Capacity Market
 and DUoS credits landed, and to converge with this section in months where they
-did not — June and July 2026 have neither, so the two agree there.
+did not — July to September 2026 have no CM and no DUoS credit (only the
+provisional standing charge), so the two agree there to within a few pounds.
 
 **One open question**: Northwold is shown net of the 5% GridBeyond share, for
 consistency with the rest of the dashboard and with the GridBeyond invoice.
@@ -6734,6 +6792,8 @@ _MODO_STACK_MONTHS = [
     {'label': 'May 2026', 'start': '2026-05-01', 'end': '2026-05-31'},
     {'label': 'June 2026', 'start': '2026-06-01', 'end': '2026-06-30'},
     {'label': 'July 2026', 'start': '2026-07-01', 'end': '2026-07-31'},
+    {'label': 'August 2026', 'start': '2026-08-01', 'end': '2026-08-31'},
+    {'label': 'September 2026', 'start': '2026-09-01', 'end': '2026-09-30'},
 ]
 
 
@@ -6998,6 +7058,8 @@ def main():
                       on_click=_set_general_page, args=('bess_cycles',))
     st.sidebar.button("🌅 Tinte Dashboard", use_container_width=True,
                       on_click=_set_general_page, args=('tinte_solar',))
+    st.sidebar.button("☀️ Elsterheide Dashboard", use_container_width=True,
+                      on_click=_set_general_page, args=('elsterheide',))
     st.sidebar.button("📄 Export", use_container_width=True,
                       on_click=_set_general_page, args=('export_reports',))
 
@@ -7105,6 +7167,9 @@ def main():
         return
     if active == 'tinte_solar':
         show_tinte_solar_dashboard()
+        return
+    if active == 'elsterheide':
+        show_elsterheide_dashboard()
         return
 
     # Display selected monthly page
