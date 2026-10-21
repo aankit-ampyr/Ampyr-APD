@@ -4874,7 +4874,14 @@ def show_benchmark_comparison():
                 return ['font-weight: bold; background-color: #fff3e6'] * len(row)
             return [''] * len(row)
 
-        st.dataframe(comp_df.style.apply(style_comp, axis=1), use_container_width=True, hide_index=True)
+        # Pin the stream column so the row labels stay put while the 26 month
+        # columns scroll sideways; the header row is sticky inside the grid.
+        st.dataframe(
+            comp_df.style.apply(style_comp, axis=1),
+            use_container_width=True,
+            hide_index=True,
+            column_config={'Revenue Stream': st.column_config.Column(pinned=True)},
+        )
         st.caption(GB_NET_FOOTNOTE_SHORT)
 
         total_gap = sum(all_gaps.values())
