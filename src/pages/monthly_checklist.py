@@ -226,11 +226,12 @@ def _calculate_revenue(df):
     ida1 = apply_gb_net(_safe_sum(df, 'IDA1 Revenue'))
     idc = apply_gb_net(_safe_sum(df, 'IDC Revenue'))
     imb_rev = apply_gb_net(_safe_sum(df, 'Imbalance Revenue'))
-    imb_charge = apply_gb_net(_safe_sum(df, 'Imbalance Charge'))
+    # Signed (negative = cost) and passed through unshared, as on the self-bill.
+    imb_charge = _safe_sum(df, 'Imbalance Charge')
     return {
         'sffr': sffr, 'epex': epex, 'ida1': ida1, 'idc': idc,
         'imb_rev': imb_rev, 'imb_charge': imb_charge,
-        'gb_total': sffr + epex + ida1 + idc + imb_rev - imb_charge,
+        'gb_total': sffr + epex + ida1 + idc + imb_rev + imb_charge,
     }
 
 
@@ -544,7 +545,7 @@ def _show_benchmark_section(short, full_name, total_annual_per_mw, modo, revenue
         'EPEX': revenue['epex'],
         'IDA1': revenue['ida1'],
         'IDC': revenue['idc'],
-        'Imbalance': revenue['imb_rev'] - revenue['imb_charge'],
+        'Imbalance': revenue['imb_rev'] + revenue['imb_charge'],
     }
     positive = {k: v for k, v in rev_items.items() if v > 0}
     if positive:
@@ -583,7 +584,7 @@ def _show_iar_section(short, full_name, revenue, cm, duos_credit, duos_fixed, ia
         -duos_fixed if duos_fixed else None,           # DUoS Fixed
         None,                                          # TNUoS
         revenue['imb_rev'] if revenue['imb_rev'] else None,   # Imbalance Rev
-        -revenue['imb_charge'] if revenue['imb_charge'] else None,  # Imbalance Charge
+        revenue['imb_charge'] if revenue['imb_charge'] else None,   # Imbalance Charge (signed)
         None,  # TOTAL excl (calculated below)
         None,  # TOTAL all (calculated below)
     ]
@@ -882,9 +883,9 @@ def _show_checklist(short, full_name, revenue, scada, daily_cycles, modo,
                            f"SFFR concentration at {sffr_pct:.0f}% of total revenue. "
                            "High dependency on a single ancillary service. "
                            "Monitor SFFR clearing prices and consider diversification."))
-        if revenue['imb_charge'] > revenue['imb_rev'] * 1.5 and revenue['imb_charge'] > 500:
+        if -revenue['imb_charge'] > revenue['imb_rev'] * 1.5 and -revenue['imb_charge'] > 500:
             checks.append(('warning', 'Revenue',
-                           f"Imbalance charges (£{revenue['imb_charge']:,.0f}) significantly exceed "
+                           f"Imbalance charges (£{-revenue['imb_charge']:,.0f}) significantly exceed "
                            f"imbalance revenue (£{revenue['imb_rev']:,.0f}). "
                            "Review dispatch accuracy and position management."))
         if revenue['epex'] < 0 and abs(revenue['epex']) > 1000:

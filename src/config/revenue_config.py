@@ -17,7 +17,9 @@ GB-traded streams (apply fee):
   Wholesale Intraday    — IDA1 Revenue, IDC Revenue
   Balancing Mechanism   — (not currently tracked from GB)
   Frequency Response    — SFFR revenues, DCL/DCH/DRL/DRH/DML/DMH revenues
-  Imbalance             — Imbalance Revenue, Imbalance Charge
+  Imbalance             — Imbalance Revenue (the Imbalance Charge is NOT shared:
+                          the self-bill passes it through at 100%, signed, below
+                          the Sub Total — add it after netting the streams)
   Any Optimised_Revenue_* column produced by the in-house optimiser
 
 NOT GB-traded (no fee — paid direct):
@@ -42,12 +44,14 @@ GB_REVENUE_NET_SHARE: float = 1.0 - GB_FEE_PCT  # 0.95
 
 GB_NET_FOOTNOTE: str = (
     "*Actual and algorithm-optimised revenue figures are shown **net of the "
-    "5% GridBeyond revenue share**. Capacity Market, DUoS and TNUoS amounts "
-    "are paid direct (no GB fee) and are not adjusted.*"
+    "5% GridBeyond revenue share**. The imbalance charge is passed through "
+    "unshared and signed, as on the self-bill. Capacity Market, DUoS and "
+    "TNUoS amounts are paid direct (no GB fee) and are not adjusted.*"
 )
 
 GB_NET_FOOTNOTE_SHORT: str = (
-    "*All revenue values shown net of the 5% GridBeyond revenue share.*"
+    "*All revenue values shown net of the 5% GridBeyond revenue share; the "
+    "imbalance charge passes through unshared, as on the self-bill.*"
 )
 
 # ─────────────────────────────────────────────────────────────
@@ -117,7 +121,6 @@ GB_FEE_COLUMNS: tuple[str, ...] = (
     'DML revenues',
     'DMH revenues',
     'Imbalance Revenue',
-    'Imbalance Charge',
 )
 
 # Optimiser output columns — also net by 5% so Actual vs Optimised is like-for-like.

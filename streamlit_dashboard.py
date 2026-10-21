@@ -372,8 +372,14 @@ def analyze_northwold_data(northwold_df):
     # Revenue Analysis — all GB-traded streams netted by the 5% GridBeyond fee,
     # so figures tie to the GridBeyond invoice and are apples-to-apples with IAR.
     analysis['imbalance_revenue'] = apply_gb_net(northwold_df['Imbalance Revenue'].sum())
-    analysis['imbalance_charge'] = apply_gb_net(northwold_df['Imbalance Charge'].sum())
-    analysis['net_imbalance'] = analysis['imbalance_revenue'] - analysis['imbalance_charge']
+    # 'Imbalance Charge' is SIGNED in the backing data (negative = cost; the
+    # odd positive half-hour is a credit) and the self-bill passes it through
+    # at 100%, unshared: NET REVENUE = Sub Total + DuOS GB Share + Imbalance
+    # Cost. It used to be netted at 95% and SUBTRACTED, which added costs back
+    # and removed credits — the opposite of the bill in every billed month
+    # (Sep 26 +£489, Feb 26 -£1,033 against NET).
+    analysis['imbalance_charge'] = northwold_df['Imbalance Charge'].sum()
+    analysis['net_imbalance'] = analysis['imbalance_revenue'] + analysis['imbalance_charge']
 
     # Revenue streams (net of GB fee)
     analysis['sffr_revenue'] = apply_gb_net(northwold_df['SFFR revenues'].sum())
@@ -386,7 +392,7 @@ def analyze_northwold_data(northwold_df):
         analysis['epex30_revenue'] +
         analysis['ida1_revenue'] +
         analysis['idc_revenue'] +
-        analysis['imbalance_revenue'] -
+        analysis['imbalance_revenue'] +
         analysis['imbalance_charge']
     )
 
@@ -656,10 +662,10 @@ def show_operations_summary(bess_df, northwold_df, bess_analysis, northwold_anal
                      help="Revenue from imbalance mechanism (negative indicates costs)")
         with col6:
             st.metric("Imbalance Charge", f"£{northwold_analysis['imbalance_charge']:,.2f}",
-                     help="Charges from imbalance mechanism")
+                     help="Imbalance cost passed through at 100% as on the self-bill (negative = cost)")
         with col7:
             st.metric("**TOTAL NET REVENUE**", f"£{northwold_analysis['total_net_revenue']:,.2f}",
-                     help="Total net revenue for the month, after 5% GridBeyond fee")
+                     help="Total net revenue for the month: revenue streams after the 5% GridBeyond fee, plus the signed imbalance charge")
 
         st.caption(GB_NET_FOOTNOTE_SHORT)
 
@@ -932,7 +938,7 @@ def show_multimarket_optimization(month: str = "September 2025"):
                 epex_rev = safe_get(row, 'EPEX 30 DA Revenue', 0) + safe_get(row, 'EPEX DA Revenues', 0)
                 ida1_rev = safe_get(row, 'IDA1 Revenue', 0)
                 idc_rev = safe_get(row, 'IDC Revenue', 0)
-                imb_rev = safe_get(row, 'Imbalance Revenue', 0) - abs(safe_get(row, 'Imbalance Charge', 0))
+                imb_rev = safe_get(row, 'Imbalance Revenue', 0) + safe_get(row, 'Imbalance Charge', 0)
                 sffr_rev = safe_get(row, 'SFFR revenues', 0)
 
                 # Check EPEX markets
@@ -1817,8 +1823,9 @@ def show_report_page(month: str = "September 2025"):
     # unnoticed; Jan 2026 alone was overstated by £5,217, 19% of the month.
     idc_revenue = apply_gb_net(northwold_df['IDC Revenue'].sum()) if 'IDC Revenue' in northwold_df.columns else 0
     imbalance_revenue = apply_gb_net(northwold_df['Imbalance Revenue'].sum()) if 'Imbalance Revenue' in northwold_df.columns else 0
-    imbalance_charge = apply_gb_net(northwold_df['Imbalance Charge'].sum()) if 'Imbalance Charge' in northwold_df.columns else 0
-    net_imbalance = imbalance_revenue - imbalance_charge
+    # Signed and unshared, as on the self-bill (see analyze_northwold_data).
+    imbalance_charge = northwold_df['Imbalance Charge'].sum() if 'Imbalance Charge' in northwold_df.columns else 0
+    net_imbalance = imbalance_revenue + imbalance_charge
     actual_total = sffr_revenue + epex_revenue + ida1_revenue + idc_revenue + net_imbalance
 
     # Multi-market revenue (optimiser output also netted by 5% GB fee)
@@ -2099,10 +2106,12 @@ def show_report_page(month: str = "September 2025"):
             daily_actual['Total'] += daily_actual['IDC Revenue']
         if 'Imbalance Revenue' in daily_actual.columns:
             daily_actual['Total'] += daily_actual['Imbalance Revenue']
-        if 'Imbalance Charge' in daily_actual.columns:
-            daily_actual['Total'] -= daily_actual['Imbalance Charge']
-        # Net daily totals by 5% GB fee for apples-to-apples with Optimised.
+        # Net daily totals by 5% GB fee for apples-to-apples with Optimised;
+        # the signed imbalance charge then passes through unshared, as on the
+        # self-bill.
         daily_actual['Total'] = daily_actual['Total'] * GB_REVENUE_NET_SHARE
+        if 'Imbalance Charge' in daily_actual.columns:
+            daily_actual['Total'] += daily_actual['Imbalance Charge']
     else:
         daily_actual = pd.DataFrame()
 
@@ -2284,11 +2293,11 @@ def show_executive_comparison():
         ida1 = apply_gb_net(safe_sum(df, 'IDA1 Revenue'))
         idc = apply_gb_net(safe_sum(df, 'IDC Revenue'))
         imb_rev = apply_gb_net(safe_sum(df, 'Imbalance Revenue'))
-        imb_charge = apply_gb_net(safe_sum(df, 'Imbalance Charge'))
+        imb_charge = safe_sum(df, 'Imbalance Charge')  # signed, unshared (bill basis)
         return {
-            'total': sffr + epex + ida1 + idc + imb_rev - imb_charge,
+            'total': sffr + epex + ida1 + idc + imb_rev + imb_charge,
             'sffr': sffr, 'epex': epex, 'ida1': ida1, 'idc': idc,
-            'imbalance': imb_rev - imb_charge
+            'imbalance': imb_rev + imb_charge
         }
 
     months = []  # list of dicts with all computed metrics
@@ -2820,9 +2829,12 @@ def show_imbalance_deep_dive(month: str = "September 2025"):
         st.error(f"Error loading data: {str(e)}")
         return
 
-    # Calculate imbalance columns — netted by 5% GB fee so figures tie to the GB invoice.
+    # Imbalance Revenue is netted by the 5% GB fee so figures tie to the GB
+    # invoice. The charge is passed through unshared on the self-bill and is
+    # SIGNED in the backing data (negative = cost); this page's counts and
+    # charts treat a charge as a positive cost, so flip the sign here once.
     df['Imbalance Revenue'] = pd.to_numeric(df.get('Imbalance Revenue', 0), errors='coerce').fillna(0) * GB_REVENUE_NET_SHARE
-    df['Imbalance Charge'] = pd.to_numeric(df.get('Imbalance Charge', 0), errors='coerce').fillna(0) * GB_REVENUE_NET_SHARE
+    df['Imbalance Charge'] = -pd.to_numeric(df.get('Imbalance Charge', 0), errors='coerce').fillna(0)
     df['Net_Imbalance'] = df['Imbalance Revenue'] - df['Imbalance Charge']
     df['SSP'] = pd.to_numeric(df['SSP'], errors='coerce').fillna(0)
     df['SBP'] = pd.to_numeric(df['SBP'], errors='coerce').fillna(0)
@@ -3015,7 +3027,7 @@ def show_imbalance_deep_dive(month: str = "September 2025"):
         ], key=lambda x: x[1])
 
         st.error(f"""
-        **Key Finding:** {max_period[1]/total_charge*100:.0f}% of imbalance charges (£{max_period[0]}: £{max_period[1]:,.0f}) occur during **{max_period[0]}** periods.
+        **Key Finding:** {max_period[1]/total_charge*100:.0f}% of imbalance charges ({max_period[0]}: £{max_period[1]:,.0f}) occur during **{max_period[0]}** periods.
 
         **Potential Causes:**
         - Forecast errors during high-demand periods
@@ -3297,8 +3309,8 @@ def generate_pdf_report(month: str = "September 2025"):
     ida1 = apply_gb_net(safe_sum(df, 'IDA1 Revenue'))
     idc = apply_gb_net(safe_sum(df, 'IDC Revenue'))
     imb_rev = apply_gb_net(safe_sum(df, 'Imbalance Revenue'))
-    imb_charge = apply_gb_net(safe_sum(df, 'Imbalance Charge'))
-    total_actual = sffr + epex + ida1 + idc + imb_rev - imb_charge
+    imb_charge = safe_sum(df, 'Imbalance Charge')  # signed, unshared (bill basis)
+    total_actual = sffr + epex + ida1 + idc + imb_rev + imb_charge
 
     optimal = apply_gb_net(opt_df['Optimised_Revenue_Multi'].sum()) if 'Optimised_Revenue_Multi' in opt_df.columns else 0
     capture_rate = (total_actual / optimal * 100) if optimal > 0 else 0
@@ -3324,8 +3336,9 @@ OPTIMAL (SIMULATED):    £{optimal:,.0f}
 REVENUE GAP:            £{gap:,.0f}
 CAPTURE RATE:           {capture_rate:.1f}%
 
-  All figures are shown net of the 5% GridBeyond revenue share.
-  The optimiser output is also netted on the assumption that, in
+  All figures are shown net of the 5% GridBeyond revenue share; the
+  imbalance charge is signed and passed through unshared, as on the
+  self-bill. The optimiser output is also netted on the assumption that, in
   real-world deployment, the optimised revenue would clear through
   GridBeyond or an equivalent aggregator.
 
@@ -3338,7 +3351,7 @@ EPEX Trading:                  £{epex:,.0f}
 IDA1 Trading:                  £{ida1:,.0f}
 IDC Trading:                   £{idc:,.0f}
 Imbalance Revenue:             £{imb_rev:,.0f}
-Imbalance Charges:            -£{imb_charge:,.0f}
+Imbalance Charge (signed):     £{imb_charge:,.0f}
                               ──────────
 TOTAL:                         £{total_actual:,.0f}
 
@@ -3356,8 +3369,8 @@ TOTAL:                         £{total_actual:,.0f}
     else:
         report += "ASSESSMENT: POOR - Major optimization opportunities exist\n"
 
-    if imb_charge > 1000:
-        report += f"\n⚠️  WARNING: High imbalance charges of £{imb_charge:,.0f} detected\n"
+    if imb_charge < -1000:
+        report += f"\n⚠️  WARNING: High imbalance charges of £{-imb_charge:,.0f} detected\n"
 
     report += f"""
 --------------------------------------------------------------------------------
@@ -3365,7 +3378,7 @@ TOTAL:                         £{total_actual:,.0f}
 --------------------------------------------------------------------------------
 
 1. {'MAINTAIN current strategy - excellent capture rate' if capture_rate >= 90 else 'REVIEW trading strategy to close revenue gap'}
-2. {'Imbalance management is effective' if imb_charge < 1000 else f'INVESTIGATE imbalance charges (£{imb_charge:,.0f} this month)'}
+2. {'Imbalance management is effective' if imb_charge > -1000 else f'INVESTIGATE imbalance charges (£{-imb_charge:,.0f} this month)'}
 3. Continue monitoring multi-market optimization opportunities
 4. Review ancillary service allocation for efficiency
 
@@ -3516,7 +3529,7 @@ def show_pdf_export_page(month: str = "September 2025"):
                     epex = apply_gb_net(safe_sum(master_df, 'EPEX 30 DA Revenue') + safe_sum(master_df, 'EPEX DA Revenues'))
                     ida1 = apply_gb_net(safe_sum(master_df, 'IDA1 Revenue'))
                     idc = apply_gb_net(safe_sum(master_df, 'IDC Revenue'))
-                    imb = apply_gb_net(safe_sum(master_df, 'Imbalance Revenue') - safe_sum(master_df, 'Imbalance Charge'))
+                    imb = apply_gb_net(safe_sum(master_df, 'Imbalance Revenue')) + safe_sum(master_df, 'Imbalance Charge')
                     gb_total = sffr + epex + ida1 + idc + imb
                     optimal = apply_gb_net(opt_df['Optimised_Revenue_Multi'].sum()) if 'Optimised_Revenue_Multi' in opt_df.columns else 0
                     cm = CM_EXPORT.get(short, 0)
@@ -3960,7 +3973,7 @@ def show_iar_vs_actual():
             idc = apply_gb_net(safe_sum_b(df, 'IDC Revenue'))
             sffr = apply_gb_net(safe_sum_b(df, 'SFFR revenues'))
             imb_rev = apply_gb_net(safe_sum_b(df, 'Imbalance Revenue'))
-            imb_charge = apply_gb_net(safe_sum_b(df, 'Imbalance Charge'))
+            imb_charge = safe_sum_b(df, 'Imbalance Charge')   # signed, unshared (bill basis)
             cm = m['cm']
             duos_cr = m['duos_credit']      # export credit, gross (positive)
             duos_im = m['duos_import']      # import volumetric cost (positive)
@@ -3978,7 +3991,7 @@ def show_iar_vs_actual():
             # gb_total  = streams GridBeyond settles and takes its 5% of.
             # full_total = + Capacity Market and DUoS, which Northwold is paid
             #              directly for (EMR / Hartree), so they carry no GB fee.
-            gb_total = sffr + epex + intraday + imb_rev - imb_charge
+            gb_total = sffr + epex + intraday + imb_rev + imb_charge
             # DUoS now nets properly: credit earned exporting, less the cost of
             # importing to charge, less the standing/capacity charges. That last
             # term is ~£6.6k/month and was missing entirely.
@@ -4006,7 +4019,7 @@ def show_iar_vs_actual():
                 -duos_fx if duos_fx else None,
                 tnuos if tnuos else None,  # Triad; blank in months with none
                 imb_rev if imb_rev != 0 else None,
-                -imb_charge if imb_charge != 0 else None,
+                imb_charge if imb_charge != 0 else None,   # signed: negative = cost
                 total_excl_bm_tnuos, full_total
             ]
 
@@ -4249,8 +4262,8 @@ def show_benchmark_comparison():
             imb_rev = safe_sum_b(df, 'Imbalance Revenue')
             imb_charge = safe_sum_b(df, 'Imbalance Charge')
 
-            gross = sffr + epex + ida1 + idc + imb_rev - imb_charge
-            return apply_gb_net(gross)
+            # The signed imbalance charge passes through unshared, as on the self-bill.
+            return apply_gb_net(sffr + epex + ida1 + idc + imb_rev) + imb_charge
 
         def calculate_cycles_local(df, power_col, capacity_mwh=8.4, dt_hours=0.5):
             """Calculate cycles using industry standard method."""
@@ -4783,8 +4796,8 @@ def show_benchmark_comparison():
                 'EPEX DA': apply_gb_net(epex),
                 'IDA1': apply_gb_net(ida1),
                 'IDC': apply_gb_net(idc),
-                'Imbalance': apply_gb_net(imb_rev - imb_charge),
-                'Total': apply_gb_net(sffr + epex + ida1 + idc + imb_rev - imb_charge),
+                'Imbalance': apply_gb_net(imb_rev) + imb_charge,
+                'Total': apply_gb_net(sffr + epex + ida1 + idc + imb_rev) + imb_charge,
             }
 
         def get_opt_revenue_breakdown(df):
@@ -4888,8 +4901,10 @@ def show_benchmark_comparison():
         st.markdown("""
 **Formula:**
 ```
-GridBeyond Gross  = SFFR + EPEX DA + IDA1 + IDC + Imbalance Revenue - Imbalance Charge
-GridBeyond Net    = GridBeyond Gross × 0.95   (5% GB revenue share deducted)
+GridBeyond Gross  = SFFR + EPEX DA + IDA1 + IDC + Imbalance Revenue
+GridBeyond Net    = GridBeyond Gross × 0.95 + Imbalance Charge
+                    (5% GB share on revenue; the signed imbalance charge — negative = cost —
+                     passes through unshared, exactly as on the GridBeyond self-bill)
 Total Revenue     = GridBeyond Net + Capacity Market + DUoS Net Credit - DUoS Fixed Charges
 ```
 
@@ -5963,9 +5978,9 @@ def _bd_load_month_metrics(short, days, master_f, opt_f, capacity_mw=4.2, capaci
         + _bd_safe_sum(master, 'IDA1 Revenue')
         + _bd_safe_sum(master, 'IDC Revenue')
         + _bd_safe_sum(master, 'Imbalance Revenue')
-        - _bd_safe_sum(master, 'Imbalance Charge')
     )
-    actual = gross_actual * GB_REVENUE_NET_SHARE
+    # The signed imbalance charge passes through unshared, as on the self-bill.
+    actual = gross_actual * GB_REVENUE_NET_SHARE + _bd_safe_sum(master, 'Imbalance Charge')
 
     try:
         opt = pd.read_csv(os.path.join(DATA_DIR, opt_f))
@@ -6609,7 +6624,7 @@ def _northwold_daily_streams(master_file: str, capacity_mw: float = 4.2):
         'Wholesale': apply_gb_net(col('EPEX 30 DA Revenue') + col('EPEX DA Revenues')
                                   + col('IDA1 Revenue') + col('IDC Revenue')),
         # Net of the charge — imbalance can and does run negative.
-        'Imbalance': apply_gb_net(col('Imbalance Revenue') - col('Imbalance Charge')),
+        'Imbalance': apply_gb_net(col('Imbalance Revenue')) + col('Imbalance Charge'),
     }).groupby('date', as_index=False).sum()
 
     for s in COMPARABLE_STREAMS:
