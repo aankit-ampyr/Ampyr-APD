@@ -53,3 +53,7 @@ test_*.csv
 # Confidential Tinte contract material (local only - do not push)
 raw/Tinte/*EPC*.pdf
 src/data_cleaning/tinte_contract.py
+
+# Confidential Elsterheide contract material + parameters (local only - do not push)
+contracts/
+src/data_cleaning/elsterheide_contract.py

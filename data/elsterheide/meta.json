@@ -1,0 +1,82 @@
+{
+  "asset": "Elsterheide",
+  "type": "Solar PV",
+  "country": "Germany",
+  "location": "Gemeinde Elsterheide, Landkreis Bautzen, Saxony",
+  "epc_parks": {
+    "1+2": {
+      "dc_kwp": 70285.64,
+      "groups": [
+        "1&2"
+      ]
+    },
+    "3+4": {
+      "dc_kwp": 89878.62,
+      "groups": [
+        "3 (TR102)",
+        "4 (TR101)"
+      ]
+    }
+  },
+  "groups": {
+    "1&2": {
+      "park": "1+2",
+      "connection": "UW Neuwiese (110 kV, MITNETZ STROM)",
+      "meters": [
+        "10110122",
+        "10110125"
+      ],
+      "dc_kwp": null
+    },
+    "3 (TR102)": {
+      "park": "3+4",
+      "connection": "UW Bluno",
+      "meters": [
+        "10107710",
+        "10107711"
+      ],
+      "dc_kwp": null
+    },
+    "4 (TR101)": {
+      "park": "3+4",
+      "connection": "UW Bluno",
+      "meters": [
+        "10110338"
+      ],
+      "dc_kwp": null
+    }
+  },
+  "assumptions": {
+    "interval_label": "period_end_assumed",
+    "timezone": "naive plant-local time (Europe/Berlin), DST untested",
+    "h01_h02_additive_assumed": true,
+    "meters_are": "Janitza UMG 604 MV feeder meters \u2014 control metering, not settlement meters"
+  },
+  "resolution_min": 5,
+  "period_start": "2026-08-01",
+  "period_end": "2026-08-31",
+  "n_days": 31,
+  "total_energy_mwh": {
+    "1&2": 8615.903,
+    "3 (TR102)": 6841.009,
+    "4 (TR101)": 4615.012,
+    "site": 20071.925
+  },
+  "missing_5min_meter_intervals": {
+    "1&2": 1582,
+    "3 (TR102)": 0,
+    "4 (TR101)": 0
+  },
+  "peak_15min_mw": {
+    "1&2": 51.07,
+    "3 (TR102)": 38.16,
+    "4 (TR101)": 31.45,
+    "site": 118.55,
+    "site_at": "2026-08-03 13:00:00"
+  },
+  "files": [
+    "Elsterheide 1&2 meter data.xlsx",
+    "Elsterheide 3 meter data.xlsx",
+    "Elsterheide 4 meter data.xlsx"
+  ]
+}
